@@ -20,7 +20,7 @@ from ats.log.utils import banner
 from ats.connections import BaseConnection
 
 # Genie
-from genie.trafficgen.implementation import Implementation
+from genie.trafficgen.trafficgen import TrafficGen
 from genie.utils.summary import Summary
 from genie.harness.utils import get_url
 from genie.harness.exceptions import GenieTgnError
@@ -39,7 +39,7 @@ log = logging.getLogger(__name__)
 _PASS = '::ixNet::OK'
 
 
-class Implementation(Implementation):
+class IxiaNative(TrafficGen):
 
     def __init__(self, *args, **kwargs):
 

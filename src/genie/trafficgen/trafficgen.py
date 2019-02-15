@@ -5,14 +5,18 @@ Connection Implementation class for traffic generator device
 # pyATS
 from ats.connections import BaseConnection
 
+# For abstract
+from genie.abstract import Lookup
 
-class Implementation(BaseConnection):
+
+class TrafficGen(BaseConnection):
 
     def __init__(self, *args, **kwargs):
         '''__init__ instantiates a single connection instance.'''
 
-        # instantiate BaseConnection
-        BaseConnection.__init__(self, *args, **kwargs)
+        super().__init__(*args, **kwargs)
+
+        # Set default
         self._is_connected = False
 
 
