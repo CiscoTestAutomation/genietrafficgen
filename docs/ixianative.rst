@@ -37,10 +37,10 @@ as shown in the example below:
     devices:
       IXIA:
         type: tgn
-        os: 'ixnetwork_native'
+        os: 'ixianative'
         connections:
           tgn:
-            class: genie.libs.conf.device.ixnetwork_native.connection.GenieIxiaNative
+            class: genie.trafficgen.ixianative.IxiaNative
             ixnetwork_api_server: 172.25.195.91
             ixnetwork_tcl_port: 8012
             ixnetwork_version: '8.10'
@@ -52,15 +52,16 @@ It is **mandatory** to specify a connection named 'tgn' along with the
 connection manager details for the Ixia device in the testbed YAML file as shown
 in the example above.
 
-OS `ixnetwork_native` uses an IxNetwork native Python based connection library:
-`genie.libs.conf.device.ixnetwork_native.connection.GenieIxiaNative`
+OS `ixianative` uses an IxNetwork native Python based connection library:
+`genie.trafficgen.ixianative.IxiaNative`
 
 .. tip::
 
     1. The `type` key must be set to "tgn".
     2. The `os` key specifies which OS implementation to use to connect to this
-       device. Use "ixnetwork_native" for IxNetwork native.
-    3. The `connections` key specifies the connection label.
+       device. Use "ixianative" for IxNetwork native.
+    3. The `connections` key specifies the connection label which **must**
+       contain a connection labelled `tgn`.
 
 The following are mandatory keys to be provided in the `testbed` YAML while
 defining an Ixia `device`:

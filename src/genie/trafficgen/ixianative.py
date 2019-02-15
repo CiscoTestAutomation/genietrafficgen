@@ -43,7 +43,6 @@ class IxiaNative(TrafficGen):
 
     def __init__(self, *args, **kwargs):
 
-        # BaseConnection
         super().__init__(*args, **kwargs)
 
         # Init class variables
@@ -52,9 +51,6 @@ class IxiaNative(TrafficGen):
         self._genie_view = None
         self._genie_page = None
         self._golden_profile = prettytable.PrettyTable()
-
-        dev_connections = {
-            key: value for (key,value) in self.device.connections.items() if key != 'defaults'}
 
         # Get Ixia device arguments from testbed YAML file
         for key in ['ixnetwork_api_server', 'ixnetwork_tcl_port', 'ixia_port_list',
@@ -79,7 +75,7 @@ class IxiaNative(TrafficGen):
         ''' Returns golden profile'''
         return self._golden_profile
 
-    @BaseConnection.locked
+
     def connect(self):
         '''Connect to Ixia'''
 
@@ -107,20 +103,29 @@ class IxiaNative(TrafficGen):
         summary.add_sep_line()
         summary.print()
 
+        # Execute connect on IxNetwork
         try:
             connect = self.ixNet.connect(self.ixnetwork_api_server,
-                                    '-port', self.ixnetwork_tcl_port,
-                                    '-version', self.ixnetwork_version,
-                                    '-setAttribute', 'strict')
+                                        '-port', self.ixnetwork_tcl_port,
+                                        '-version', self.ixnetwork_version,
+                                        '-setAttribute', 'strict')
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Failed to connect to device '{d}' on port "
+                                "'{p}'".format(d=self.device.name,
+                                            p=self.ixnetwork_tcl_port)) from e
+        # Verify return
+        try:
             assert connect == _PASS
         except AssertionError as e:
             log.error(connect)
-            raise GenieTgnError("Failed to connect to device '{d}' on port '{p}'".\
-                format(d=self.device.name, p=self.ixnetwork_tcl_port))
+            raise GenieTgnError("Failed to connect to device '{d}' on port "
+                                "'{p}'".format(d=self.device.name,
+                                            p=self.ixnetwork_tcl_port)) from e
         else:
             self._is_connected = True
             log.info("Connected to IxNetwork API server on TCL port '{p}'".\
-                format(d=self.device.name, p=self.ixnetwork_tcl_port))
+                     format(d=self.device.name, p=self.ixnetwork_tcl_port))
 
 
     def _get_current_traffic_state(self):
@@ -129,8 +134,8 @@ class IxiaNative(TrafficGen):
         try:
             state = self.ixNet.getAttribute('/traffic', '-state')
         except Exception as e:
-            log.error(state)
-            raise GenieTgnError("Unable to get current traffic state")
+            log.error(e)
+            raise GenieTgnError("Unable to get current traffic state") from e
         else:
             return state
 
@@ -149,13 +154,23 @@ class IxiaNative(TrafficGen):
         summary.add_sep_line()
         summary.print()
 
+        # Execute load config on IxNetwork
         try:
-            load_config = self.ixNet.execute('loadConfig', self.ixNet.readFrom(configuration))
+            load_config = self.ixNet.execute('loadConfig', 
+                                             self.ixNet.readFrom(configuration))
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to load configuration file '{f}' onto "
+                                "device '{d}'".format(d=self.device.name,
+                                                f=configuration)) from e
+        # Verify return
+        try:
             assert load_config == _PASS
         except AssertionError as e:
             log.error(load_config)
             raise GenieTgnError("Unable to load configuration file '{f}' onto "
-                "device '{d}'".format(d=self.device.name, f=configuration))
+                                "device '{d}'".format(d=self.device.name,
+                                                f=configuration)) from e
         else:
             log.info("Loaded configuration file '{f}' onto device '{d}'".\
                     format(f=configuration, d=self.device.name))
@@ -170,9 +185,9 @@ class IxiaNative(TrafficGen):
         try:
             assert self._get_current_traffic_state() == 'unapplied'
         except AssertionError as e:
-            raise GenieTgnError("Traffic is not in 'unapplied' state "
-                                "after loading configuration onto "
-                                "device '{}'".format(self.device.name))
+            raise GenieTgnError("Traffic is not in 'unapplied' state after "
+                                "loading configuration onto device '{}'".\
+                                format(self.device.name)) from e
         else:
             log.info("Traffic in 'unapplied' state after loading configuration "
                      "onto device '{}'".format(self.device.name))
@@ -210,7 +225,8 @@ class IxiaNative(TrafficGen):
                 assert self.ixNet.getAttribute(vport, '-state') == 'up'
                 assert self.ixNet.getAttribute(vport, '-isConnected') == 'true'
         except Exception as e:
-            raise GenieTgnError("Error assigning Ixia ports for configuration")
+            log.error(e)
+            raise GenieTgnError("Error assigning Ixia ports") from e
         else:
             log.info("Assigned the following Ixia ports for configuration:")
             for port in self.ixia_port_list:
@@ -222,13 +238,20 @@ class IxiaNative(TrafficGen):
 
         log.info(banner("Starting routing engine"))
 
+        # Start protocols on IxNetwork
         try:
             start_protocols = self.ixNet.execute('startAllProtocols')
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to start all protocols on device '{}'".\
+                                format(self.device.name)) from e
+        # Verify return
+        try:
             assert start_protocols == _PASS
         except AssertionError as e:
             log.error(start_protocols)
             raise GenieTgnError("Unable to start all protocols on device '{}'".\
-                                format(self.device.name))
+                                format(self.device.name)) from e
         else:
             log.info("Started protocols on device '{}".format(self.device.name))
 
@@ -243,13 +266,20 @@ class IxiaNative(TrafficGen):
 
         log.info(banner("Stopping routing engine"))
 
+        # Stop protocols on IxNetwork
         try:
             stop_protocols = self.ixNet.execute('stopAllProtocols')
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to stop all protocols on device '{}".\
+                                format(self.device.name)) from e
+        # Verify return
+        try:
             assert stop_protocols == _PASS
         except AssertionError as e:
             log.error(stop_protocols)
             raise GenieTgnError("Unable to stop all protocols on device '{}".\
-                                format(self.device.name))
+                                format(self.device.name)) from e
         else:
             log.info("Stopped protocols on device '{}".format(self.device.name))
 
@@ -264,16 +294,22 @@ class IxiaNative(TrafficGen):
 
         log.info(banner("Applying L2/L3 traffic"))
 
+        # Apply traffic on IxNetwork
         try:
             apply_traffic = self.ixNet.execute('apply', '/traffic')
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to apply L2/L3 traffic on device '{}'".\
+                                format(self.device.name)) from e
+        # Verify return
+        try:
             assert apply_traffic == _PASS
         except AssertionError as e:
             log.error(apply_traffic)
             raise GenieTgnError("Unable to apply L2/L3 traffic on device '{}'".\
-                                format(self.device.name))
+                                format(self.device.name)) from e
         else:
-            log.info("Applied L2/L3 traffic on device '{}'".\
-                     format(self.device.name))
+            log.info("Applied L2/L3 traffic on device '{}'".format(self.device.name))
 
         # Wait after applying L2/L3 traffic
         log.info("Waiting for '{}' seconds after applying L2/L3 traffic...".\
@@ -289,7 +325,8 @@ class IxiaNative(TrafficGen):
                                 "applying L2/L3 traffic on device '{}'".\
                                 format(self.device.name))
         else:
-            log.info("Traffic is in 'stopped' state")
+            log.info("Traffic is in 'stopped' state after applying traffic as"
+                     "expected")
 
 
     def send_arp(self, wait_time=10):
@@ -297,13 +334,20 @@ class IxiaNative(TrafficGen):
 
         log.info(banner("Sending ARP to all interfaces from Ixia"))
 
+        # Send ARP from Ixia
         try:
             send_arp = self.ixNet.execute('sendArpAll')
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to send ARP to all interfaces on device"
+                                " '{}'".format(self.device.name)) from e
+        # Verify return
+        try:
             assert send_arp == _PASS
         except AssertionError as e:
             log.error(send_arp)
             raise GenieTgnError("Unable to send ARP to all interfaces on device"
-                                " '{}'".format(self.device.name))
+                                " '{}'".format(self.device.name)) from e
         else:
             log.info("Sent ARP to all interfaces on device '{}'".\
                     format(self.device.name))
@@ -319,13 +363,19 @@ class IxiaNative(TrafficGen):
 
         log.info(banner("Sending NS to all interfaces from Ixia"))
 
+        # Sent NS from Ixia
         try:
             send_ns = self.ixNet.execute('sendNsAll')
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Error sending NS to all interfaces on device "
+                                "'{}'".format(self.device.name)) from e
+        try:
             assert send_ns == _PASS
         except AssertionError as e:
             log.error(send_ns)
             raise GenieTgnError("Error sending NS to all interfaces on device "
-                                "'{}'".format(self.device.name))
+                                "'{}'".format(self.device.name)) from e
         else:
             log.info("Sent NS to all interfaces on device '{}'".\
                         format(self.device.name))
@@ -341,13 +391,20 @@ class IxiaNative(TrafficGen):
 
         log.info(banner("Starting L2/L3 traffic"))
 
+        # Start traffic on IxNetwork
         try:
             start_traffic = self.ixNet.execute('start', '/traffic')
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to start traffic on device '{}'".\
+                                format(self.device.name)) from e
+        # Verify return
+        try:
             assert start_traffic == _PASS
         except AssertionError as e:
             log.error(start_traffic)
             raise GenieTgnError("Unable to start traffic on device '{}'".\
-                                format(self.device.name))
+                                format(self.device.name)) from e
         else:
             log.info("Started L2/L3 traffic on device '{}'".\
                         format(self.device.name))
@@ -372,13 +429,20 @@ class IxiaNative(TrafficGen):
 
         log.info(banner("Stopping L2/L3 traffic"))
 
+        # Stop traffic on IxNetwork
         try:
             stop_traffic = self.ixNet.execute('stop', '/traffic')
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to stop traffic on device '{}'".\
+                                format(self.device.name)) from e
+        # Verify result
+        try:
             assert stop_traffic == _PASS
         except AssertionError as e:
             log.error(stop_traffic)
             raise GenieTgnError("Unable to stop traffic on device '{}'".\
-                                format(self.device.name))
+                                format(self.device.name)) from e
         else:
             log.info("Stopped L2/L3 traffic on device '{}'".\
                         format(self.device.name))
@@ -406,10 +470,9 @@ class IxiaNative(TrafficGen):
         log.info("Clearing all statistics...")
         try:
             clear_stats = self.ixNet.execute('clearStats')
-            assert clear_stats == _PASS
-        except AssertionError as e:
-            log.error(clear_stats)
-            raise GenieTgnError("Unable to clear traffic statistics")
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to clear traffic statistics") from e
         else:
             log.info("Successfully cleared traffic statistics on device '{}'".\
                          format(self.device.name))
@@ -417,10 +480,9 @@ class IxiaNative(TrafficGen):
         log.info("Clearing port statistics...")
         try:
             clear_port_stats = self.ixNet.execute('clearPortsAndTrafficStats')
-            assert clear_port_stats == _PASS
-        except AssertionError as e:
-            log.error(clear_port_stats)
-            raise GenieTgnError("Unable to clear port statistics")
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to clear port statistics") from e
         else:
             log.info("Successfully cleared port statistics on device '{}'".\
                          format(self.device.name))
@@ -428,10 +490,9 @@ class IxiaNative(TrafficGen):
         log.info("Clearing protocol statistics...")
         try:
             clear_protocol_stats = self.ixNet.execute('clearProtocolStats')
-            assert clear_protocol_stats == _PASS
-        except AssertionError as e:
-            log.error(clear_protocol_stats)
-            raise GenieTgnError("Unable to clear protocol statistics")
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to clear protocol statistics") from e
         else:
             log.info("Successfully cleared protocol statistics on device '{}'".\
                          format(self.device.name))
@@ -441,13 +502,6 @@ class IxiaNative(TrafficGen):
                     format(wait_time))
         time.sleep(wait_time)
 
-    def _ixnet_caller(self, func, *args, **kwargs):
-        ''' Wrapper to capture error from ixNet calls'''
-
-        ret = func(*args, **kwargs)
-        if not ret.startswith("*** IxNetwork.IxNetwork.IxNetError") or '::ixNet::ERROR' not in ret:
-            return ret
-        raise GenieTgnError(ret)
 
     def create_genie_statistics_view(self, view_create_interval=30, view_create_iteration=10):
         '''Creates a custom TCL View named "Genie" with the required stats data'''
@@ -462,8 +516,9 @@ class IxiaNative(TrafficGen):
                     self.ixNet.remove(view)
                     self.ixNet.commit()
         except Exception as e:
+            log.error(e)
             raise GenieTgnError("Unable to delete any previously created "
-                                "traffic statistics view named 'GENIE'.")
+                                "traffic statistics view named 'GENIE'.") from e
 
         # Create a new TCL View called "GENIE"
         try:
@@ -475,8 +530,9 @@ class IxiaNative(TrafficGen):
             self._genie_view = self.ixNet.remapIds(self._genie_view)
             self._genie_view = self._genie_view[0]
         except Exception as e:
+            log.error(e)
             raise GenieTgnError("Unable to create new traffic statistics view "
-                                "named 'GENIE'.")
+                                "named 'GENIE'.") from e
 
         # Populate traffic stream statistics in new TCL View 'GENIE'
         log.info("Populating custom IxNetwork traffic statistics view 'GENIE'...")
@@ -527,8 +583,9 @@ class IxiaNative(TrafficGen):
             log.info("Populated traffic statistics view 'GENIE' with required "
                      "data.")
         except Exception as e:
+            log.error(e)
             raise GenieTgnError("Unable to populate traffic statistics view "
-                                "'GENIE' with required data.")
+                                "'GENIE' with required data.") from e
 
         # Create Genie Page object to parse later
         log.info("Displaying custom IxNetwork traffic statistics view 'GENIE' page...")
@@ -552,8 +609,9 @@ class IxiaNative(TrafficGen):
                              "is ready.")
                     break
         except Exception as e:
+            log.error(e)
             raise GenieTgnError("Unable to create custom IxNetwork traffic "
-                                "statistics view 'GENIE' page.")
+                                "statistics view 'GENIE' page.") from e
 
 
     def check_traffic_loss(self, loss_tolerance=15, check_interval=60, check_iteration=10):
@@ -576,6 +634,7 @@ class IxiaNative(TrafficGen):
                             '::ixNet::OBJ-/statistics/view:"Traffic Item Statistics"',
                             field))
                 except Exception as e:
+                    log.error(e)
                     raise GenieTgnError("Unable to get traffic statistics to "
                                         "check for traffic loss") from e
 
@@ -643,7 +702,9 @@ class IxiaNative(TrafficGen):
                 row_item[0], row_item[1] = row_item[1], row_item[0]
                 profile_table.add_row(row_item)
         except Exception as e:
-            raise GenieTgnError("Unable to create traffic profile of configured streams")
+            log.error(e)
+            raise GenieTgnError("Unable to create traffic profile of all "
+                                "configured streams") from e
         else:
             log.info("Created traffic streams snapshot profile of all configured"
                      "streams on Ixia")
@@ -662,30 +723,22 @@ class IxiaNative(TrafficGen):
 
 
     def compare_traffic_profile(self, profile1, profile2, loss_tolerance=1,
-                                        frames_tolerance=2, rate_tolerance=2):
+                                frames_tolerance=2, rate_tolerance=2):
         '''Compare two Ixia traffic profiles'''
 
         log.info(banner("Comparing traffic profiles"))
 
-        # Check both objects are tables
-        try:
-            assert isinstance(profile1, prettytable.PrettyTable) is True
-        except AssertionError as e:
-            raise GenieTgnError("Profile1 is not in expected format")
+        # Check profile1
+        if not isinstance(profile1, prettytable.PrettyTable) or not profile1.field_names:
+            raise GenieTgnError("Profile1 is not in expected format or missing data")
         else:
-            log.info("Profile1 is in expected format")
-        try:
-            assert isinstance(profile2, prettytable.PrettyTable) is True
-        except AssertionError as e:
-            raise GenieTgnError("Profile2 is not in expected format")
-        else:
-            log.info("Profile2 is in expected format")
+            log.info("Profile1 is in expected format with data")
 
-        # Check both profiles have traffic data
-        if not profile1.field_names:
-            raise GenieTgnError("Profile1 does not have traffic data")
-        elif  not profile2.field_names:
-            raise GenieTgnError("Profile2 does not have traffic data")
+        # Check profile2
+        if not isinstance(profile2, prettytable.PrettyTable) or not profile2.field_names:
+            raise GenieTgnError("Profile2 is not in expected format or missing data")
+        else:
+            log.info("Profile2 is in expected format with data")
 
         # Compare both profiles
         compare_profile = True
@@ -711,12 +764,12 @@ class IxiaNative(TrafficGen):
                     log.error("Profile1:\n{}".format(profile1_row))
                     log.error("Profile2:\n{}".format(profile2_row))
                     raise GenieTgnError("Comparison failed for traffic item: "
-                        "'{t}' '{s}'".format(
-                            t=profile1_row_values['stream_name'],
-                            s=profile1_row_values['src_dest_pair']))
+                                        "'{t}' '{s}'".format(
+                                        t=profile1_row_values['stream_name'],
+                                        s=profile1_row_values['src_dest_pair'])) from e
                 else:
                     log.info("Comparison passed for traffic item: '{t}' '{s}'".\
-                        format(t=profile1_row_values['stream_name'],
-                               s=profile1_row_values['src_dest_pair']))
+                            format(t=profile1_row_values['stream_name'],
+                            s=profile1_row_values['src_dest_pair']))
             else:
                 raise GenieTgnError("Profiles provided do not have traffic data")
