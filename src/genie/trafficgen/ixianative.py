@@ -53,8 +53,8 @@ class IxiaNative(TrafficGen):
         self._golden_profile = prettytable.PrettyTable()
 
         # Get Ixia device arguments from testbed YAML file
-        for key in ['ixnetwork_api_server', 'ixnetwork_tcl_port', 'ixia_port_list',
-                    'ixnetwork_version', 'ixia_chassis', 'ixia_license_server']:
+        for key in ['ixnetwork_api_server_ip', 'ixnetwork_tcl_port', 'ixia_port_list',
+                    'ixnetwork_version', 'ixia_chassis_ip', 'ixia_license_server_ip']:
             # Verify Ixia ports provided are a list
             if key is 'ixia_port_list':
                 if not isinstance(self.connection_info[key], list):
@@ -85,7 +85,7 @@ class IxiaNative(TrafficGen):
         header = "Ixia Chassis Details"
         summary = Summary(title=header, width=45)
         summary.add_message(msg='IxNetwork API Server: {}'.\
-                            format(self.ixnetwork_api_server))
+                            format(self.ixnetwork_api_server_ip))
         summary.add_sep_line()
         summary.add_message(msg='IxNetwork API Server Platform: Windows')
         summary.add_sep_line()
@@ -93,10 +93,10 @@ class IxiaNative(TrafficGen):
                          format(self.ixnetwork_version))
         summary.add_sep_line()
         summary.add_message(msg='Ixia Chassis: {}'.\
-                         format(self.ixia_chassis))
+                         format(self.ixia_chassis_ip))
         summary.add_sep_line()
         summary.add_message(msg='Ixia License Server: {}'.\
-                         format(self.ixia_license_server))
+                         format(self.ixia_license_server_ip))
         summary.add_sep_line()
         summary.add_message(msg='Ixnetwork TCL Port: {}'.\
                          format(self.ixnetwork_tcl_port))
@@ -105,7 +105,7 @@ class IxiaNative(TrafficGen):
 
         # Execute connect on IxNetwork
         try:
-            connect = self.ixNet.connect(self.ixnetwork_api_server,
+            connect = self.ixNet.connect(self.ixnetwork_api_server_ip,
                                         '-port', self.ixnetwork_tcl_port,
                                         '-version', self.ixnetwork_version,
                                         '-setAttribute', 'strict')
@@ -200,7 +200,7 @@ class IxiaNative(TrafficGen):
         for item in self.ixia_port_list:
             ixnet_port = []
             lc, port = item.split('/')
-            for tmpvar in self.ixia_chassis, lc, port:
+            for tmpvar in self.ixia_chassis_ip, lc, port:
                 ixnet_port.append(tmpvar)
             self.physical_ports.append(ixnet_port)
 
@@ -209,7 +209,7 @@ class IxiaNative(TrafficGen):
             self.chassis = self.ixNet.add(self.ixNet.getRoot() + \
                                           'availableHardware',\
                                           'chassis', '-hostname',\
-                                          self.ixia_chassis)
+                                          self.ixia_chassis_ip)
             self.ixNet.commit()
             self.chassis = self.ixNet.remapIds(self.chassis)
 
