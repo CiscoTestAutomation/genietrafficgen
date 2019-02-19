@@ -11,7 +11,7 @@
 #   asg-genie-dev@cisco.com
 #
 # Support:
-#   asg0-genie-support@cisco.com
+#   asg-genie-support@cisco.com
 #
 # Version:
 #   v3.0
@@ -20,7 +20,7 @@
 #   February 2019
 #
 # About This File:
-#   This script will build the genie.metaparser package for distribution in
+#   This script will build the genie.trafficgen package for distribution in
 #   PyPI server
 #
 # Requirements:
@@ -33,7 +33,7 @@ PKG_NAME      = genietrafficgen
 BUILD_DIR     = $(shell pwd)/__build__
 DIST_DIR      = $(BUILD_DIR)/dist
 PROD_USER     = pyadm@pyats-ci
-PROD_PKGS     = /auto/pyats/packages/cisco-shared
+PROD_PKGS     = /auto/pyats/packages/cisco-shared/genietrafficgen
 PYTHON        = python
 TESTCMD       = $(PYTHON) setup.py test
 BUILD_CMD     = $(PYTHON) setup.py bdist_wheel --dist-dir=$(DIST_DIR)
@@ -45,23 +45,7 @@ DEPENDENCIES += setproctitle sphinxcontrib-napoleon sphinx-rtd-theme httplib2
 DEPENDENCIES += pip-tools Cython requests
 
 ifeq ($(MAKECMDGOALS), devnet)
-    DEVNET = true
-    CYTHONIZE = true
-    INCLUDE_TESTS = false
-endif
- 
-# build options
-ifeq ($(CYTHONIZE), true)
-    BUILD_CMD += --cythonize
-endif
- 
-ifeq ($(INCLUDE_TESTS), true)
-    BUILD_CMD += --include-tests
-endif
- 
-# build options
-ifeq ($(DEVNET), true)
-    BUILD_CMD += --devnet
+	BUILD_CMD += --devnet
 endif
 
 .PHONY: clean package distribute develop undevelop help devnet\
@@ -94,12 +78,12 @@ install_build_deps:
 	@pip install --index-url=http://pyats-pypi.cisco.com/simple \
 	             --trusted-host=pyats-pypi.cisco.com \
 	             cisco-distutils
- 
+
 uninstall_build_deps:
 	@echo "--------------------------------------------------------------------"
 	@echo "Uninstalling pyats-distutils"
 	@pip uninstall cisco-distutils
- 
+
 docs:
 	@echo ""
 	@echo "--------------------------------------------------------------------"
@@ -107,11 +91,11 @@ docs:
 	@sphinx-build -b html -c docs/ -d ./__build__/documentation/doctrees docs/ ./__build__/documentation/html
 	@echo "Completed building docs for preview."
 	@echo ""
- 
- 
+
+
 test:
 	@$(TESTCMD)
- 
+
 package:
 	@echo ""
 	@echo "--------------------------------------------------------------------"
@@ -123,7 +107,7 @@ package:
 	@echo ""
 	@echo "Completed building: $@"
 	@echo ""
- 
+
 develop:
 	@echo ""
 	@echo "--------------------------------------------------------------------"
@@ -139,7 +123,7 @@ develop:
 	@echo ""
 	@echo "Completed building and installing: $@"
 	@echo ""
- 
+
 undevelop:
 	@echo ""
 	@echo "--------------------------------------------------------------------"
@@ -151,7 +135,7 @@ undevelop:
 	@echo ""
 	@echo "Completed uninstalling: $@"
 	@echo ""
- 
+
 clean:
 	@echo ""
 	@echo "--------------------------------------------------------------------"
@@ -163,7 +147,7 @@ clean:
 	@echo ""
 	@echo "Done."
 	@echo ""
- 
+
 distribute:
 	@echo ""
 	@echo "--------------------------------------------------------------------"
