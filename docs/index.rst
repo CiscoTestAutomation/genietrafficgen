@@ -17,6 +17,7 @@ Genie currently supports the following traffic generator devices:
 
 
 .. toctree::
-   :maxdepth: 3
+   :maxdepth: 1
 
    ixianative
+   changelog/index
