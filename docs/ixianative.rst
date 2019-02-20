@@ -319,9 +319,9 @@ User's can specify arguments to control the ``Genie`` harness subsections via:
 .. code-block:: python
 
     gRun(config_datafile=os.path.join(test_path, 'config_datafile.yaml'),
-         tgn-load-configuration=False,
-         tgn-start-protocols=True,
-         tgn-traffic-loss-tolerance=15.0,
+         tgn_load_configuration=False,
+         tgn_start_protocols=True,
+         tgn_traffic_loss_tolerance=15.0,
          )
 
     2. Through easypy in command line as shown below:
@@ -333,7 +333,7 @@ User's can specify arguments to control the ``Genie`` harness subsections via:
                   --tgn-start-protocols False \
                   --tgn-traffic-loss-tolerance 20.0
 
-.. code-block:: text    
+.. code-block:: text
 
     +--------------------------------------------------------------------------+
     | Genie Harness Traffic Generator Arguments                                |
