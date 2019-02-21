@@ -53,12 +53,14 @@ class IxiaNative(TrafficGen):
         self._golden_profile = prettytable.PrettyTable()
 
         # Get Ixia device arguments from testbed YAML file
-        for key in ['ixnetwork_api_server_ip', 'ixnetwork_tcl_port', 'ixia_port_list',
-                    'ixnetwork_version', 'ixia_chassis_ip', 'ixia_license_server_ip']:
+        for key in ['ixnetwork_api_server_ip', 'ixnetwork_tcl_port',
+                    'ixia_port_list', 'ixnetwork_version', 'ixia_chassis_ip',
+                    'ixia_license_server_ip']:
             # Verify Ixia ports provided are a list
             if key is 'ixia_port_list':
                 if not isinstance(self.connection_info[key], list):
-                    log.error("Attribute 'ixia_port_list' is not a list as expected")
+                    log.error("Attribute '{}' is not a list as expected".\
+                              format(key))
             try:
                 setattr(self, key, self.connection_info[key])
             except Exception:
@@ -78,6 +80,10 @@ class IxiaNative(TrafficGen):
 
     def connect(self):
         '''Connect to Ixia'''
+
+        # If already connected do nothing
+        if self._is_connected:
+            return
 
         log.info(banner("Connecting to IXIA"))
 
@@ -573,6 +579,9 @@ class IxiaNative(TrafficGen):
             if source_dest_track_id:
                 self.ixNet.setAttribute(enumerationFilter, '-trackingFilterId', source_dest_track_id)
                 self.ixNet.commit()
+            else:
+                raise GenieTgnError("Unable to get 'Source/Dest Port Pair' for "
+                                    "traffic statistics view 'GENIE'") from e
 
             # Re-enable TCL View "GENIE"
             self.ixNet.setAttribute(self._genie_view, '-enabled', 'true')
@@ -667,13 +676,15 @@ class IxiaNative(TrafficGen):
                 raise GenieTgnError("Traffic loss observed and streams have not"
                                     " converged to steady state")
             else:
-                log.error("Sleeping '{}' seconds and rechecking traffic streams".\
-                            format(check_interval))
+                log.error("Attempt #{i}: Sleeping '{s}' seconds and rechecking "
+                          "traffic streams for packet loss".\
+                          format(i=i, s=check_interval))
                 time.sleep(check_interval)
 
 
-    def create_traffic_profile(self, set_golden=False, clear_stats_time=30,
-                               view_create_interval=30, view_create_iteration=5):
+    def create_traffic_profile(self, set_golden=False, clear_stats=True,
+                               clear_stats_time=30, view_create_interval=30,
+                               view_create_iteration=5):
         '''Create traffic profile of configured streams on Ixia'''
 
         # If Genie view and page has not been created before, create one
@@ -682,7 +693,8 @@ class IxiaNative(TrafficGen):
                                               view_create_iteration=view_create_iteration)
 
         # Clear stats and wait
-        self.clear_statistics(wait_time=clear_stats_time)
+        if clear_stats:
+            self.clear_statistics(wait_time=clear_stats_time)
 
         # Parse traffic statistics view 'GENIE' for traffic profile data
         log.info(banner("Creating traffic profile of configured streams on Ixia"))

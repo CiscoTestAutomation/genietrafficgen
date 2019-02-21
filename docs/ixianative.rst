@@ -770,9 +770,9 @@ processor: clear_traffic_statistics
 `clear_traffic_statistics` is a ``Genie`` pre-trigger processor. It clears all
 statistics on an Ixia traffic generator `device`, before a trigger is executed.
 
-User's can set argument `clear_stats_time` in the `trigger_datafile` YAML to
-set how long to wait after clearing statistics on IxNetwork API server as shown
-below:
+User's can set optional argument `clear_stats_time` in the `trigger_datafile`
+YAML to set how long to wait after clearing statistics on IxNetwork API server
+as shown below:
 
 .. code-block:: yaml
 
@@ -802,9 +802,9 @@ specified tolerance limit for the prescribed number of iterations/checks,
 
 The `check_traffic_loss` post-trigger processor has the following arguments:
 
-1. loss_tolerance: Maximum loss % permitted. Default is 15%
-2. check_interval: Maximum attempts to verify traffic/frames loss is within tolerance specified before failing processor. Default is 10 iterations.
-3. check_iteration: Wait time to re-check traffic/frames loss is within tolerance specified before failing processor. Default is 30 seconds.
+1. [Optional] loss_tolerance: Maximum loss % permitted. Default: 15%.
+2. [Optional] check_interval: Wait time to re-check traffic/frames loss is within tolerance specified before failing processor. Default: 30 seconds.
+3. [Optional] check_iteration: Maximum attempts to verify traffic/frames loss is within tolerance specified before failing processor. Default: 10 attempts.
 
 User's can set arguments for `check_traffic_loss` in the `trigger_datafile`
 as shown below:
@@ -836,9 +836,13 @@ during the common_setup: initialize_traffic subsection.
 
 The `compare_traffic_profile` post-trigger processor has the following arguments:
 
-1. loss_tolerance: Maximum difference between loss% of both profiles. Default is 2 %
-2. frames_tolerance: Maximum difference between frames loss of both profiles.Default is 5 frames.
-3. rate_tolerance: Maximum difference between rate loss of both profiles. Default is 2 pps.
+1. [Optional] clear_stats: Controls executing clearing of traffic statistics before creating a traffic profile snapshot. Default: True.
+2. [Optional] clear_stats_time: Time to wait after clear traffic stats. Default: 30 seconds.
+3. [Optional] view_create_interval: Time to wait for custom traffic statistics view 'GENIE' to stabilize (if not previously created & stabilized). Default: 30 seconds.
+4. [Optional] view_create_iteration: Maximum attempts to check if traffic statistics view 'GENIE' is stable (if not previously created & stabilized). Default: 10 attempts.
+5. [Optional] loss_tolerance: Maximum difference between loss% of both profiles. Default: 2%.
+6. [Optional] frames_tolerance: Maximum difference between frames loss of both profiles.Default: 5 frames.
+7. [Optional] rate_tolerance: Maximum difference between rate loss of both profiles. Default: 2 pps.
 
 User's can set arguments for `compare_traffic_profile` in the `trigger_datafile`
 as shown below:
@@ -853,6 +857,10 @@ as shown below:
             compare_traffic_profile:
               method: genie.harness.libs.prepostprocessor.compare_traffic_profile
               parameters:
+                clear_stats: True
+                clear_stats_time: 30
+                view_create_interval: 30
+                view_create_iteration: 10
                 loss_tolerance: 1
                 frames_tolerance: 2
                 rate_tolerance: 2
