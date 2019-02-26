@@ -572,16 +572,28 @@ class IxiaNative(TrafficGen):
             # Add 'Source/Dest Port Pair' column to TCL view (extracted through trackingFilterIds)
             source_dest_track_id = None
             trackingFilterIdList = self.ixNet.getList(self._genie_view, 'availableTrackingFilter')
+
+            # Check if 'Source/Dest Port Pair' is found, if not, enable it
+            tiList = self.ixNet.getList('/traffic', 'trafficItem')
+            for ti in tiList:
+                trackByList = self.ixNet.getAttribute(ti + '/tracking', '-trackBy')
+                if 'sourceDestPortPair0' not in trackByList:
+                    import pdb ; pdb.set_trace()
+                    self.ixNet.setAttribute(ti + '/tracking', '-trackBy', ['sourceDestPortPair0'])
+                    self.ixNet.commit()
+
+            # Find the 'Source/Dest Port Pair' object, add it to the 'GENIE' view
             for track_id in trackingFilterIdList:
                 if re.search('Source/Dest Port Pair', track_id):
                     source_dest_track_id = track_id
                     break
+            import pdb ; pdb.set_trace()
             if source_dest_track_id:
                 self.ixNet.setAttribute(enumerationFilter, '-trackingFilterId', source_dest_track_id)
                 self.ixNet.commit()
             else:
                 raise GenieTgnError("Unable to get 'Source/Dest Port Pair' for "
-                                    "traffic statistics view 'GENIE'") from e
+                                    "traffic statistics view 'GENIE'")
 
             # Re-enable TCL View "GENIE"
             self.ixNet.setAttribute(self._genie_view, '-enabled', 'true')
