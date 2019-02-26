@@ -526,6 +526,30 @@ class IxiaNative(TrafficGen):
             raise GenieTgnError("Unable to delete any previously created "
                                 "traffic statistics view named 'GENIE'.") from e
 
+        # Check if 'Source/Dest Port Pair' filter present, if not, add it
+        log.info("Checking if 'Source/Dest Port Pair' filter is found for traffic items...")
+        try:
+            src_dest_added = False
+            for ti in self.ixNet.getList('/traffic', 'trafficItem'):
+                trackByList = self.ixNet.getAttribute(ti + '/tracking', '-trackBy')
+                if 'sourceDestPortPair0' in trackByList:
+                    continue
+                else:
+                    src_dest_added = True
+                    if self._get_current_traffic_state() != 'stopped' and self._get_current_traffic_state() != 'unapplied':
+                        self.stop_traffic(wait_time=15)
+                    trackByList.append('sourceDestPortPair0')
+                    self.ixNet.setMultiAttribute(ti + '/tracking', '-trackBy', trackByList)
+
+            if src_dest_added:
+                self.ixNet.commit()
+                self.apply_traffic(wait_time=15)
+                self.start_traffic(wait_time=15)
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Error adding 'Source/Dest port Pair' filer to "
+                                "'flow tracking' for traffic items") from e
+
         # Create a new TCL View called "GENIE"
         try:
             self._genie_view = self.ixNet.add(self.ixNet.getRoot() + '/statistics', 'view')
@@ -563,7 +587,14 @@ class IxiaNative(TrafficGen):
                 if stat in availableStatList:
                     self.ixNet.setAttribute(stat, '-enabled', 'true')
                     self.ixNet.commit()
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to add Tx/Rx Frame Rate, Loss %, Frames"
+                        " delta data to 'GENIE' traffic statistics view") from e
 
+        # Add 'Source/Dest Port Pair' data to 'GENIE' view
+        log.info("Add 'Source/Dest Port Pair' data to 'GENIE' traffic statistics view...")
+        try:
             # Create and set enumerationFilter to descending
             enumerationFilter = self.ixNet.add(self._genie_view+'/layer23TrafficFlowFilter', 'enumerationFilter')
             self.ixNet.setAttribute(enumerationFilter, '-sortDirection', 'descending')
@@ -572,6 +603,8 @@ class IxiaNative(TrafficGen):
             # Add 'Source/Dest Port Pair' column to TCL view (extracted through trackingFilterIds)
             source_dest_track_id = None
             trackingFilterIdList = self.ixNet.getList(self._genie_view, 'availableTrackingFilter')
+
+            # Find the 'Source/Dest Port Pair' object, add it to the 'GENIE' view
             for track_id in trackingFilterIdList:
                 if re.search('Source/Dest Port Pair', track_id):
                     source_dest_track_id = track_id
@@ -580,9 +613,16 @@ class IxiaNative(TrafficGen):
                 self.ixNet.setAttribute(enumerationFilter, '-trackingFilterId', source_dest_track_id)
                 self.ixNet.commit()
             else:
-                raise GenieTgnError("Unable to get 'Source/Dest Port Pair' for "
-                                    "traffic statistics view 'GENIE'") from e
+                raise GenieTgnError("Unable to add 'Source/Dest Port Pair' to "
+                                    "'GENIE' traffic statistics view.")
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to add 'Source/Dest Port Pair' to "
+                                "'GENIE' traffic statistics view.") from e
 
+        # Enable 'GENIE' view visibility
+        log.info("Enable custom IxNetwork traffic statistics view 'GENIE'...")
+        try:
             # Re-enable TCL View "GENIE"
             self.ixNet.setAttribute(self._genie_view, '-enabled', 'true')
             self.ixNet.setAttribute(self._genie_view, '-visible', 'true')
@@ -593,7 +633,7 @@ class IxiaNative(TrafficGen):
                      "data.")
         except Exception as e:
             log.error(e)
-            raise GenieTgnError("Unable to populate traffic statistics view "
+            raise GenieTgnError("Error while enabling traffic statistics view "
                                 "'GENIE' with required data.") from e
 
         # Create Genie Page object to parse later
@@ -678,7 +718,7 @@ class IxiaNative(TrafficGen):
             else:
                 log.error("Attempt #{i}: Sleeping '{s}' seconds and rechecking "
                           "traffic streams for packet loss".\
-                          format(i=i, s=check_interval))
+                          format(i=i+1, s=check_interval))
                 time.sleep(check_interval)
 
 
