@@ -578,7 +578,6 @@ class IxiaNative(TrafficGen):
             for ti in tiList:
                 trackByList = self.ixNet.getAttribute(ti + '/tracking', '-trackBy')
                 if 'sourceDestPortPair0' not in trackByList:
-                    import pdb ; pdb.set_trace()
                     self.ixNet.setAttribute(ti + '/tracking', '-trackBy', ['sourceDestPortPair0'])
                     self.ixNet.commit()
 
@@ -587,7 +586,6 @@ class IxiaNative(TrafficGen):
                 if re.search('Source/Dest Port Pair', track_id):
                     source_dest_track_id = track_id
                     break
-            import pdb ; pdb.set_trace()
             if source_dest_track_id:
                 self.ixNet.setAttribute(enumerationFilter, '-trackingFilterId', source_dest_track_id)
                 self.ixNet.commit()
