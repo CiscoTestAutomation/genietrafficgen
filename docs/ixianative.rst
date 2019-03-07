@@ -12,9 +12,9 @@ Package IxNetwork.
 System Requirements
 -------------------
 
-1. Ixia chassis - version 
-2. IxNetwork API server - version 7.40+ (standalone or within Ixia chassis)
-3. :ixnetwork_pypi:`IxNetwork PyPI Package<http>` - version 8.50.1501.9+
+1. Ixia chassis with ports and active Ixia licenses
+2. IxNetwork API server version 7.40 or higher (running standalone or within Ixia chassis)
+3. Installed :ixnetwork_pypi:`ixnetwork<http>` PyPI package (version 8.50.1501.9+)
 
 Ixia Libraries
 ^^^^^^^^^^^^^^
@@ -125,7 +125,7 @@ The following table contains a list of available methods/actions to perform on
 an Ixia traffic generator device:
 
 
-.. code-block:: text    
+.. code-block:: text
 
     +--------------------------------------------------------------------------+
     | Traffic Generator Methods                                                |
@@ -196,12 +196,12 @@ an Ixia traffic generator device:
     | check_traffic_loss      | Checks all traffic streams for traffic loss.   |
     |                         | Arguments:                                     |
     |                         |   * [O] loss_tolerance - max % of traffic loss |
-    |                         |         allowed. Default is 10%.               |
+    |                         |         allowed. Default: 10%.                 |
     |                         |   * [O] check_interval - wait time between     |
     |                         |         traffic loss checks on Ixia.           |
     |                         |         Default: 30 (seconds)                  |
     |                         |   * [O] check_iteration - max iterations for   |
-    |                         |         traffic loss checks. Default is 10.    |
+    |                         |         traffic loss checks. Default: 10.      |
     |-------------------------+------------------------------------------------|
     | create_traffic_profile  | Returns a 'profile' of traffic streams that are|
     |                         | configured on Ixia as a Python PrettyTable.    |
@@ -219,7 +219,7 @@ an Ixia traffic generator device:
     |                         |           Default: 30 (seconds)                |
     |                         |     * [O] view_create_iteration - max iteration|
     |                         |           for checking if custom traffic items |
-    |                         |           view is ready. Default is 10.        |
+    |                         |           view is ready. Default: 10.          |
     |-------------------------+------------------------------------------------|
     | get_golden_profile      | Returns the "golden" traffic profile in Python |
     |                         | PrettyTable format. If not set, returns empty  |
@@ -296,7 +296,7 @@ key, as shown below:
         profile_traffic:
           method: genie.harness.commons.profile_traffic
 
-      order: ['connect', 'configure', initialize_traffic', 'profile_traffic']
+      order: ['connect', 'configure', 'initialize_traffic', 'profile_traffic']
 
     cleanup:
       sections:
@@ -309,29 +309,29 @@ key, as shown below:
 Genie Harness Traffic Generator Arguments
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The table below is a list of arguments that can be configured by the user to control
-traffic generator subsections in ``Genie`` harness.
-
 User's can specify arguments to control the ``Genie`` harness subsections via:
 
-    1. Through gRun in the job file as shown below:
+    1. gRun in the job file as shown below:
 
-.. code-block:: python
+    .. code-block:: python
 
-    gRun(config_datafile=os.path.join(test_path, 'config_datafile.yaml'),
-         tgn_load_configuration=False,
-         tgn_start_protocols=True,
-         tgn_traffic_loss_tolerance=15.0,
-         )
+        gRun(config_datafile=os.path.join(test_path, 'config_datafile.yaml'),
+             tgn_load_configuration=False,
+             tgn_start_protocols=True,
+             tgn_traffic_loss_tolerance=15.0)
 
-    2. Through easypy in command line as shown below:
 
-.. code-block:: bash
+    2. easypy in command line as shown below:
 
-    easypy job.py --testbed-file <testbed yaml> \
-                  --tgn-load-configuration True \
-                  --tgn-start-protocols False \
-                  --tgn-traffic-loss-tolerance 20.0
+    .. code-block:: bash
+
+        easypy job.py --testbed-file <testbed yaml> \
+                      --tgn-load-configuration True \
+                      --tgn-start-protocols False \
+                      --tgn-traffic-loss-tolerance 20.0
+
+The table below is a list of arguments that can be configured by the user to control
+traffic generator subsections in ``Genie`` harness.
 
 .. code-block:: text
 
