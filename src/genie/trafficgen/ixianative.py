@@ -663,10 +663,56 @@ class IxiaNative(TrafficGen):
                                 "statistics view 'GENIE' page.") from e
 
 
-    def check_traffic_loss(self, loss_tolerance=15, check_interval=60, check_iteration=10):
+    def get_traffic_stream_data(self, traffic_stream, traffic_data_field):
+        '''Get specific data field for specific traffic stream from "Traffic Item Statistics" '''
+
+        # Check if valid traffic_data_field provided
+        # TODO: expand the list of acceptable fields to pull data from
+        assert traffic_data_field in ['Tx Frames', 'Rx Frames', 'Loss %', 
+                                      'Frames Delta']
+
+        # Get all stream data for given traffic_stream
+        try:
+            return self.ixNet.execute('getValue', 
+                '::ixNet::OBJ-/statistics/view:"Traffic Item Statistics"', 
+                traffic_stream, traffic_data_field)
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Error while retrieving '{data}' for traffic "
+                                "stream '{stream}' from 'Traffic Item Statistics'".\
+                                format(data=traffic_data_field, stream=traffic_stream))
+
+
+    def get_traffic_streams(self):
+        '''Get traffic streams present in current configuration from "Traffic Item Statistics" '''
+
+        # Init
+        traffic_stream_names = []
+
+        # Get traffic streams from Ixia
+        try:
+            traffic_items = self.ixNet.execute('getColumnValues',
+                        '::ixNet::OBJ-/statistics/view:"Traffic Item Statistics"',
+                        'Traffic Item')
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Error while retrieving traffic items from"
+                                " 'Traffic Item Statistics'")
+
+        # Create list
+        for item in traffic_items:
+            traffic_stream_names.append(item)
+
+        # Return to caller
+        return traffic_stream_names
+
+
+    def check_traffic_loss(self, loss_tolerance=15, check_interval=60, check_iteration=10, traffic_stream=''):
         '''Check for traffic loss on a traffic stream configured on Ixia'''
 
         log.info(banner("Checking all streams for traffic loss on Ixia"))
+        log.info("Waiting '{}' seconds before checking for traffic loss".\
+                 format(check_interval))
         time.sleep(check_interval)
 
         for i in range(check_iteration):
@@ -694,8 +740,10 @@ class IxiaNative(TrafficGen):
             # Check for traffic loss and tx/frames count for each traffic item
             for row in traffic_table:
                 row.header = False ; row.border = False
-                log.info("Traffic item '{}':".\
-                        format(row.get_string(fields=["Traffic Item"]).strip()))
+                current_stream = row.get_string(fields=["Traffic Item"]).strip()
+                if traffic_stream and traffic_stream != current_stream:
+                    continue
+                log.info("Checking traffic item '{}':".format(current_stream))
 
                 # Get loss percentage
                 if row.get_string(fields=["Loss %"]).strip() != '':
