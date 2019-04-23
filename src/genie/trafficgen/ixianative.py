@@ -667,9 +667,12 @@ class IxiaNative(TrafficGen):
         '''Get specific data field for specific traffic stream from "Traffic Item Statistics" '''
 
         # Check if valid traffic_data_field provided
-        # TODO: expand the list of acceptable fields to pull data from
-        assert traffic_data_field in ['Tx Frames', 'Rx Frames', 'Loss %', 
-                                      'Frames Delta']
+        supported_fields = ['Tx Frames', 'Rx Frames', 'Loss %',  'Frames Delta',
+                            'Store-Forward Avg Latency (ns)',
+                            'Store-Forward Min Latency (ns)',
+                            'Store-Forward Max Latency (ns)']
+        assert traffic_data_field in supported_fields,
+                    "'{}' is not a supported field".format(traffic_data_field)
 
         # Get all stream data for given traffic_stream
         try:
