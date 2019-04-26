@@ -48,6 +48,7 @@ class IxiaNative(TrafficGen):
         # Init class variables
         self.ixNet = IxNet()
         self._is_connected = False
+        self.virtual_ports = []
         self._genie_view = None
         self._genie_page = None
         self._golden_profile = prettytable.PrettyTable()
@@ -219,8 +220,8 @@ class IxiaNative(TrafficGen):
             self.ixNet.commit()
             self.chassis = self.ixNet.remapIds(self.chassis)
 
-            # Create virtual ports for extracted physical ports
-            self.virtual_ports = self.ixNet.getList(self.ixNet.getRoot(), 'vport')
+            # Get virtual ports for extracted physical ports
+            self.virtual_ports = self.get_ixia_virtual_ports()
 
             # Assign ports
             self.ixNet.execute('assignPorts', self.physical_ports, [],
@@ -671,8 +672,7 @@ class IxiaNative(TrafficGen):
                             'Store-Forward Avg Latency (ns)',
                             'Store-Forward Min Latency (ns)',
                             'Store-Forward Max Latency (ns)']
-        assert traffic_data_field in supported_fields,
-                    "'{}' is not a supported field".format(traffic_data_field)
+        assert traffic_data_field in supported_fields, ("'{}' is not a supported field".format(traffic_data_field))
 
         # Get all stream data for given traffic_stream
         try:
@@ -708,6 +708,29 @@ class IxiaNative(TrafficGen):
 
         # Return to caller
         return traffic_stream_names
+
+
+    def set_traffic_stream_data(self, traffic_stream, config_field, config_value):
+        '''Set specified configuration element for a traffic stream'''
+
+        # Change value for the stream
+        try:
+            self.ixNet.setAttribute(traffic_stream, '-{}'.format(config_field), config_value)
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Error while setting attribute '{data}' for traffic "
+                                "stream '{stream}' from 'Traffic Item Statistics'".\
+                                format(data=config_field, stream=traffic_stream))
+
+        # Verify that configuration value for the stream has changed
+        try:
+            assert config_value == self.get_traffic_stream_data(
+                                            traffic_stream=traffic_stream, 
+                                            traffic_data_field=config_field)
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("'{f}' configuration not updated for '{s}'".\
+                            format(f=config_field, s=traffic_stream))
 
 
     def check_traffic_loss(self, loss_tolerance=15, check_interval=60, check_iteration=10, traffic_stream=''):
@@ -779,9 +802,7 @@ class IxiaNative(TrafficGen):
                 time.sleep(check_interval)
 
 
-    def create_traffic_profile(self, set_golden=False, clear_stats=True,
-                               clear_stats_time=30, view_create_interval=30,
-                               view_create_iteration=5):
+    def create_traffic_profile(self, set_golden=False, clear_stats=True, clear_stats_time=30, view_create_interval=30, view_create_iteration=5):
         '''Create traffic profile of configured streams on Ixia'''
 
         # If Genie view and page has not been created before, create one
@@ -831,8 +852,7 @@ class IxiaNative(TrafficGen):
         return profile_table
 
 
-    def compare_traffic_profile(self, profile1, profile2, loss_tolerance=1,
-                                frames_tolerance=2, rate_tolerance=2):
+    def compare_traffic_profile(self, profile1, profile2, loss_tolerance=1, frames_tolerance=2, rate_tolerance=2):
         '''Compare two Ixia traffic profiles'''
 
         log.info(banner("Comparing traffic profiles"))
@@ -882,3 +902,86 @@ class IxiaNative(TrafficGen):
                             s=profile1_row_values['src_dest_pair']))
             else:
                 raise GenieTgnError("Profiles provided do not have traffic data")
+
+
+    def get_ixia_virtual_ports(self):
+        ''' Get virtual IXIA ports'''
+
+        try:
+            # Set attribute here
+            self.virtual_ports = self.ixNet.getList(self.ixNet.getRoot(), 'vport')
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to get ports on Ixia")
+        else:
+            return self.virtual_ports
+
+
+    def get_ixia_port_attributes(self, vport, attribute):
+        ''' Get attributes for IXIA virtual port'''
+        try:
+            value = self.ixNet.getAttribute(vport, '-{}'.format(attribute))
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to get attribute '{a}'' for ixia"
+                                " port '{p}'".format(a=attribute, p=vport))
+        else:
+            return value
+
+
+    #--------------------------------------------------------------------------#
+    #                        Packet Capture Support                            #
+    #--------------------------------------------------------------------------#
+
+
+    def enable_control_packet_capture(self, port_names=[]):
+        '''Enable control packet capture'''
+
+        captureObj1 = ixNet.getList(vport1, 'capture')[0]
+        self.ixNet.setAttribute(captureObj1, '-softwareEnabled', 'true')
+        self.ixNet.commit()
+
+
+    def enable_data_packet_capture(self, port_names=[]):
+        '''Enable data packet capture'''
+
+        # Get Ixia ports
+        if not self.virtual_ports:
+            self.virtual_ports = self.get_ixia_virtual_ports()
+
+        for port in port_names:
+
+            # Verify port_names provided are valid
+            assert port in self.virtual_ports
+
+            try:
+                # Get captureObj for this virtual port
+                captureObj = self.ixNet.getList(vport2, 'capture')[0]
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Unable to get captureObj for vport")
+
+            try:
+                # Enable data packet capture on port/node
+                self.ixNet.setAttribute(captureObj, '-hardwareEnabled', 'true')
+                self.ixNet.commit()
+            except Exception as e:
+                raise GenieTgnError("Error while enabling data packet capture "
+                                    "on port '{}'".format(self.\
+                                        get_ixia_port_attributes(vport=vport, 
+                                                               attribute=name)))
+
+
+    def start_packet_capture(self, capture_time=60):
+        '''Start capturing packets for a specified amount of time'''
+
+        self.ixNet.execute('startCapture')
+        time.sleep(30)
+
+
+    def stop_packet_capture(self):
+        '''Stop capturing packets'''
+
+        self.ixNet.execute('startCapture')
+
+
