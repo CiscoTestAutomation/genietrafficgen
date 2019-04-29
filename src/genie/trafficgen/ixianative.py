@@ -220,8 +220,8 @@ class IxiaNative(TrafficGen):
             self.ixNet.commit()
             self.chassis = self.ixNet.remapIds(self.chassis)
 
-            # Get virtual ports for extracted physical ports
-            self.virtual_ports = self.get_ixia_virtual_ports()
+            # Create virtual ports for extracted physical ports
+            self.virtual_ports = self.ixNet.getList(self.ixNet.getRoot(), 'vport')
 
             # Assign ports
             self.ixNet.execute('assignPorts', self.physical_ports, [],
