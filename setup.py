@@ -34,11 +34,10 @@ URL = _EXTERNAL_URL if is_devnet_build() else _INTERNAL_URL
 # get version information
 version, version_range = version_info('src', 'genie', 'trafficgen', '__init__.py')
 
-install_requires=['setuptools', 'wheel', 'genie']
+install_requires=['setuptools', 'wheel', 'genie', 'ixnetwork']
 
 if is_devnet_build():
     install_requires.insert(0, 'pyats')
-    install_requires.insert(0, 'ixnetwork')
 
 def find_examples(*paths):
     '''finds all example files'''
