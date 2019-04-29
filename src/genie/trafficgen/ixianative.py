@@ -697,16 +697,22 @@ class IxiaNative(TrafficGen):
                 log.info("Traffic item '{}':".\
                         format(row.get_string(fields=["Traffic Item"]).strip()))
 
+                # Get loss percentage
+                if row.get_string(fields=["Loss %"]).strip() != '':
+                    loss_percentage = row.get_string(fields=["Loss %"]).strip()
+                else:
+                    loss_percentage = 0
+
                 # Check traffic loss
-                if float(row.get_string(fields=["Loss %"]).strip()) <= float(loss_tolerance):
+                if float(loss_percentage) <= float(loss_tolerance):
                     log.info("  * Traffic loss of {l}% is within expected loss "
-                            "tolerance of {t}%".format(t=loss_tolerance,
-                            l=row.get_string(fields=["Loss %"]).strip()))
+                             "tolerance of {t}%".format(t=loss_tolerance,
+                             l=loss_percentage))
                 else:
                     loss_check_pass = False
                     log.error("  * Traffic loss of {l}% is *not* within expected"
-                            " loss tolerance of {t}%".format(t=loss_tolerance,
-                            l=row.get_string(fields=["Loss %"]).strip()))
+                              " loss tolerance of {t}%".format(t=loss_tolerance,
+                              l=loss_percentage))
 
             # If all streams had no traffic loss/frames loss, break
             if loss_check_pass:
