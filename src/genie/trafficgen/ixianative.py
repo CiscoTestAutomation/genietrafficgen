@@ -814,12 +814,25 @@ class IxiaNative(TrafficGen):
             # Ensure profiles have traffic data/content
             if profile1_row_values and profile2_row_values:
                 try:
+                    # Compare traffic profiles
                     assert profile1_row_values['src_dest_pair'] == profile2_row_values['src_dest_pair']
                     assert profile1_row_values['stream_name'] == profile2_row_values['stream_name']
                     assert abs(int(profile1_row_values['frames_delta']) - int(profile2_row_values['frames_delta'])) <= int(frames_tolerance)
-                    assert abs(float(profile1_row_values['loss']) - float(profile2_row_values['loss'])) <= float(loss_tolerance)
                     assert abs(float(profile1_row_values['tx_rate']) - float(profile2_row_values['tx_rate'])) <= float(rate_tolerance)
                     assert abs(float(profile1_row_values['rx_rate']) - float(profile2_row_values['rx_rate'])) <= float(rate_tolerance)
+                    # Check if loss % in profile1 is not ''
+                    try:
+                        float(profile1_row_values['loss'])
+                    except ValueError:
+                        profile1_row_values['loss'] = 0
+                    # Check if loss % in profile2 is not ''
+                    try:
+                        float(profile2_row_values['loss'])
+                    except ValueError:
+                        profile2_row_values['loss'] = 0
+                    # Compare traffic loss between profiles now
+                    assert abs(float(profile1_row_values['loss']) - float(profile2_row_values['loss'])) <= float(loss_tolerance)
+
                 except AssertionError as e:
                     log.error("Profile1:\n{}".format(profile1_row))
                     log.error("Profile2:\n{}".format(profile2_row))
@@ -899,14 +912,6 @@ class IxiaNative(TrafficGen):
 
     def get_traffic_stream_data(self, traffic_stream, traffic_data_field):
         '''Get specific data field for specific traffic stream from "Traffic Item Statistics" '''
-
-        # Check if valid traffic_data_field provided
-        # TODO: expand this list to support more fields as required
-        supported_fields = ['Tx Frames', 'Rx Frames', 'Loss %',  'Frames Delta',
-                            'Store-Forward Avg Latency (ns)',
-                            'Store-Forward Min Latency (ns)',
-                            'Store-Forward Max Latency (ns)']
-        assert traffic_data_field in supported_fields, ("'{}' is not a supported field".format(traffic_data_field))
 
         # Get all stream data for given traffic_stream
         try:
@@ -1136,7 +1141,7 @@ class IxiaNative(TrafficGen):
                 raise GenieTgnError("Error while extracting data of packet capture")
 
 
-    def save_packet_capture_file(self, port_name, pcap_type, filename):
+    def save_packet_capture_file(self, port_name, pcap_type, filename, directory='C:/Results'):
         '''Save packet capture file as specified filename to desired location'''
 
         # Verify user has provided correct packet type to count
@@ -1150,7 +1155,7 @@ class IxiaNative(TrafficGen):
         log.info("Saving packet capture file...")
         try:
             # Save file to C:
-            assert self.ixNet.execute('saveCapture', 'C:/Results', '_{}'.\
+            assert self.ixNet.execute('saveCapture', directory, '_{}'.\
                                                 format(filename)) == _PASS
         except AssertionError as e:
             log.info(e)
