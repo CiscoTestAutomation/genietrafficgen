@@ -127,104 +127,172 @@ an Ixia traffic generator device:
 
 .. code-block:: text
 
-    +--------------------------------------------------------------------------+
-    | Traffic Generator Methods                                                |
-    +==========================================================================+
-    | Methods                 | Description                                    |
-    |-------------------------+------------------------------------------------|
-    | connect                 | Connect to Ixia traffic generator device.      |
-    |                         | Arguments:                                     |
-    |                         |   * [O] alias - In testbed YAML.               |
-    |                         |   * [O] via - In mapping datafile.             |
-    |-------------------------+------------------------------------------------|
-    | load_configuration      | Loads the configuration onto Ixia device.      |
-    |                         | Arguments:                                     |
-    |                         |   * [M] configuration - static configuration   |
-    |                         |         file for Ixia.                         |
-    |                         |   * [O] wait_time - time to wait after loading |
-    |                         |         configuration file.                    |
-    |                         |         Default: 60 (seconds)                  |
-    |-------------------------+------------------------------------------------|
-    | start_all_protocols     | Starts all protocols on Ixia device.           |
-    |                         | Arguments:                                     |
-    |                         |   * [O] wait_time - time to wait after starting|
-    |                         |         all protocols on Ixia.                 |
-    |                         |         Default: 60 (seconds)                  |
-    |-------------------------+------------------------------------------------|
-    | stop_all_protocols      | Stops all protocols on Ixia device.            |
-    |                         | Arguments:                                     |
-    |                         |   * [O] wait_time - time to wait after stopping|
-    |                         |         all protocols on Ixia.                 |
-    |                         |         Default: 60 (seconds)                  |
-    |-------------------------+------------------------------------------------|
-    | apply_traffic           | Apply L2/L3 traffic on Ixia device.            |
-    |                         | Arguments:                                     |
-    |                         |   * [O] wait_time - time to wait after applying|
-    |                         |         L2/L3 traffic on Ixia.                 |
-    |                         |         Default: 60 (seconds)                  |
-    |-------------------------+------------------------------------------------|
-    | send_arp                | Send ARP to all interfaces from Ixia device.   |
-    |                         | Arguments:                                     |
-    |                         |   * [O] wait_time - time to wait after sending |
-    |                         |         ARP to all interfaces (in seconds).    |
-    |                         |         Default: 10 (seconds)                  |
-    |-------------------------+------------------------------------------------|
-    | send_ns                 | Send NS to all interfaces from Ixia device.    |
-    |                         | Arguments:                                     |
-    |                         |   * [O] wait_time - time to wait after sending |
-    |                         |         NS packet to all interfaces from Ixia. |
-    |                         |         Default: 10 (seconds)                  |
-    |-------------------------+------------------------------------------------|
-    | start_traffic           | Starts L2/L3 traffic on Ixia device.           |
-    |                         | Arguments:                                     |
-    |                         |   * [O] wait_time - time to wait after starting|
-    |                         |         L2/L3 traffic on Ixia.                 |
-    |                         |         Default: 60 (seconds)                  |
-    |-------------------------+------------------------------------------------|
-    | stop_traffic            | Stops L2/L3 traffic on Ixia device.            |
-    |                         | Arguments:                                     |
-    |                         |   * [O] wait_time - time to wait after stopping|
-    |                         |         L2/L3 traffic on Ixia.                 |
-    |                         |         Default: 60 (seconds)                  |
-    |-------------------------+------------------------------------------------|
-    | clear_statistics        | Clears L2/L3 traffic statistics on Ixia device.|
-    |                         | Arguments:                                     |
-    |                         |   * [O] wait_time - time to wait after clearing|
-    |                         |         protocol and traffic statistics on Ixia|
-    |                         |         Default: 10 (seconds)                  |
-    |-------------------------+------------------------------------------------|
-    | check_traffic_loss      | Checks all traffic streams for traffic loss.   |
-    |                         | Arguments:                                     |
-    |                         |   * [O] loss_tolerance - max % of traffic loss |
-    |                         |         allowed. Default: 10%.                 |
-    |                         |   * [O] check_interval - wait time between     |
-    |                         |         traffic loss checks on Ixia.           |
-    |                         |         Default: 30 (seconds)                  |
-    |                         |   * [O] check_iteration - max iterations for   |
-    |                         |         traffic loss checks. Default: 10.      |
-    |-------------------------+------------------------------------------------|
-    | create_traffic_profile  | Returns a 'profile' of traffic streams that are|
-    |                         | configured on Ixia as a Python PrettyTable.    |
-    |                         | Arguments:                                     |
-    |                         |     * [O] set_golden - sets the traffic profile|
-    |                         |           created to be the "golden" profile   |
-    |                         |           for the current run.                 |
-    |                         |     * [O] clear_stats_time - wait time after   |
-    |                         |           clearing protocol, traffic statistics|
-    |                         |           while creating traffic profile.      |
-    |                         |           Default: 60 (seconds)                |
-    |                         |     * [O] view_create_interval - wait time for |
-    |                         |           checking if custom traffic items view|
-    |                         |           "GENIE" is ready to create profile.  |
-    |                         |           Default: 30 (seconds)                |
-    |                         |     * [O] view_create_iteration - max iteration|
-    |                         |           for checking if custom traffic items |
-    |                         |           view is ready. Default: 10.          |
-    |-------------------------+------------------------------------------------|
-    | get_golden_profile      | Returns the "golden" traffic profile in Python |
-    |                         | PrettyTable format. If not set, returns empty  |
-    |                         | table.                                         |
-    +==========================================================================+
+    +----------------------------------------------------------------------------------+
+    | Traffic Generator Methods                                                        |
+    +==================================================================================+
+    | Methods                         | Description                                    |
+    |---------------------------------+------------------------------------------------|
+    | connect                         | Connect to Ixia traffic generator device.      |
+    |                                 | Arguments:                                     |
+    |                                 |   * [O] alias - In testbed YAML.               |
+    |                                 |   * [O] via - In mapping datafile.             |
+    |---------------------------------+------------------------------------------------|
+    | load_configuration              | Loads the configuration onto Ixia device.      |
+    |                                 | Arguments:                                     |
+    |                                 |   * [M] configuration - static configuration   |
+    |                                 |         file for Ixia.                         |
+    |                                 |   * [O] wait_time - time to wait after loading |
+    |                                 |         configuration file.                    |
+    |                                 |         Default: 60 (seconds)                  |
+    |---------------------------------+------------------------------------------------|
+    | start_all_protocols             | Starts all protocols on Ixia device.           |
+    |                                 | Arguments:                                     |
+    |                                 |   * [O] wait_time - time to wait after starting|
+    |                                 |         all protocols on Ixia.                 |
+    |                                 |         Default: 60 (seconds)                  |
+    |---------------------------------+------------------------------------------------|
+    | stop_all_protocols              | Stops all protocols on Ixia device.            |
+    |                                 | Arguments:                                     |
+    |                                 |   * [O] wait_time - time to wait after stopping|
+    |                                 |         all protocols on Ixia.                 |
+    |                                 |         Default: 60 (seconds)                  |
+    |---------------------------------+------------------------------------------------|
+    | apply_traffic                   | Apply L2/L3 traffic on Ixia device.            |
+    |                                 | Arguments:                                     |
+    |                                 |   * [O] wait_time - time to wait after applying|
+    |                                 |         L2/L3 traffic on Ixia.                 |
+    |                                 |         Default: 60 (seconds)                  |
+    |---------------------------------+------------------------------------------------|
+    | send_arp                        | Send ARP to all interfaces from Ixia device.   |
+    |                                 | Arguments:                                     |
+    |                                 |   * [O] wait_time - time to wait after sending |
+    |                                 |         ARP to all interfaces (in seconds).    |
+    |                                 |         Default: 10 (seconds)                  |
+    |---------------------------------+------------------------------------------------|
+    | send_ns                         | Send NS to all interfaces from Ixia device.    |
+    |                                 | Arguments:                                     |
+    |                                 |   * [O] wait_time - time to wait after sending |
+    |                                 |         NS packet to all interfaces from Ixia. |
+    |                                 |         Default: 10 (seconds)                  |
+    |---------------------------------+------------------------------------------------|
+    | start_traffic                   | Starts L2/L3 traffic on Ixia device.           |
+    |                                 | Arguments:                                     |
+    |                                 |   * [O] wait_time - time to wait after starting|
+    |                                 |         L2/L3 traffic on Ixia.                 |
+    |                                 |         Default: 60 (seconds)                  |
+    |---------------------------------+------------------------------------------------|
+    | stop_traffic                    | Stops L2/L3 traffic on Ixia device.            |
+    |                                 | Arguments:                                     |
+    |                                 |   * [O] wait_time - time to wait after stopping|
+    |                                 |         L2/L3 traffic on Ixia.                 |
+    |                                 |         Default: 60 (seconds)                  |
+    |---------------------------------+------------------------------------------------|
+    | clear_statistics                | Clears L2/L3 traffic statistics on Ixia device.|
+    |                                 | Arguments:                                     |
+    |                                 |   * [O] wait_time - time to wait after clearing|
+    |                                 |         protocol and traffic statistics on Ixia|
+    |                                 |         Default: 10 (seconds)                  |
+    |---------------------------------+------------------------------------------------|
+    | check_traffic_loss              | Checks all traffic streams for traffic loss.   |
+    |                                 | Arguments:                                     |
+    |                                 |   * [O] loss_tolerance - max % of traffic loss |
+    |                                 |         allowed. Default: 10%.                 |
+    |                                 |   * [O] check_interval - wait time between     |
+    |                                 |         traffic loss checks on Ixia.           |
+    |                                 |         Default: 30 (seconds)                  |
+    |                                 |   * [O] check_iteration - max iterations for   |
+    |                                 |         traffic loss checks. Default: 10.      |
+    |---------------------------------+------------------------------------------------|
+    | create_traffic_profile          | Returns a 'profile' of traffic streams that are|
+    |                                 | configured on Ixia as a Python PrettyTable.    |
+    |                                 | Arguments:                                     |
+    |                                 |     * [O] set_golden - sets the traffic profile|
+    |                                 |           created to be the "golden" profile   |
+    |                                 |           for the current run.                 |
+    |                                 |     * [O] clear_stats_time - wait time after   |
+    |                                 |           clearing protocol, traffic statistics|
+    |                                 |           while creating traffic profile.      |
+    |                                 |           Default: 60 (seconds)                |
+    |                                 |     * [O] view_create_interval - wait time for |
+    |                                 |           checking if custom traffic items view|
+    |                                 |           "GENIE" is ready to create profile.  |
+    |                                 |           Default: 30 (seconds)                |
+    |                                 |     * [O] view_create_iteration - max iteration|
+    |                                 |           for checking if custom traffic items |
+    |                                 |           view is ready. Default: 10.          |
+    |---------------------------------+------------------------------------------------|
+    | get_golden_profile              | Returns the "golden" traffic profile in Python |
+    |                                 | PrettyTable format. If not set, returns empty  |
+    |                                 | table.                                         |
+    |---------------------------------+------------------------------------------------|
+    | set_ixia_virtual_ports          | 
+    |---------------------------------+------------------------------------------------|
+    | get_ixia_virtual_port           |
+    |---------------------------------+------------------------------------------------|
+    | get_ixia_virtual_port_attribute |
+    |---------------------------------+------------------------------------------------|
+    | get_traffic_streams             |
+    |---------------------------------+------------------------------------------------|
+    | get_traffic_stream_data         |
+    |---------------------------------+------------------------------------------------|
+    | set_traffic_stream_data         |
+    |---------------------------------+------------------------------------------------|
+    | enable_data_packet_capture      |
+    |---------------------------------+------------------------------------------------|
+    | disable_data_packet_capture     |
+    |---------------------------------+------------------------------------------------|
+    | enable_control_packet_capture   |
+    |---------------------------------+------------------------------------------------|
+    | disable_control_packet_capture  |
+    |---------------------------------+------------------------------------------------|
+    | start_packet_capture            | Starts packet capture (PCAP) on enabled ports. |
+    |                                 | Arguments:                                     |
+    |                                 |     * [O] capture_time - Time to wait while    |
+    |                                 |           packet capture is occurring.         |
+    |                                 |           Default: 60 (seconds)                |
+    |---------------------------------+------------------------------------------------|
+    | stop_packet_capture             | Stops packet capture (PCAP) on enabled ports.  |
+    |---------------------------------+------------------------------------------------|
+    | get_packet_capture_count        | Returns the total number of packets captured   |
+    |                                 | during a packet capture session on a specific  |
+    |                                 | port of a specified type of capture.           |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] port_name - port on which packet     |
+    |                                 |           capture session was performed.       |
+    |                                 |     * [M] pcap_type - specify either data or   |
+    |                                 |           control packet capture type.         |
+    |---------------------------------+------------------------------------------------|
+    | get_packet_capture_data         | Extracts and displays all data from a packet   |
+    |                                 | capture session on a specified port.           |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] port_name - port on which packet     |
+    |                                 |           capture session was performed.       |
+    |---------------------------------+------------------------------------------------|
+    | save_packet_capture_file        | Saves the packet capture file as specified     |
+    |                                 | filename to desired location.                  |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] port_name - port on which packet     |
+    |                                 |           capture session was performed.       |
+    |                                 |     * [M] pcap_type - specify either data or   |
+    |                                 |           control packet capture type.         |
+    |                                 |     * [M] filename - destination filename to   |
+    |                                 |           save packet capture file on IxNetwork|
+    |                                 |           API server.                          |
+    |                                 |     * [O] directory - destination directory to |
+    |                                 |           save packet capture file on IxNetwork|
+    |                                 |           API server.                          |
+    |                                 |           Default: C:/ on windows server       |
+    |---------------------------------+------------------------------------------------|
+    | copy_packet_capture_file        | Copy packet capture file as specified filename |
+    |                                 | to desired location outside IxNetwork API      |
+    |                                 | server host.                                   |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] src_file - location of packet capture|
+    |                                 |           on host IxNetwork API server.        |
+    |                                 |     * [M] dest_file - location to copy the     |
+    |                                 |           packet capture file outside the      |
+    |                                 |           IxNetwork API server.                |
+    +==================================================================================+
 
 The methods listed above can be executed directly on an Ixia traffic generator
 device from a Python prompt or within ``Genie`` and ``pyATS`` scripts.
