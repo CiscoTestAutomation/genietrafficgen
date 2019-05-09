@@ -514,7 +514,7 @@ class IxiaNative(TrafficGen):
         '''Creates a custom TCL View named "Genie" with the required stats data'''
 
         log.info(banner("Creating new custom IxNetwork traffic statistics view 'GENIE'"))
-
+        import pdb ; pdb.set_trace()
         # Delete any previously created TCL Views called "GENIE"
         log.info("Deleting any existing traffic statistics view 'GENIE'...")
         try:
@@ -536,6 +536,7 @@ class IxiaNative(TrafficGen):
                 if 'sourceDestPortPair0' in trackByList:
                     continue
                 else:
+                    # Source/Dest Port Pair is not found, manually add
                     src_dest_added = True
                     if self._get_current_traffic_state() != 'stopped' and self._get_current_traffic_state() != 'unapplied':
                         self.stop_traffic(wait_time=15)
@@ -583,7 +584,12 @@ class IxiaNative(TrafficGen):
 
             # Add specified columns to TCL view
             availableStatList = self.ixNet.getList(self._genie_view, 'statistic')
-            for statName in ["Tx Frame Rate", "Rx Frame Rate", "Loss %", "Frames Delta"]:
+            for statName in ["Frames Delta",
+                             "Tx Frames",
+                             "Rx Frames",
+                             "Loss %",
+                             "Tx Frame Rate",
+                             "Rx Frame Rate"]:
                 stat = self._genie_view + '/statistic:' + '"{}"'.format(statName)
                 if stat in availableStatList:
                     self.ixNet.setAttribute(stat, '-enabled', 'true')

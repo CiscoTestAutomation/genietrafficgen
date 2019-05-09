@@ -227,7 +227,10 @@ an Ixia traffic generator device:
     |---------------------------------+------------------------------------------------|
     | set_ixia_virtual_ports          | 
     |---------------------------------+------------------------------------------------|
-    | get_ixia_virtual_port           |
+    | get_ixia_virtual_port           | Return virtual Ixia port object from port_name |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] port_name - port on which packet     |
+    |                                 |           capture session was performed.       |
     |---------------------------------+------------------------------------------------|
     | get_ixia_virtual_port_attribute |
     |---------------------------------+------------------------------------------------|
