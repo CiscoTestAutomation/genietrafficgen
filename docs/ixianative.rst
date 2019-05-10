@@ -225,28 +225,69 @@ an Ixia traffic generator device:
     |                                 | PrettyTable format. If not set, returns empty  |
     |                                 | table.                                         |
     |---------------------------------+------------------------------------------------|
-    | set_ixia_virtual_ports          | 
+    | set_ixia_virtual_ports          | Set virtual Ixia ports for this configuration  |
+    |                                 | Arguments:                                     |
+    |                                 |     None                                       |
     |---------------------------------+------------------------------------------------|
     | get_ixia_virtual_port           | Return virtual Ixia port object from port_name |
     |                                 | Arguments:                                     |
     |                                 |     * [M] port_name - port on which packet     |
     |                                 |           capture session was performed.       |
     |---------------------------------+------------------------------------------------|
-    | get_ixia_virtual_port_attribute |
+    | get_ixia_virtual_port_attribute | Returns an attibute for virtual Ixia port      |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] vport - virtual Ixia port for config |
+    |                                 |     * [M] attribute - attribute of the virtual |
+    |                                 |           to return to the caller.             |
     |---------------------------------+------------------------------------------------|
-    | get_traffic_streams             |
+    | get_traffic_streams             | Gets all traffic streams present in current    |
+    |                                 | configuration from "Traffic Item Statistics"   |
+    |                                 | Arguments:                                     |
+    |                                 |     None                                       |
     |---------------------------------+------------------------------------------------|
-    | get_traffic_stream_data         |
+    | get_traffic_stream_data         | Get specific data field for specific traffic   |
+    |                                 | stream from "Traffic Item Statistics" view.    |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic_stream - the traffic item    |
+    |                                 |           or stream to extract statistic from  |
+    |                                 |     * [M] traffic_data_field - traffic,        |
+    |                                 |           statistic field (ex: Tx Frame Rate)  |
+    |                                 |           to get of the traffic item.          |
     |---------------------------------+------------------------------------------------|
-    | set_traffic_stream_data         |
+    | set_traffic_stream_data         | Set specific configuration for a traffic stream|
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic_stream - the traffic item or |
+    |                                 |           stream to configure with value.      |
+    |                                 |     * [M] config_field - traffic field to      |
+    |                                 |           configure for the given stream.      |
+    |                                 |     * [M] config_value - value to configure the|
+    |                                 |           traffic_stream config_field to.      |
     |---------------------------------+------------------------------------------------|
-    | enable_data_packet_capture      |
+    | get_ixia_virtual_port_capture   | Get virtual port object for given port to use  |
+    |                                 | in enabling packet capture.                    |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] port_name - port on which packet     |
+    |                                 |           capture will be enabled.             |
     |---------------------------------+------------------------------------------------|
-    | disable_data_packet_capture     |
+    | enable_data_packet_capture      | Enable data packet capture on ports specified. |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] ports - list of ports to enable data |
+    |                                 |           packet capture on.                   |
     |---------------------------------+------------------------------------------------|
-    | enable_control_packet_capture   |
+    | disable_data_packet_capture     | Disable data packet capture on ports specified.|
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] ports - list of ports to disable data|
+    |                                 |           packet capture on.                   |
     |---------------------------------+------------------------------------------------|
-    | disable_control_packet_capture  |
+    | enable_control_packet_capture   | Enable control packet capture on ports.        |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] ports - list of ports to enable      |
+    |                                 |           control packet capture on.           |
+    |---------------------------------+------------------------------------------------|
+    | disable_control_packet_capture  | Disable control packet capture on ports.       |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] ports - list of ports to disable     |
+    |                                 |           control packet capture on.           |
     |---------------------------------+------------------------------------------------|
     | start_packet_capture            | Starts packet capture (PCAP) on enabled ports. |
     |                                 | Arguments:                                     |

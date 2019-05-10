@@ -949,7 +949,7 @@ class IxiaNative(TrafficGen):
 
 
     def get_ixia_virtual_port_attribute(self, vport, attribute):
-        ''' Get attibute for virtual Ixia port'''
+        '''Get attibute for virtual Ixia port'''
 
         try:
             # Extract Ixia virtual port settings/attribute
