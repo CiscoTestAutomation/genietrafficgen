@@ -871,6 +871,18 @@ class IxiaNative(TrafficGen):
             log.info("Profile2 is in expected format with data")
 
         # Compare both profiles
+
+        # Check number of traffic items provided are the same
+        profile1_ti = 0 ; profile2_ti = 0
+        for row in profile1:
+            if row.get_string(fields=['Traffic Item']):
+                profile1_ti += 1
+        for row in profile2:
+            if row.get_string(fields=['Traffic Item']):
+                profile2_ti += 1
+        if profile2_ti != profile1_ti:
+            raise GenieTgnError("Profiles do not have the same traffic items")
+
         compare_profile = True
         # ['Source/Dest Port Pair', 'Traffic Item', 'Tx Frames', 'Rx Frames', 'Frames Delta', 'Tx Frame Rate', 'Rx Frame Rate', 'Loss %', 'Outage (seconds)']
         names = ['src_dest_pair', 'traffic_item', 'tx_frames', 'rx_frames', 'frames_delta', 'tx_rate', 'rx_rate', 'loss', 'outage']
