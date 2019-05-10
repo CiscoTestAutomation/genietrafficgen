@@ -678,28 +678,33 @@ class IxiaNative(TrafficGen):
                 * 3- Verify difference between Tx Rate & Rx Rate is less than tolerance threshold
         '''
 
-        log.info(banner("Checking all streams for traffic loss on Ixia"))
-        log.info("Waiting '{}' seconds before checking for traffic loss".\
-                 format(check_interval))
-        #time.sleep(check_interval)
+        # Check if traffic_stream passed in is valid/found in configuration
+        try:
+            assert traffic_stream in self.get_traffic_streams()
+        except AssertionError as e:
+            log.info("SKIP: Traffic stream '{}' not found in configuration".\
+                     format(traffic_stream))
+            return
 
         for i in range(check_iteration):
             # Init
-            outage_check = True
-            loss_check = True
-            rate_check = True
+            outage_check = False
+            loss_check = False
+            rate_check = False
 
             # Create and print traffic table
             traffic_table = self.create_traffic_streams_table()
 
-            # Begin checks
+            # Loop over all traffic items in configuration
             for row in traffic_table:
-
                 # Get traffic item
                 row.header = False ; row.border = False
                 current_stream = row.get_string(fields=["Traffic Item"]).strip()
+
+                # Skip all other streams if stream provided
                 if traffic_stream and traffic_stream != current_stream:
                     continue
+
                 log.info(banner("Checking traffic item '{}'".format(current_stream)))
 
                 # 1- Verify traffic Outage (in seconds) is less than tolerance threshold
@@ -709,8 +714,8 @@ class IxiaNative(TrafficGen):
                     log.info("-> Traffic outage of '{o}' seconds is within "
                              "expected maximum outage threshold of '{s}' seconds".\
                              format(o=outage, s=max_outage))
+                    outage_check = True
                 else:
-                    outage_check = False
                     log.error("-> Traffic outage of '{o}' seconds is *NOT* within "
                               "expected maximum outage threshold of '{s}' seconds".\
                               format(o=outage, s=max_outage))
@@ -727,8 +732,8 @@ class IxiaNative(TrafficGen):
                     log.info("-> Current traffic loss of {l}% is within"
                              " maximum expected loss tolerance of {t}%".\
                              format(t=loss_tolerance, l=loss_percentage))
+                    loss_check = True
                 else:
-                    loss_check = False
                     log.info("-> Current traffic loss of {l}% is *NOT* within"
                              " maximum expected loss tolerance of {t}%".\
                              format(t=loss_tolerance, l=loss_percentage))
@@ -742,8 +747,8 @@ class IxiaNative(TrafficGen):
                              " '{r}' is within expected maximum rate loss"
                              " threshold of '{m}' packets per second".\
                              format(t=tx_rate, r=rx_rate, m=rate_tolerance))
+                    rate_check = True
                 else:
-                    rate_check = False
                     log.error("-> Difference between Tx Rate '{t}' and Rx Rate"
                               " '{r}' is *NOT* within expected maximum rate loss"
                               " threshold of '{m}' packets per second".\
@@ -783,9 +788,6 @@ class IxiaNative(TrafficGen):
         # Clear stats and wait
         if clear_stats:
             self.clear_statistics(wait_time=clear_stats_time)
-
-        # Parse traffic statistics view 'GENIE' for traffic profile data
-        log.info(banner("Creating table of configured streams on Ixia"))
 
         try:
             # Traffic table headers
