@@ -680,8 +680,9 @@ class IxiaNative(TrafficGen):
 
         # Check if traffic_stream passed in is valid/found in configuration
         if traffic_stream and traffic_stream not in self.get_traffic_streams():
-            raise GenieTgnError("WARNING: Traffic stream '{}' not found in"
-                                " configuration".format(traffic_stream))
+            log.error("WARNING: Traffic stream '{}' not found in"
+                      " configuration".format(traffic_stream))
+            return
 
         for i in range(check_iteration):
             # Init
@@ -708,12 +709,12 @@ class IxiaNative(TrafficGen):
                 log.info("1. Verify traffic outage (in seconds) is less than tolerance threshold")
                 outage = row.get_string(fields=["Outage (seconds)"]).strip()
                 if float(outage) <= float(max_outage):
-                    log.info("  -> Traffic outage of '{o}' seconds is within "
+                    log.info("   -> Traffic outage of '{o}' seconds is within "
                              "expected maximum outage threshold of '{s}' seconds".\
                              format(o=outage, s=max_outage))
                     outage_check = True
                 else:
-                    log.error("  -> Traffic outage of '{o}' seconds is *NOT* within "
+                    log.error("   -> Traffic outage of '{o}' seconds is *NOT* within "
                               "expected maximum outage threshold of '{s}' seconds".\
                               format(o=outage, s=max_outage))
 
@@ -726,12 +727,12 @@ class IxiaNative(TrafficGen):
 
                 # Check traffic loss
                 if float(loss_percentage) <= float(loss_tolerance):
-                    log.info("  -> Current traffic loss of {l}% is within"
+                    log.info("   -> Current traffic loss of {l}% is within"
                              " maximum expected loss tolerance of {t}%".\
                              format(t=loss_tolerance, l=loss_percentage))
                     loss_check = True
                 else:
-                    log.error("  -> Current traffic loss of {l}% is *NOT* within"
+                    log.error("   -> Current traffic loss of {l}% is *NOT* within"
                              " maximum expected loss tolerance of {t}%".\
                              format(t=loss_tolerance, l=loss_percentage))
 
@@ -740,13 +741,13 @@ class IxiaNative(TrafficGen):
                 tx_rate = row.get_string(fields=["Tx Frame Rate"]).strip()
                 rx_rate = row.get_string(fields=["Rx Frame Rate"]).strip()
                 if abs(float(tx_rate) - float(rx_rate)) <= float(rate_tolerance):
-                    log.info("  -> Difference between Tx Rate '{t}' and Rx Rate"
+                    log.info("   -> Difference between Tx Rate '{t}' and Rx Rate"
                              " '{r}' is within expected maximum rate loss"
                              " threshold of '{m}' packets per second".\
                              format(t=tx_rate, r=rx_rate, m=rate_tolerance))
                     rate_check = True
                 else:
-                    log.error("  -> Difference between Tx Rate '{t}' and Rx Rate"
+                    log.error("   -> Difference between Tx Rate '{t}' and Rx Rate"
                               " '{r}' is *NOT* within expected maximum rate loss"
                               " threshold of '{m}' packets per second".\
                               format(t=tx_rate, r=rx_rate, m=rate_tolerance))
