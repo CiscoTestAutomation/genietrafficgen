@@ -853,7 +853,7 @@ class IxiaNative(TrafficGen):
         return traffic_table
 
 
-    def compare_traffic_profile(self, profile1, profile2, loss_tolerance=1, rate_tolerance=2):
+    def compare_traffic_profile(self, profile1, profile2, loss_tolerance=5, rate_tolerance=2):
         '''Compare two Ixia traffic profiles'''
 
         log.info(banner("Comparing traffic profiles"))
@@ -1243,10 +1243,10 @@ class IxiaNative(TrafficGen):
             format(port_name=port_name, pcap=pcap_dict[pcap_type], f=filename)
 
 
-    def copy_packet_capture_file(self, src_file, dest_file):
-        '''Copy packet capture file as specified filename to desired location'''
+    def export_packet_capture_file(self, src_file, dest_file):
+        '''Export packet capture file as specified filename to desired location'''
 
-        log.info("Copying packet capture file...")
+        log.info("Exporting packet capture file...")
         try:
             self.ixNet.execute('copyFile',
                                self.ixNet.readFrom(src_file, '-ixNetRelative'),
