@@ -678,21 +678,13 @@ class IxiaNative(TrafficGen):
                 * 3- Verify difference between Tx Rate & Rx Rate is less than tolerance threshold
         '''
 
-        # Check if traffic_stream passed in is valid/found in configuration
-        try:
-            assert traffic_stream in self.get_traffic_streams()
-        except AssertionError as e:
-            log.info("SKIP: Traffic stream '{}' not found in configuration".\
-                     format(traffic_stream))
-            return
-
         for i in range(check_iteration):
             # Init
             outage_check = False
             loss_check = False
             rate_check = False
 
-            # Create and print traffic table
+            # Get 'GENIE' traffic statistics table containing outage/loss values
             traffic_table = self.create_traffic_streams_table()
 
             # Loop over all traffic items in configuration
@@ -704,6 +696,14 @@ class IxiaNative(TrafficGen):
                 # Skip all other streams if stream provided
                 if traffic_stream and traffic_stream != current_stream:
                     continue
+                else:
+                    # Check if traffic_stream passed in is valid/found in configuration
+                    try:
+                        assert traffic_stream in self.get_traffic_streams()
+                    except AssertionError as e:
+                        log.error("WARNING: Traffic stream '{}' not found in"
+                                  " configuration".format(traffic_stream))
+                        continue
 
                 log.info(banner("Checking traffic item '{}'".format(current_stream)))
 
