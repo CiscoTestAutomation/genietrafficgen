@@ -937,7 +937,7 @@ class IxiaNative(TrafficGen):
                                          t=rate_tolerance))
                     else:
                         log.info("  -> Rx Frames Rate difference between "
-                                 "profiles is less than threshold of '{}".\
+                                 "profiles is less than threshold of '{}'".\
                                  format(rate_tolerance))
 
                     # Compare Rx Frames Rate between two profiles
@@ -953,7 +953,7 @@ class IxiaNative(TrafficGen):
                                          t=rate_tolerance))
                     else:
                         log.info("  -> Rx Frames Rate difference between "
-                                 "profiles is less than threshold of '{}".\
+                                 "profiles is less than threshold of '{}'".\
                                  format(rate_tolerance))
 
                     # Check if loss % in profile1 is not ''
@@ -979,7 +979,7 @@ class IxiaNative(TrafficGen):
                                          t=loss_tolerance))
                     else:
                         log.info("  -> Loss % difference between profiles "
-                                 "is less than threshold of '{}".\
+                                 "is less than threshold of '{}'".\
                                  format(loss_tolerance))
                 else:
                     log.error("WARNING: The source/dest port pair and traffic"
