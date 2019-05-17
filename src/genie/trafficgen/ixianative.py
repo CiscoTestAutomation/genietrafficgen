@@ -731,20 +731,20 @@ class IxiaNative(TrafficGen):
             log.info(banner("Checking traffic item '{}'".format(current_stream)))
 
             # 1- Verify traffic Outage (in seconds) is less than tolerance threshold
-            log.info("1. Verify traffic outage (in seconds) is less than tolerance threshold")
+            log.info(" 1. Verify traffic outage (in seconds) is less than tolerance threshold")
             outage = row.get_string(fields=["Outage (seconds)"]).strip()
             if float(outage) <= float(max_outage):
-                log.info("   -> Traffic outage of '{o}' seconds is within "
+                log.info("    -> Traffic outage of '{o}' seconds is within "
                          "expected maximum outage threshold of '{s}' seconds".\
                          format(o=outage, s=max_outage))
                 outage_check = True
             else:
-                log.error("   -> Traffic outage of '{o}' seconds is *NOT* within "
+                log.error("    -> Traffic outage of '{o}' seconds is *NOT* within "
                           "expected maximum outage threshold of '{s}' seconds".\
                           format(o=outage, s=max_outage))
 
             # 2- Verify current loss % is less than tolerance threshold
-            log.info("2. Verify current loss % is less than tolerance threshold")
+            log.info(" 2. Verify current loss % is less than tolerance threshold")
             if row.get_string(fields=["Loss %"]).strip() != '':
                 loss_percentage = row.get_string(fields=["Loss %"]).strip()
             else:
@@ -752,27 +752,27 @@ class IxiaNative(TrafficGen):
 
             # Check traffic loss
             if float(loss_percentage) <= float(loss_tolerance):
-                log.info("   -> Current traffic loss of {l}% is within"
+                log.info("    -> Current traffic loss of {l}% is within"
                          " maximum expected loss tolerance of {t}%".\
                          format(t=loss_tolerance, l=loss_percentage))
                 loss_check = True
             else:
-                log.error("   -> Current traffic loss of {l}% is *NOT* within"
+                log.error("    -> Current traffic loss of {l}% is *NOT* within"
                          " maximum expected loss tolerance of {t}%".\
                          format(t=loss_tolerance, l=loss_percentage))
 
             # 3- Verify difference between Tx Rate & Rx Rate is less than tolerance threshold
-            log.info("3. Verify difference between Tx Rate & Rx Rate is less than tolerance threshold")
+            log.info(" 3. Verify difference between Tx Rate & Rx Rate is less than tolerance threshold")
             tx_rate = row.get_string(fields=["Tx Frame Rate"]).strip()
             rx_rate = row.get_string(fields=["Rx Frame Rate"]).strip()
             if abs(float(tx_rate) - float(rx_rate)) <= float(rate_tolerance):
-                log.info("   -> Difference between Tx Rate '{t}' and Rx Rate"
+                log.info("    -> Difference between Tx Rate '{t}' and Rx Rate"
                          " '{r}' is within expected maximum rate loss"
                          " threshold of '{m}' packets per second".\
                          format(t=tx_rate, r=rx_rate, m=rate_tolerance))
                 rate_check = True
             else:
-                log.error("   -> Difference between Tx Rate '{t}' and Rx Rate"
+                log.error("    -> Difference between Tx Rate '{t}' and Rx Rate"
                           " '{r}' is *NOT* within expected maximum rate loss"
                           " threshold of '{m}' packets per second".\
                           format(t=tx_rate, r=rx_rate, m=rate_tolerance))
@@ -929,28 +929,32 @@ class IxiaNative(TrafficGen):
                         assert abs(float(profile1_row_values['tx_rate']) - float(profile2_row_values['tx_rate'])) <= float(rate_tolerance)
                     except AssertionError as e:
                         compare_profile_failed = True
-                        log.error(" -> Tx Frames Rate for profile 1 '{p1}' and "
+                        log.error("  -> Tx Frames Rate for profile 1 '{p1}' and "
                                   "profile 2 '{p2}' is more than expected "
                                   "tolerance of '{t}'".\
                                   format(p1=profile1_row_values['tx_rate'],
                                          p2=profile2_row_values['tx_rate'],
                                          t=rate_tolerance))
                     else:
-                        log.info("-> Tx Frames Rate comparison passed")
+                        log.info("  -> Rx Frames Rate difference between "
+                                 "profiles is less than threshold of '{}".\
+                                 format(rate_tolerance))
 
                     # Compare Rx Frames Rate between two profiles
                     try:
                         assert abs(float(profile1_row_values['rx_rate']) - float(profile2_row_values['rx_rate'])) <= float(rate_tolerance)
                     except AssertionError as e:
                         compare_profile_failed = True
-                        log.error("Rx Frames Rate for profile 1 '{p1}' and "
-                                  "profile 2 '{p2}' is more than expected "
+                        log.error("  -> Rx Frames Rate for profile 1 '{p1}' and"
+                                  " profile 2 '{p2}' is more than expected "
                                   "tolerance of '{t}'".\
                                   format(p1=profile1_row_values['rx_rate'],
                                          p2=profile2_row_values['rx_rate'],
                                          t=rate_tolerance))
                     else:
-                        log.info(" -> Rx Frames Rate comparison passed")
+                        log.info("  -> Rx Frames Rate difference between "
+                                 "profiles is less than threshold of '{}".\
+                                 format(rate_tolerance))
 
                     # Check if loss % in profile1 is not ''
                     try:
@@ -967,14 +971,16 @@ class IxiaNative(TrafficGen):
                         assert abs(float(profile1_row_values['loss']) - float(profile2_row_values['loss'])) <= float(loss_tolerance)
                     except AssertionError as e:
                         compare_profile_failed = True
-                        log.error("Loss % for profile 1 '{p1}' and "
+                        log.error("  -> Loss % for profile 1 '{p1}' and "
                                   "profile 2 '{p2}' is more than expected "
                                   "tolerance of '{t}'".\
                                   format(p1=profile1_row_values['loss'],
                                          p2=profile2_row_values['loss'],
                                          t=loss_tolerance))
                     else:
-                        log.info(" -> Loss % comparison passed")
+                        log.info("  -> Loss % difference between profiles "
+                                 "is less than threshold of '{}".\
+                                 format(loss_tolerance))
                 else:
                     log.error("WARNING: The source/dest port pair and traffic"
                               " item are mismatched - skipping check")
