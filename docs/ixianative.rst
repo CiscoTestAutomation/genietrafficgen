@@ -596,6 +596,22 @@ traffic generator subsections in ``Genie`` harness.
     |                                  | traffic in 'initialize_traffic'       |
     |                                  | Default: 5 (packets per second)       |
     |----------------------------------+---------------------------------------|
+    | tgn-traffic-streams-data         | User provided YAML file containing the|
+    |                                  | maximum expected traffic outage, loss |
+    |                                  | and frame rate tolerance for each     |
+    |                                  | traffic item configured. Genie will   |
+    |                                  | check if specific traffic streams have|
+    |                                  | been provided in this YAML and use the|
+    |                                  | values provided here. If a configured |
+    |                                  | stream is not in the YAML, Genie will |
+    |                                  | use the values provided in:           |
+    |                                  | 1. tgn-traffic-outage-tolerance       |
+    |                                  | 2. tgn-traffic-loss-tolerance         |
+    |                                  | 3. tgn-traffic-rate-tolerance         |
+    |                                  | to check for traffic loss in          |
+    |                                  | 'initialize_traffic'                  |
+    |                                  | Default: None                         |
+    |----------------------------------+---------------------------------------|
     | tgn-stabilization-interval       | Time to wait between re-checking all  |
     |                                  | configured traffic streams on Ixia for|
     |                                  | traffic loss in 'initialize_traffic'  |
@@ -757,15 +773,61 @@ Step9: Check for traffic loss
 This section can be controlled by enabling/disabling argument: `tgn-check-traffic-loss`.
 
 If this flag is enabled, ``Genie`` harness will verify that all configured
-traffic streams have traffic loss within the expected tolerance of 
-`tgn-traffic-loss-tolerance` %.
+traffic streams have traffic outage, traffic loss and frames rate loss within the
+expected user provided thresholds.
 
-In the event that traffic loss % observed is more than the acceptable tolerance
-limit, ``Genie`` will re-check every `tgn-stabilization-interval` seconds upto a
-maximum of `tgn-stabilization-iteration` attempts for traffic streams to 
-stabilize to steady state; i.e. for traffic loss to lower down to acceptable
-tolerance limit. If traffic streams do not stabilize, ``Genie`` marks the traffic
-loss check as a failure.
+This section performs the following:
+
+    1. Verify that the traffic outage (calculated by Frames Delta/Tx Rate) is
+       less than the user provided threshold of ``tgn-traffic-outage-tolerance``
+    2. Verify that the traffic loss is less than the user provided threshold of
+       ``tgn-traffic-loss-tolerance``
+    3. Verify that the difference between the Tx Frames Rate and Rx Frames rate
+       is less than the user provided threshold of ``tgn-rate-loss-tolerance``
+
+.. note::
+    The threshold values provided above are used to verify all traffic streams
+    configured on the traffic generator device. 
+
+If the the threshold values for traffic outage and loss checks are different
+** per stream **, the user can provide a YAML containing stream specific 
+thresholds. This YAML file can then be provided to the common_setup via the argument
+``tgn-traffic-streams-data``
+
+The following is an example of the traffic items YAML a user can provide:
+
+.. code-block:: yaml
+
+    traffic_streams:
+        ospf:
+            max_outage: 180
+            loss_tolerance: 30
+            rate_tolerance: 5
+        ospfv3:
+            max_outage: 120
+            loss_tolerance: 20
+            rate_tolerance: 2
+        BSR N95_1 - N93_3:
+            max_outage: 180
+            loss_tolerance: 20
+            rate_tolerance: 10
+        MC Core to Access 4 (Agg3):
+            max_outage: 1000
+            loss_tolerance: 100
+            rate_tolerance: 100
+
+.. note::
+    It is mandatory to label the top-level key as 'traffic_streams'
+
+In the event that any of the above checks fail for a traffic item/stream due 
+to the outage/loss being more than the acceptable threshold, ``Genie`` harness 
+will re-check the streams every `tgn-stabilization-interval` seconds upto a
+maximum of `tgn-stabilization-iteration` attempts for all the traffic streams to 
+stabilize to steady state; i.e. for traffic outage/loss to become lower than the
+acceptable tolerance limit. 
+
+If traffic streams do not stabilize, ``Genie`` harness marks the traffic loss
+check section as failed.
 
 
 common_setup: profile_traffic
@@ -774,27 +836,42 @@ common_setup: profile_traffic
 This subsection packages all the steps associated with "profiling" traffic
 streams configured on Ixia.
 
-It creates a custom traffic statistics "view" to create a snapshot/profile of
-all configured traffic streams and then saves this profile as the "golden"
-profile for the current job/run. This profile is then used as a reference and
-compared against traffic profiles created after execution of triggers that are
-executed within ``Genie`` harness.
+It creates a snapshot/profile of all configured traffic streams and then copies 
+this profile to the runtime logs as the "golden_traffic_profile" for the
+current job/run. 
 
-It performs the following steps in order:
+It also saves this snapshot/profile as the "golden" traffic profile for the
+current ``Genie`` run. This snapshot profile will then be used to compare traffic
+profiles generated after trigger execution to ensure that the trigger did not
+impact configured traffic streams. For more details on this please refer to the
+processor: compare_traffic_profile section.
+
+This profile can also be saved and reused as a reference for comparison of
+subsequent runs of ``profile_traffic`` subsection.
+
+The user can pass in a ``golden`` traffic profile via the ``tgn-golden-profile``
+argument to enable comparison of the current profile against the previously
+established/verified/golden traffic profile snapshot.
+
+This subsection performs the following:
 
     1. Connect to Ixia
     2. Create a snapshot profile of traffic streams configured on Ixia
-    3. Save snapshot profile to Genie job logs
-    4. Compare to any previously saved "golden" traffic profile and verify.
+    3. Copy the snapshot profile as "golden_traffic_profile" to Genie runtime logs
+    4. [Optional] If the user provided a ``tgn-golden-profile``:
+        a. Verify that the difference for Loss % between the current traffic
+           profile and golden traffic profile is less than user provided
+           threshold of ``tgn-profile-traffic-loss-tolerance``
+        b. Verify that the difference for Tx Frames Rate between the current
+           traffic profile and golden traffic profile is less than user provided
+           threshold of ``tgn-profile-rate-loss-tolerance``
+        c. Verify that the difference for Rx Frames Rate between the current
+           traffic profile and golden traffic profile is less than user provided
+           threshold of ``tgn-profile-rate-loss-tolerance`` 
 
-To enable/disable execution of this subsection, simply add/remove
-'profile_traffic' from the execution order of the 'setup' in the
+To enable/disable execution of this subsection, simply add or remove the
+'profile_traffic' subsection from the execution order of the 'setup' in the
 `subsection_datafile` YAML.
-
-While comparing the current traffic profile to a previously verified "golden"
-traffic profile, ``Genie`` will check the following:
-    * Maximum acceptable difference of Loss % between 2 traffic profiles is `tgn-profile-traffic-loss-tolerance`
-    * Maximum acceptable difference of Tx/Rx Rate between 2 traffic profiles is `tgn-profile-rate-loss-tolerance`
 
 
 common_cleanup: stop_traffic
@@ -925,7 +1002,7 @@ TriggerClearBgp is shown below:
 
     TriggerClearBgp:
       groups: ['bgp']
-      check_traffic: False
+      check_traffic: False <--- will disable running any global traffic processor
       devices: ['uut']
 
 In order to disable local processors, simply remove them from the trigger
@@ -960,24 +1037,22 @@ The parameters above can also be set at the global processor level.
 processor: check_traffic_loss
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-`check_traffic_loss` is a ``Genie`` post-trigger processor. It verifies that any
-observed traffic loss is within the acceptable loss tolerance and if any frames
-loss is within the acceptable frames tolerance, after a trigger is executed.
+`check_traffic_loss` is a ``Genie`` post-trigger processor. 
+
+It performs the following steps:
+
+    1. Verify that the traffic outage (calculated by Frames Delta/Tx Rate) is
+       less than the user provided threshold of ``max_outage``
+    2. Verify that the traffic loss is less than the user provided threshold of
+       ``loss_tolerance``
+    3. Verify that the difference between the Tx Frames Rate and Rx Frames rate
+       is less than the user provided threshold of ``rate_tolerance``
 
 If a configured traffic stream reports traffic loss that is not within the 
-specified tolerance limit for the prescribed number of iterations/checks,
-``Genie`` marks the trigger as "failed".
+specified tolerance limit after the prescribed number of ``check_iterations``,
+executed at ``check_interval`` seconds, ``Genie`` marks the trigger as "failed".
 
-The `check_traffic_loss` post-trigger processor has the following arguments:
-
-1. [Optional] max_outage: Maximum packet/frames loss permitted. Default: 120 seconds
-2. [Optional] loss_tolerance: Maximum loss % permitted. Default: 15%.
-3. [Optional] rate_tolerance: Maximum loss % permitted. Default: 15%.
-4. [Optional] stream_settings: YAML file containing per stream data for max_outage, loss_tolerance, rate_tolerance
-5. [Optional] check_interval: Wait time to re-check traffic/frames loss is within tolerance specified before failing processor. Default: 30 seconds.
-6. [Optional] check_iteration: Maximum attempts to verify traffic/frames loss is within tolerance specified before failing processor. Default: 10 attempts.
-
-User's can set arguments for `check_traffic_loss` in the `trigger_datafile`
+User's can define processor `check_traffic_loss` in the `trigger_datafile`
 as shown below:
 
 .. code-block:: yaml
@@ -997,28 +1072,85 @@ as shown below:
                 check_interval: 60
                 check_iteration: 10
 
-The parameters above can also be set at the global processor level with the
-exception of 'stream_settings' which should be set at the trigger level.
+The `check_traffic_loss` post-trigger processor has the following arguments:
+
+1. [Optional] max_outage: Maximum packet/frames loss permitted. Default: 120 seconds
+2. [Optional] loss_tolerance: Maximum loss % permitted. Default: 15%.
+3. [Optional] rate_tolerance: Maximum loss % permitted. Default: 15%.
+4. [Optional] check_interval: Wait time to re-check traffic/frames loss is within tolerance specified before failing processor. Default: 30 seconds.
+5. [Optional] check_iteration: Maximum attempts to verify traffic/frames loss is within tolerance specified before failing processor. Default: 10 attempts.
+6. [Optional] stream_settings: User provided YAML file containing per stream data for max_outage, loss_tolerance, rate_tolerance
+
+The parameters above can also be set at both the local processor and global
+processor level with the exception of argument 'stream_settings', which can only
+be set at the trigger level.
+
+.. note::
+    The threshold values provided above are used to verify all traffic streams
+    configured on the traffic generator device.
+
+If the the threshold values for traffic outage and loss checks are different
+** per stream **, the user can provide a YAML containing stream specific 
+thresholds. This YAML file can then be provided to the processor via the
+argument ``stream_settings``
+
+The following is an example of the traffic items YAML a user can provide:
+
+.. code-block:: yaml
+
+    traffic_streams:
+        ospf:
+            max_outage: 180
+            loss_tolerance: 30
+            rate_tolerance: 5
+        ospfv3:
+            max_outage: 120
+            loss_tolerance: 20
+            rate_tolerance: 2
+        BSR N95_1 - N93_3:
+            max_outage: 180
+            loss_tolerance: 20
+            rate_tolerance: 10
+        MC Core to Access 4 (Agg3):
+            max_outage: 1000
+            loss_tolerance: 100
+            rate_tolerance: 100
+
+.. note::
+    It is mandatory to label the top-level key as 'traffic_streams'
 
 
 processor: compare_traffic_profile
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-`compare_traffic_profile` is a ``Genie`` post-trigger processor. It creates a
-snapshot/profile of the traffic streams configured on an Ixia traffic generator
-`device` and then compares it to the "golden" snapshot/profile that was created
-during the common_setup: initialize_traffic subsection.
+`compare_traffic_profile` is a ``Genie`` post-trigger processor. 
 
-The `compare_traffic_profile` post-trigger processor has the following arguments:
+It performs the following steps:
 
-1. [Optional] clear_stats: Controls executing clearing of traffic statistics before creating a traffic profile snapshot. Default: True.
-2. [Optional] clear_stats_time: Time to wait after clear traffic stats. Default: 30 seconds.
-3. [Optional] view_create_interval: Time to wait for custom traffic statistics view 'GENIE' to stabilize (if not previously created & stabilized). Default: 30 seconds.
-4. [Optional] view_create_iteration: Maximum attempts to check if traffic statistics view 'GENIE' is stable (if not previously created & stabilized). Default: 10 attempts.
-5. [Optional] loss_tolerance: Maximum difference between loss% of both profiles. Default: 2%.
-6. [Optional] rate_tolerance: Maximum difference between rate loss of both profiles. Default: 2 (packets per second).
+    1. Create a snapshot profile of traffic streams configured on Ixia
+    3. Copy the snapshot profile as "TriggerName_traffic_profile" to Genie runtime logs
+    4. [Optional] If the user provided a ``section_profile``:
+        a. Verify that the difference for Loss % between the current traffic
+           profile and section traffic profile is less than user provided
+           threshold of ``loss_tolerance``
+        b. Verify that the difference for Tx Frames Rate between the current
+           traffic profile and section traffic profile is less than user provided
+           threshold of ``rate_tolerance``
+        c. Verify that the difference for Rx Frames Rate between the current
+           traffic profile and section traffic profile is less than user provided
+           threshold of ``rate_tolerance``
+    4. If the user does not provide ``section_profile`` for the given Trigger
+        a. Verify that the difference for Loss % between the current traffic
+           profile and common_setup profile_traffic created golden traffic profile 
+           is less than user provided threshold of ``loss_tolerance``
+        b. Verify that the difference for Tx Frames Rate between the current
+           traffic profile and and common_setup profile_traffic created golden 
+           traffic profile  is less than user provided threshold of ``rate_tolerance``
+        c. Verify that the difference for Rx Frames Rate between the current
+           traffic profile and and common_setup profile_traffic created golden
+           traffic profile  is less than user provided threshold of ``rate_tolerance``
 
-User's can set arguments for `compare_traffic_profile` in the `trigger_datafile`
+User's can define processor `check_traffic_loss` in the `trigger_datafile`
 as shown below:
 
 .. code-block:: yaml
@@ -1037,5 +1169,19 @@ as shown below:
                 view_create_iteration: 10
                 loss_tolerance: 1
                 rate_tolerance: 2
+                section_profile: /ws/ellewoods-sjc/genie/TriggerClearBgp_golden_profile
 
-The parameters above can also be set at the global processor level.
+The `compare_traffic_profile` post-trigger processor has the following arguments:
+
+1. [Optional] clear_stats: Controls executing clearing of traffic statistics before creating a traffic profile snapshot. Default: True.
+2. [Optional] clear_stats_time: Time to wait after clear traffic stats. Default: 30 seconds.
+3. [Optional] view_create_interval: Time to wait for custom traffic statistics view 'GENIE' to stabilize (if not previously created & stabilized). Default: 30 seconds.
+4. [Optional] view_create_iteration: Maximum attempts to check if traffic statistics view 'GENIE' is stable (if not previously created & stabilized). Default: 10 attempts.
+5. [Optional] loss_tolerance: Maximum difference between loss% of both profiles. Default: 2%.
+6. [Optional] rate_tolerance: Maximum difference between rate loss of both profiles. Default: 2 (packets per second).
+7. [Optional] section_profile: Golden traffic profile for this Trigger to be used for comparison between profiles
+
+The parameters above can also be set at both the local processor and global
+processor level with the exception of argument 'section_profile', which can only
+be set at the trigger level.
+
