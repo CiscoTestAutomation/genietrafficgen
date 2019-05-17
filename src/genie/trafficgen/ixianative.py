@@ -332,7 +332,7 @@ class IxiaNative(TrafficGen):
                                 "applying L2/L3 traffic on device '{}'".\
                                 format(self.device.name))
         else:
-            log.info("Traffic is in 'stopped' state after applying traffic as"
+            log.info("Traffic is in 'stopped' state after applying traffic as "
                      "expected")
 
 
@@ -533,7 +533,6 @@ class IxiaNative(TrafficGen):
             ti_added = False
             for ti in self.ixNet.getList('/traffic', 'trafficItem'):
                 trackByList = self.ixNet.getAttribute(ti + '/tracking', '-trackBy')
-                import pdb ; pdb.set_trace()
                 if 'trackingenabled0' in trackByList:
                     continue
                 else:
@@ -541,7 +540,9 @@ class IxiaNative(TrafficGen):
                     # Traffic Item filter is not found, manually add
                     if self._get_current_traffic_state() != 'stopped' and self._get_current_traffic_state() != 'unapplied':
                         self.stop_traffic(wait_time=15)
-                    self.ixNet.setAttribute(ti, '-tracking', 'trackingenabled0')
+                    #self.ixNet.setAttribute(ti, '-tracking', 'trackingenabled0')
+                    trackByList.append('trackingenabled0')
+                    self.ixNet.setMultiAttribute(ti + '/tracking', '-trackBy', trackByList)
             if ti_added:
                 self.ixNet.commit()
                 self.apply_traffic(wait_time=15)
@@ -714,7 +715,7 @@ class IxiaNative(TrafficGen):
         rate_check = False
 
         # Get 'GENIE' traffic statistics table containing outage/loss values
-        traffic_table = self.create_traffic_streams_table()
+        traffic_table = self.create_traffic_streams_table(display=False)
 
         # Loop over all traffic items in configuration
         for row in traffic_table:
@@ -784,13 +785,14 @@ class IxiaNative(TrafficGen):
         if outage_check and loss_check and rate_check:
             log.info("\nVerified traffic outage, loss % and rate outages are "
                      "within maximum expected thresholds")
+            return traffic_table
         else:
             raise GenieTgnError("Traffic outage or losses have been observed"
                                 " and streams have not converged to steady"
                                 " state")
 
 
-    def create_traffic_streams_table(self, set_golden=False, clear_stats=False, clear_stats_time=30, view_create_interval=30, view_create_iteration=5):
+    def create_traffic_streams_table(self, set_golden=False, clear_stats=False, clear_stats_time=30, view_create_interval=30, view_create_iteration=5, display=True):
         '''Create traffic profile of configured streams on Ixia'''
 
         # Init
@@ -855,7 +857,8 @@ class IxiaNative(TrafficGen):
 
         # Align and print profile table in the logs
         traffic_table.align = "l"
-        log.info(traffic_table)
+        if display:
+            log.info(traffic_table)
 
         # If flag set, reset the golden profile
         if set_golden:
@@ -896,9 +899,12 @@ class IxiaNative(TrafficGen):
         if profile2_ti != profile1_ti:
             raise GenieTgnError("Profiles do not have the same traffic items")
 
-        compare_profile = True
+        # Traffic profile column headers
         # ['Source/Dest Port Pair', 'Traffic Item', 'Tx Frames', 'Rx Frames', 'Frames Delta', 'Tx Frame Rate', 'Rx Frame Rate', 'Loss %', 'Outage (seconds)']
         names = ['src_dest_pair', 'traffic_item', 'tx_frames', 'rx_frames', 'frames_delta', 'tx_rate', 'rx_rate', 'loss', 'outage']
+
+        # Begin comparison between profiles
+        compare_profile_failed = False
         for profile1_row, profile2_row in zip(profile1, profile2):
             profile1_row.header = False ; profile2_row.header = False
             profile1_row_values = {} ; profile2_row_values = {}
@@ -909,12 +915,39 @@ class IxiaNative(TrafficGen):
 
             # Ensure profiles have traffic data/content
             if profile1_row_values and profile2_row_values:
-                try:
-                    # Compare traffic profiles
-                    assert profile1_row_values['src_dest_pair'] == profile2_row_values['src_dest_pair']
-                    assert profile1_row_values['traffic_item'] == profile2_row_values['traffic_item']
-                    assert abs(float(profile1_row_values['tx_rate']) - float(profile2_row_values['tx_rate'])) <= float(rate_tolerance)
-                    assert abs(float(profile1_row_values['rx_rate']) - float(profile2_row_values['rx_rate'])) <= float(rate_tolerance)
+                # Compare traffic profiles
+                if profile1_row_values['src_dest_pair'] == profile2_row_values['src_dest_pair'] and\
+                   profile1_row_values['traffic_item'] == profile2_row_values['traffic_item']:
+                    # Compare Tx Frames Rate between two profiles
+                    try:
+                        assert abs(float(profile1_row_values['tx_rate']) - float(profile2_row_values['tx_rate'])) <= float(rate_tolerance)
+                    except AssertionError as e:
+                        compare_profile_failed = True
+                        log.error("Tx Frames Rate for profile 1 '{p1}' and "
+                                  "profile 2 '{p2}' is more than expected "
+                                  "tolerance of '{t}'".\
+                                  format(p1=profile1_row_values['tx_rate'],
+                                         p2=profile2_row_values['tx_rate'],
+                                         t=rate_tolerance))
+                    else:
+                        log.info("Comparison for Tx Frames Rate passed for "
+                                 "traffic stream: '{}'".\
+                                 format(profile1_row_values['traffic_item']))
+                    # Compare Rx Frames Rate between two profiles
+                    try:
+                        assert abs(float(profile1_row_values['rx_rate']) - float(profile2_row_values['rx_rate'])) <= float(rate_tolerance)
+                    except AssertionError as e:
+                        compare_profile_failed = True
+                        log.error("Rx Frames Rate for profile 1 '{p1}' and "
+                                  "profile 2 '{p2}' is more than expected "
+                                  "tolerance of '{t}'".\
+                                  format(p1=profile1_row_values['rx_rate'],
+                                         p2=profile2_row_values['rx_rate'],
+                                         t=rate_tolerance))
+                    else:
+                        log.info("Comparison for Rx Frames Rate passed for "
+                                 "traffic stream: '{}'".\
+                                 format(profile1_row_values['traffic_item']))
                     # Check if loss % in profile1 is not ''
                     try:
                         float(profile1_row_values['loss'])
@@ -925,16 +958,32 @@ class IxiaNative(TrafficGen):
                         float(profile2_row_values['loss'])
                     except ValueError:
                         profile2_row_values['loss'] = 0
-                    # Compare traffic loss between profiles now
-                    assert abs(float(profile1_row_values['loss']) - float(profile2_row_values['loss'])) <= float(loss_tolerance)
-                except AssertionError as e:
-                    raise GenieTgnError("Comparison failed for traffic item: '{t}'".\
-                                        format(t=profile1_row_values['traffic_item']))
+                    # Compare Loss % between two profiles
+                    try:
+                        assert abs(float(profile1_row_values['loss']) - float(profile2_row_values['loss'])) <= float(loss_tolerance)
+                    except AssertionError as e:
+                        compare_profile_failed = True
+                        log.error("Loss % for profile 1 '{p1}' and "
+                                  "profile 2 '{p2}' is more than expected "
+                                  "tolerance of '{t}'".\
+                                  format(p1=profile1_row_values['loss'],
+                                         p2=profile2_row_values['loss'],
+                                         t=loss_tolerance))
+                    else:
+                        log.info("Comparison for Loss % passed for "
+                                 "traffic stream: '{}'".\
+                                 format(profile1_row_values['traffic_item']))
                 else:
-                    log.info("Comparison passed for traffic item: '{t}'".\
-                             format(t=profile1_row_values['traffic_item']))
+                    log.error("WARNING: The source/dest port pair and traffic"
+                              " item are mismatched - skipping check")
             else:
-                raise GenieTgnError("Profiles provided do not have traffic data")
+                raise GenieTgnError("Profiles provided for comparison do not "
+                                    "contain relevant traffic data")
+        # Final result of comparison
+        if compare_profile_failed:
+            log.error("Comparison passed for all traffic items")
+        else:
+            raise GenieTgnError("Comparison failed for traffic items between profiles")
 
 
     def set_ixia_virtual_ports(self):
