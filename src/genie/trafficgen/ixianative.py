@@ -1327,4 +1327,93 @@ class IxiaNative(TrafficGen):
                                                 format(s=src_file, d=dest_file))
 
 
+    def start_traffic_stream(self, stream_name, wait_time=15):
+        '''Satrt specific traffic item/stream name on Ixia'''
+
+        log.info(banner("Starting L2/L3 traffic for traffic stream '{}'".\
+                        format(stream_name)))
+
+        # Get all trafficItem objects
+        try:
+            for ti in self.ixNet.getList('/traffic', 'trafficItem'):
+                if stream_name == self.ixNet.getAttribute(ti, '-name'):
+                    tiObj = ti
+                    break
+                else:
+                    continue
+        except Exception as e:
+            raise GenieTgnError("Unable to get traffic item objects")
+
+        try:
+            # Start traffic for this stream
+            self.ixNet.execute('startStatelessTraffic', tiObj)
+        except:
+            raise GenieTgnError("Error while starting traffic for traffic"
+                                " stream '{}'".format(stream_name))
+
+        # Wait for user specified interval
+        log.info("Waiting for '{t}' seconds after starting traffic stream"
+                 " '{s}'".format(t=wait_time, s=stream_name))
+        time.sleep(wait_time)
+
+        # Ensure the Tx Frame Rate for this stream is not 0 after stopping it
+        log.info("Checking Tx Frame Rate for traffic item '{}' is > 0".\
+                 format(stream_name))
+        try:
+            assert int(self.\
+                get_traffic_stream_data(traffic_stream=stream_name,
+                                    traffic_data_field='Tx Frame Rate')) > 0
+        except AssertionError as e:
+            raise GenieTgnError("Tx Frame Rate is not greater than 0 after "
+                                "starting traffic for traffic stream '{}'".\
+                                format(stream_name))
+        else:
+            log.info("Tx Frame Rate is greater than 0 after starting traffic "
+                     "for traffic stream '{}'".format(stream_name))
+
+
+    def stop_traffic_stream(self, stream_name, wait_time=15):
+        '''Stop specific traffic item/stream name on Ixia'''
+
+        log.info(banner("Stopping L2/L3 traffic for traffic stream '{}'".\
+                        format(stream_name)))
+
+        # Get all trafficItem objects
+        try:
+            for ti in self.ixNet.getList('/traffic', 'trafficItem'):
+                if stream_name == self.ixNet.getAttribute(ti, '-name'):
+                    tiObj = ti
+                    break
+                else:
+                    continue
+        except Exception as e:
+            raise GenieTgnError("Unable to get traffic item objects")
+
+        try:
+            # Start traffic fo this stream
+            self.ixNet.execute('stopStatelessTraffic', tiObj)
+        except:
+            raise GenieTgnError("Error while starting traffic for traffic"
+                                " stream '{}'".format(stream_name))
+
+        # Wait for user specified interval
+        log.info("Waiting for '{t}' seconds after stopping traffic stream"
+                 " '{s}'".format(t=wait_time, s=stream_name))
+        time.sleep(wait_time)
+
+        # Ensure the Tx Frame Rate for this stream is not 0 after stopping it
+        log.info("Checking Tx Frame Rate for traffic item '{}' is = 0".\
+                 format(stream_name))
+        try:
+            assert int(self.\
+                get_traffic_stream_data(traffic_stream=stream_name,
+                                    traffic_data_field='Tx Frame Rate')) == 0
+        except AssertionError as e:
+            raise GenieTgnError("Tx Frame Rate is greater than 0 after "
+                                "starting traffic for traffic stream '{}'".\
+                                format(stream_name))
+        else:
+            log.info("Tx Frame Rate is 0 after starting traffic for traffic "
+                     "stream '{}'".format(stream_name))
+
 
