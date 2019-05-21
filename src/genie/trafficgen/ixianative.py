@@ -695,7 +695,7 @@ class IxiaNative(TrafficGen):
                                 "statistics view 'GENIE' page.") from e
 
 
-    def check_traffic_loss(self, max_outage=120, loss_tolerance=15, rate_tolerance=5, traffic_stream=''):
+    def check_traffic_loss(self, max_outage=120, loss_tolerance=15, rate_tolerance=5, traffic_stream='', display_count=0):
         '''
             For each traffic stream configured on Ixia:
                 * 1- Verify traffic outage (in seconds) is less than tolerance threshold
@@ -788,6 +788,12 @@ class IxiaNative(TrafficGen):
                      format(traffic_stream))
             return traffic_table
         else:
+            # If this is the first time we failed, display traffic table as
+            # caller will be catching the exception and won't be able to print
+            # the table. Only print if this is the first time for corner case
+            # when *ALL* traffic streams have traffic loss/outage
+            if display_count == 0:
+                log.info(traffic_table)
             raise GenieTgnError("Traffic outage, loss tolerance or rate tolerance"
                                 " is *NOT* within maximum expected thresholds"
                                 " for traffic item '{}'".format(traffic_stream))
