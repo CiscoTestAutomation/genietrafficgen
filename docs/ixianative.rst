@@ -368,6 +368,24 @@ an Ixia traffic generator device:
     |                                 |     * [M] dest_file - location to copy the     |
     |                                 |           packet capture file outside the      |
     |                                 |           IxNetwork API server.                |
+    |---------------------------------+------------------------------------------------|
+    | start_traffic_stream            | Start specific traffic item/stream name on Ixia|
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] stream_name - traffic steam/item to  |
+    |                                 |           start stateless traffic on.          |
+    |                                 |     * [O] wait_time - time to wait after       |
+    |                                 |           starting traffic stream to ensure Tx |
+    |                                 |           Rate is greater than 0 pps.          |
+    |                                 |           Default: 15 (seconds)                |
+    |---------------------------------+------------------------------------------------|
+    | stop_traffic_stream             | Stop specific traffic item/stream name on Ixia |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] stream_name - traffic steam/item to  |
+    |                                 |           stop stateless traffic on.           |
+    |                                 |     * [O] wait_time - time to wait after       |
+    |                                 |           stopping traffic stream to ensure Tx |
+    |                                 |           Rate is 0 pps.                       |
+    |                                 |           Default: 15 (seconds)                |
     +==================================================================================+
 
 The methods listed above can be executed directly on an Ixia traffic generator

@@ -788,10 +788,9 @@ class IxiaNative(TrafficGen):
                      format(traffic_stream))
             return traffic_table
         else:
-            raise GenieTgnError("Traffic outage, loss tolerance and rate "
-                                "tolerance are all within maximum expected "
-                                "thresholds for traffic item '{}'".\
-                                format(traffic_stream))
+            raise GenieTgnError("Traffic outage, loss tolerance or rate tolerance"
+                                " is *NOT* within maximum expected thresholds"
+                                " for traffic item '{}'".format(traffic_stream))
 
 
     def create_traffic_streams_table(self, set_golden=False, clear_stats=False, clear_stats_time=30, view_create_interval=30, view_create_iteration=5, display=True):
@@ -1328,7 +1327,7 @@ class IxiaNative(TrafficGen):
 
 
     def start_traffic_stream(self, stream_name, wait_time=15):
-        '''Satrt specific traffic item/stream name on Ixia'''
+        '''Start specific traffic item/stream name on Ixia'''
 
         log.info(banner("Starting L2/L3 traffic for traffic stream '{}'".\
                         format(stream_name)))
