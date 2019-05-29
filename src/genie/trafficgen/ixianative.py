@@ -854,7 +854,10 @@ class IxiaNative(TrafficGen):
                 # Calculate outage in seconds from 'Frames Delta' and add to row
                 frames_delta = row_item[4]
                 tx_frame_rate = row_item[5]
-                outage_seconds = round(float(frames_delta)/float(tx_frame_rate), 3)
+                if tx_frame_rate != '0.000':
+                    outage_seconds = round(float(frames_delta)/float(tx_frame_rate), 3)
+                else:
+                    outage_seconds = 0.0
                 row_item.append(str(outage_seconds))
                 # Add data to traffic_table
                 traffic_table.add_row(row_item)
