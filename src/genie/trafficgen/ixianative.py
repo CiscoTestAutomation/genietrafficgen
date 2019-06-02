@@ -1335,6 +1335,10 @@ class IxiaNative(TrafficGen):
                                                 format(s=src_file, d=dest_file))
 
 
+    #--------------------------------------------------------------------------#
+    #                           Stream Config                                  #
+    #--------------------------------------------------------------------------#
+
     def start_traffic_stream(self, traffic_stream, wait_time=15):
         '''Start specific traffic item/stream name on Ixia'''
 
@@ -1342,7 +1346,7 @@ class IxiaNative(TrafficGen):
                         format(traffic_stream)))
 
         # Get traffic item object from stream name
-        tiObj = self.get_traffc_item_object(traffic_stream=traffic_stream)
+        tiObj = self.get_traffc_stream_object(traffic_stream=traffic_stream)
 
         try:
             # Start traffic for this stream
@@ -1380,7 +1384,7 @@ class IxiaNative(TrafficGen):
                         format(traffic_stream)))
 
         # Get traffic item object from stream name
-        tiObj = self.get_traffc_item_object(traffic_stream=traffic_stream)
+        tiObj = self.get_traffc_stream_object(traffic_stream=traffic_stream)
 
         try:
             # Start traffic fo this stream
@@ -1411,8 +1415,11 @@ class IxiaNative(TrafficGen):
                      "stream '{}'".format(traffic_stream))
 
 
-    def get_traffc_item_object(self, traffic_stream):
-        '''Returns traffic item object from given traffic stream name'''
+    def get_traffc_stream_object(self, traffic_stream):
+        '''Finds traffic item object from given traffic stream name'''
+
+        log.info("Getting traffic item object for traffic stream '{}'".\
+                 format(traffic_stream))
 
         try:
             for ti in self.ixNet.getList('/traffic', 'trafficItem'):
@@ -1427,13 +1434,57 @@ class IxiaNative(TrafficGen):
 
 
     def get_traffic_stream_name(self, traffic_item):
-        '''Get the name of a given traffic item object'''
+        '''Returns the traffic stream name from a given traffic item object'''
 
         try:
             return self.ixNet.getAttribute(traffic_item, '-name')
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Unable to get stream name for traffic item"
+                                " '{}'".format())
+
+
+    def get_flow_groups(self, traffic_stream):
+        '''Returns a list of all flow groups for a given traffic stream'''
+
+        # Get traffic item object from stream name
+        tiObj = self.get_traffc_stream_object(traffic_stream=traffic_stream)
+
+        # Get all flow groups
+        try:
+            return self.ixNet.getList(tiObj, 'highLevelStream')
+        except Exception as e:
+            raise GenieTgnError("Unable to get list of flow groups for traffic "
+                                "stream '{}'".format(traffic_stream))
+
+
+    def get_flow_group_object(self, traffic_stream, flow_group):
+        '''Finds flow group object for the flow group of a given traffic stream'''
+
+        log.info("Getting flow group object for flow group '{f}' of traffic "
+                 "stream '{t}'".format(f=flow_group, t=traffic_stream))
+
+        try:
+            for group in self.get_flow_groups(traffic_stream=traffic_stream):
+                if flow_group == self.get_flow_group_name(flow_group=group):
+                    return group
+                else:
+                    continue
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to find flow group '{f}' for traffic "
+                                "stream '{t}' in configuration".\
+                                format(traffic_stream))
+
+
+    def get_flow_group_name(self, flow_group):
+        '''Returns the flow group name from a given flow group object'''
+
+        try:
+            return self.ixNet.getAttribute(flow_group, '-name')
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to get flow group name for flow group item"
                                 " '{}'".format())
 
 
@@ -1444,7 +1495,7 @@ class IxiaNative(TrafficGen):
                         format(traffic_stream)))
 
         # Get traffic item object from stream name
-        tiObj = self.get_traffc_item_object(traffic_stream=traffic_stream)
+        tiObj = self.get_traffc_stream_object(traffic_stream=traffic_stream)
 
         try:
             # Generate traffic
@@ -1470,52 +1521,249 @@ class IxiaNative(TrafficGen):
             log.info("Traffic is in 'unapplied' state")
 
 
-    def set_frame_rate(self, traffic_stream, frame_rate, flow_group=''):
-        '''Set the frame rate for given traffic stream or all flow groups of traffic stream'''
+    def set_line_rate(self, traffic_stream, rate, flow_group='', stop_traffic_time=15, generate_traffic_time=15, apply_traffic_time=15, start_traffic_time=15):
+        '''Set the line rate for given traffic stream or given flow group of a traffic stream'''
+
+        # Check rate provided is not more than 100 as line rate is a percentage
+        try:
+            assert rate in range(100)
+        except AssertionError as e:
+            raise GenieTgnError("Invalid input rate={} provided. Line rate must"
+                                " be between 0 to 100%".format(rate))
 
         # Get traffic item object from stream name
-        tiObj = self.get_traffc_item_object(traffic_stream=traffic_stream)
+        tiObj = self.get_traffc_stream_object(traffic_stream=traffic_stream)
 
-        # Determine which frame rate to change
-        if not flow_group:
-            log.info(banner("Setting traffic stream '{t}' frame rate to '{r}'".\
-                            format(t=traffic_stream, r=frame_rate)))
+        if flow_group:
+            # Set the line rate for given flow group of this traffic item
+            log.info(banner("Setting flow group '{f}' of traffic stream '{t}' "
+                            "line rate to '{r}'".format(f=flow_group,
+                                                        t=traffic_stream,
+                                                        r=rate)))
 
-            # Stop traffic for the given stream
-            self.stop_traffic(wait_time=15)
+            # Get flow group object of the given traffic stream
+            flowgroupObj = self.get_flow_group_object(traffic_stream=traffic_stream, flow_group=flow_group)
 
-            # Set the frame rate for traffic item
+            # Change the line rate as required
             try:
-                self.ixNet.setMultiAttribute(tiObj + "/configElement:1/frameRate",
-                                             '-type', 'percentLineRate',
-                                             '-rate', frame_rate)
+                self.ixNet.setMultiAttribute(flowgroupObj + '/frameRate',
+                                             '-rate', rate,
+                                             '-type', 'percentLineRate')
+                self.ixNet.commit()
             except Exception as e:
                 log.error(e)
-                raise GenieTgnError("Error while changing traffic stream '{t}' "
-                                    "frame rate to '{r}'".format(t=traffic_stream,
-                                                                r=frame_rate))
+                raise GenieTgnError("Error while changing flow group '{f}' of "
+                                    "traffic stream '{t}' line rate to '{r}'".\
+                                    format(f=flow_group, t=traffic_stream, r=rate))
             else:
-                log.info("Successfully changed traffic stream '{t}' frame rate"
-                         " to '{r}'".format(t=traffic_stream, r=frame_rate))
+                log.info("Successfully changed flow group '{f}' of traffic "
+                         "stream '{t}' line rate to '{r}'".format(f=flow_group,
+                                                                  t=traffic_stream,
+                                                                  r=rate))
+        else:
+            # Set the line rate for the entire traffic stream
+            log.info(banner("Setting traffic stream '{t}' line rate to '{r}'".\
+                            format(t=traffic_stream, r=rate)))
+
+            # Stop traffic for the given stream
+            self.stop_traffic(wait_time=stop_traffic_time)
+
+            # Get config element object
+            try:
+                config_elements = self.ixNet.getList(tiObj, "/configElement")
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Unable to get config elements for traffic "
+                                    "stream '{}'".format(traffic_stream))
+
+            for config_element in config_elements:
+                try:
+                    self.ixNet.setMultiAttribute(config_element + "/frameRate",
+                                                 '-rate', rate,
+                                                 '-type', 'percentLineRate')
+                    self.ixNet.commit()
+                except Exception as e:
+                    log.error(e)
+                    raise GenieTgnError("Error while changing traffic stream "
+                                        "'{t}' line rate to '{r}'".\
+                                        format(t=traffic_stream, r=rate))
+                else:
+                    log.info("Successfully changed traffic stream '{t}' line "
+                             "rate to '{r}'".format(t=traffic_stream, r=rate))
 
             # Generate traffic
-            self.generate_traffic_stream(traffic_stream=traffic_stream, wait_time=15)
+            self.generate_traffic_stream(traffic_stream=traffic_stream, wait_time=generate_traffic_time)
 
             # Apply traffic
-            self.apply_traffic(wait_time=15)
+            self.apply_traffic(wait_time=apply_traffic_time)
 
             # Start traffic
-            self.start_traffic(wait_time=15)
+            self.start_traffic(wait_time=start_traffic_time)
 
-            # Verify the frame rate is now as expected
-            import pdb ; pdb.set_trace()
 
+    def set_packet_rate(self, traffic_stream, rate, flow_group='', stop_traffic_time=15, generate_traffic_time=15, apply_traffic_time=15, start_traffic_time=15):
+        '''Set the packet rate for given traffic stream or given flow group of a traffic stream'''
+
+        # Get traffic item object from stream name
+        tiObj = self.get_traffc_stream_object(traffic_stream=traffic_stream)
+
+        if flow_group:
+            # Set the packet rate for given flow group of this traffic item
+            log.info(banner("Setting flow group '{f}' of traffic stream '{t}' "
+                            "packet rate to '{r}'".format(f=flow_group,
+                                                          t=traffic_stream,
+                                                          r=rate)))
+
+            # Get flow group object of the given traffic stream
+            flowgroupObj = self.get_flow_group_object(traffic_stream=traffic_stream, flow_group=flow_group)
+
+            # Change the packet rate as required
+            try:
+                self.ixNet.setMultiAttribute(flowgroupObj + '/frameRate',
+                                             '-rate', rate,
+                                             '-type', 'framesPerSecond')
+                self.ixNet.commit()
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Error while changing flow group '{f}' of "
+                                    "traffic stream '{t}' packet rate to '{r}'".\
+                                    format(f=flow_group, t=traffic_stream, r=rate))
+            else:
+                log.info("Successfully changed flow group '{f}' of traffic "
+                         "stream '{t}' packet rate to '{r}'".format(f=flow_group,
+                                                                  t=traffic_stream,
+                                                                  r=rate))
         else:
-            # Set the frame rate for given flow group of this traffic item
-            log.info(banner("Setting traffic stream '{t}' frame rate to '{r}'".\
-                            format(t=traffic_stream, r=frame_rate)))
+            # Set the packet rate for the entire traffic stream
+            log.info(banner("Setting traffic stream '{t}' packet rate to '{r}'".\
+                            format(t=traffic_stream, r=rate)))
+
+            # Stop traffic for the given stream
+            self.stop_traffic(wait_time=stop_traffic_time)
+
+            # Get config element object
+            try:
+                config_elements = self.ixNet.getList(tiObj, "/configElement")
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Unable to get config elements for traffic "
+                                    "stream '{}'".format(traffic_stream))
+
+            for config_element in config_elements:
+                try:
+                    self.ixNet.setMultiAttribute(config_element + "/frameRate",
+                                                 '-rate', rate,
+                                                 '-type', 'framesPerSecond')
+                    self.ixNet.commit()
+                except Exception as e:
+                    log.error(e)
+                    raise GenieTgnError("Error while changing traffic stream "
+                                        "'{t}' packet rate to '{r}'".\
+                                        format(t=traffic_stream, r=rate))
+                else:
+                    log.info("Successfully changed traffic stream '{t}' packet "
+                             "rate to '{r}'".format(t=traffic_stream, r=rate))
+
+            # Generate traffic
+            self.generate_traffic_stream(traffic_stream=traffic_stream, wait_time=generate_traffic_time)
+
+            # Apply traffic
+            self.apply_traffic(wait_time=apply_traffic_time)
+
+            # Start traffic
+            self.start_traffic(wait_time=start_traffic_time)
 
 
+    def set_layer2_bit_rate(self, traffic_stream, rate, rate_unit, flow_group='', stop_traffic_time=15, generate_traffic_time=15, apply_traffic_time=15, start_traffic_time=15):
+        '''Set the Layer2 bit rate for given traffic stream or given flow group
+           within the traffic stream'''
 
+        # Define units_dict
+        units_dict = {
+            'bps': 'bitsPerSec',
+            'Kbps': 'kbitsPerSec',
+            'Mbps': 'mbitsPerSec',
+            'Bps': 'bytesPerSec',
+            'KBps': 'kbytesPerSec',
+            'MBps': 'mbytesPerSec',
+        }
 
+        # Verify valid units have been passed in
+        try:
+            assert rate_unit in ['bps', 'Kbps', 'Mbps', 'Bps', 'KBps', 'MBps']
+        except AssertionError as e:
+            raise GenieTgnError("Invalid unit '{}' passed in for layer2 bit rate".\
+                                format(rate_unit))
+
+        # Get traffic item object from stream name
+        tiObj = self.get_traffc_stream_object(traffic_stream=traffic_stream)
+
+        if flow_group:
+            # Set the layer2 bit rate for given flow group of this traffic item
+            log.info(banner("Setting flow group '{f}' of traffic stream '{t}' "
+                            "layer2 bit rate to '{r}'".format(f=flow_group,
+                                                              t=traffic_stream,
+                                                              r=rate)))
+
+            # Get flow group object of the given traffic stream
+            flowgroupObj = self.get_flow_group_object(traffic_stream=traffic_stream, flow_group=flow_group)
+
+            # Change the layer2 bit rate as required
+            try:
+                self.ixNet.setMultiAttribute(flowgroupObj + '/frameRate',
+                                             '-rate', rate,
+                                             '-bitRateUnitsType', units_dict[rate_unit],
+                                             '-type', 'bitsPerSecond')
+                self.ixNet.commit()
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Error while changing flow group '{f}' of "
+                                    "traffic stream '{t}' layer2 bit rate to"
+                                    " '{r}'".format(f=flow_group,
+                                                    t=traffic_stream,
+                                                    r=rate))
+            else:
+                log.info("Successfully changed flow group '{f}' of traffic "
+                         "stream '{t}' layer2 bit rate to '{r}'".\
+                         format(f=flow_group, t=traffic_stream, r=rate))
+        else:
+            # Set the layer2 bit rate for the entire traffic stream
+            log.info(banner("Setting traffic stream '{t}' layer2 rate to '{r}'".\
+                            format(t=traffic_stream, r=rate)))
+
+            # Stop traffic for the given stream
+            self.stop_traffic(wait_time=stop_traffic_time)
+
+            # Get config element object
+            try:
+                config_elements = self.ixNet.getList(tiObj, "/configElement")
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Unable to get config elements for traffic "
+                                    "stream '{}'".format(traffic_stream))
+
+            for config_element in config_elements:
+                try:
+                    self.ixNet.setMultiAttribute(config_element + "/frameRate",
+                                                 '-rate', rate,
+                                                 '-bitRateUnitsType', units_dict[rate_unit],
+                                                 '-type', 'bitsPerSecond')
+                    self.ixNet.commit()
+                except Exception as e:
+                    log.error(e)
+                    raise GenieTgnError("Error while changing traffic stream "
+                                        "'{t}' layer2 bit rate to '{r}'".\
+                                        format(t=traffic_stream, r=rate))
+                else:
+                    log.info("Successfully changed traffic stream '{t}' layer2 "
+                             "bit rate to '{r}'".format(t=traffic_stream, r=rate))
+
+            # Generate traffic
+            self.generate_traffic_stream(traffic_stream=traffic_stream, wait_time=generate_traffic_time)
+
+            # Apply traffic
+            self.apply_traffic(wait_time=apply_traffic_time)
+
+            # Start traffic
+            self.start_traffic(wait_time=start_traffic_time)
 
