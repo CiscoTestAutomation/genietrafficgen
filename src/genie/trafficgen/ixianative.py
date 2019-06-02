@@ -1506,12 +1506,12 @@ class IxiaNative(TrafficGen):
                                 "stream '{}'".format(traffic_stream))
 
         # Wait for user specified interval
-        log.info("Waiting for '{t}' seconds after starting traffic stream"
+        log.info("Waiting for '{t}' seconds after generating traffic stream"
                  " '{s}'".format(t=wait_time, s=traffic_stream))
         time.sleep(wait_time)
 
 
-        # Check if traffic is in 'stopped' state
+        # Check if traffic is in 'unapplied' state
         log.info("Checking if traffic is in 'unapplied' state...")
         try:
             assert self._get_current_traffic_state() == 'unapplied'
@@ -1570,7 +1570,7 @@ class IxiaNative(TrafficGen):
 
             # Get config element object
             try:
-                config_elements = self.ixNet.getList(tiObj, "/configElement")
+                config_elements = self.ixNet.getList(tiObj, "configElement")
             except Exception as e:
                 log.error(e)
                 raise GenieTgnError("Unable to get config elements for traffic "
@@ -1643,7 +1643,7 @@ class IxiaNative(TrafficGen):
 
             # Get config element object
             try:
-                config_elements = self.ixNet.getList(tiObj, "/configElement")
+                config_elements = self.ixNet.getList(tiObj, "configElement")
             except Exception as e:
                 log.error(e)
                 raise GenieTgnError("Unable to get config elements for traffic "
@@ -1736,7 +1736,7 @@ class IxiaNative(TrafficGen):
 
             # Get config element object
             try:
-                config_elements = self.ixNet.getList(tiObj, "/configElement")
+                config_elements = self.ixNet.getList(tiObj, "configElement")
             except Exception as e:
                 log.error(e)
                 raise GenieTgnError("Unable to get config elements for traffic "
