@@ -371,8 +371,8 @@ an Ixia traffic generator device:
     |---------------------------------+------------------------------------------------|
     | start_traffic_stream            | Start specific traffic item/stream name on Ixia|
     |                                 | Arguments:                                     |
-    |                                 |     * [M] stream_name - traffic steam/item to  |
-    |                                 |           start stateless traffic on.          |
+    |                                 |     * [M] traffic_stream - traffic stream/item |
+    |                                 |           to start stateless traffic on.       |
     |                                 |     * [O] wait_time - time to wait after       |
     |                                 |           starting traffic stream to ensure Tx |
     |                                 |           Rate is greater than 0 pps.          |
@@ -380,11 +380,147 @@ an Ixia traffic generator device:
     |---------------------------------+------------------------------------------------|
     | stop_traffic_stream             | Stop specific traffic item/stream name on Ixia |
     |                                 | Arguments:                                     |
-    |                                 |     * [M] stream_name - traffic steam/item to  |
-    |                                 |           stop stateless traffic on.           |
+    |                                 |     * [M] traffic_stream - traffic stream      |
+    |                                 |           to stop stateless traffic on.        |
     |                                 |     * [O] wait_time - time to wait after       |
     |                                 |           stopping traffic stream to ensure Tx |
     |                                 |           Rate is 0 pps.                       |
+    |                                 |           Default: 15 (seconds)                |
+    |---------------------------------+------------------------------------------------|
+    | get_traffc_stream_object        | Finds IxNetwork traffic item object from given |
+    |                                 | traffic stream name.                           |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic_stream - configured traffic  |
+    |                                 |           stream name to get IxNetwork object. |
+    |---------------------------------+------------------------------------------------|
+    | get_traffic_stream_name         | Returns the configured traffic stream name for |
+    |                                 | the given IxNetwork traffic item object.       |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic_item - IxNetwork traffic item|
+    |                                 |           object for which to get configured   |
+    |                                 |           traffic stream name.                 |
+    |---------------------------------+------------------------------------------------|
+    | get_flow_groups                 | Returns a list of all flow groups for a given  |
+    |                                 | traffic stream on Ixia.                        |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic_stream - traffic stream of   |
+    |                                 |           which to get all the flow groups.    |
+    |---------------------------------+------------------------------------------------|
+    | get_flow_group_object           | Finds IxNetwork flow group object from given   |
+    |                                 | flow group name.                               |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] flow_group - configured flow group   |
+    |                                 |           name to get the IxNetwork object.    |
+    |---------------------------------+------------------------------------------------|
+    | get_flow_group_name             | Returns the configured flow group name for the |
+    |                                 | given IxNetwork flow group object.             |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] flow_group - IxNetwork flow group    |
+    |                                 |           object for which to get the          |
+    |                                 |           configured traffic stream name.      |
+    |---------------------------------+------------------------------------------------|
+    | generate_traffic_stream         | Generates L2/L3 traffic for specific traffic   |
+    |                                 | item/stream on Ixia.                           |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic_stream - traffic stream to   |
+    |                                 |           generate L2/L3 traffic for.          |
+    |                                 |     * [O] wait_time - time to wait after       |
+    |                                 |           generating L2/L3 traffic for the     |
+    |                                 |           given traffic stream.                |
+    |                                 |           Default: 15 (seconds)                |
+    |---------------------------------+------------------------------------------------|
+    | set_line_rate                   | Set the line rate for given traffic stream or  |
+    |                                 | given flow group of a traffic stream on Ixia.  |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic_stream - traffic stream name |
+    |                                 |           to modify the line rate.             |
+    |                                 |     * [M] rate - New value to set/configure the|
+    |                                 |           line rate to.                        |
+    |                                 |     * [O] flow_group - flow group under given  |
+    |                                 |           traffic stream to set line rate for. |
+    |                                 |           Default: Empty                       |
+    |                                 |     * [O] stop_traffic_time - time to wait     |
+    |                                 |           after stopping traffic for setting   |
+    |                                 |           line rate for given traffic stream.  |
+    |                                 |           Default: 15 (seconds)                |
+    |                                 |     * [O] generate_traffic_time - time to wait |
+    |                                 |           after generating traffic for setting |
+    |                                 |           line rate for given traffic stream.  |
+    |                                 |           Default: 15 (seconds)                |
+    |                                 |     * [O] apply_traffic_time - time to wait    |
+    |                                 |           after applying traffic for setting   |
+    |                                 |           line rate for given traffic stream.  |
+    |                                 |           Default: 15 (seconds)                |
+    |                                 |     * [O] start_traffic_time - time to wait    |
+    |                                 |           after starting traffic for setting   |
+    |                                 |           line rate for given traffic stream.  |
+    |                                 |           Default: 15 (seconds)                |
+    |---------------------------------+------------------------------------------------|
+    | set_packet_rate                 | Set the packet rate for given traffic stream or|
+    |                                 | given flow group of a traffic stream on Ixia.  |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic_stream - traffic stream name |
+    |                                 |           to modify the packet rate.           |
+    |                                 |     * [M] rate - New value to set/configure the|
+    |                                 |           packet rate to.                      |
+    |                                 |     * [O] flow_group - flow group under given  |
+    |                                 |           traffic stream to set packet rate for|
+    |                                 |           Default: Empty                       |
+    |                                 |     * [O] stop_traffic_time - time to wait     |
+    |                                 |           after stopping traffic for setting   |
+    |                                 |           packet rate for given traffic stream.|
+    |                                 |           Default: 15 (seconds)                |
+    |                                 |     * [O] generate_traffic_time - time to wait |
+    |                                 |           after generating traffic for setting |
+    |                                 |           packet rate for given traffic stream.|
+    |                                 |           Default: 15 (seconds)                |
+    |                                 |     * [O] apply_traffic_time - time to wait    |
+    |                                 |           after applying traffic for setting   |
+    |                                 |           packet rate for given traffic stream.|
+    |                                 |           Default: 15 (seconds)                |
+    |                                 |     * [O] start_traffic_time - time to wait    |
+    |                                 |           after starting traffic for setting   |
+    |                                 |           packet rate for given traffic stream.|
+    |                                 |           Default: 15 (seconds)                |
+    |---------------------------------+------------------------------------------------|
+    | set_layer2_bit_rate             | Set the layer2 bit rate for given traffic      |
+    |                                 | stream or given flow group of a traffic stream |
+    |                                 | on Ixia.                                       |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic_stream - traffic stream name |
+    |                                 |           to modify the layer2 bit rate.       |
+    |                                 |     * [M] rate - New value to set/configure the|
+    |                                 |           layer2 bit rate to.                  |
+    |                                 |     * [M] rate_units - For layer2 bit rate,    |
+    |                                 |           specify the units to set the value.  |
+    |                                 |           Valid Options: - bps                 |
+    |                                 |                          - Kbps                |
+    |                                 |                          - Mbps                |
+    |                                 |                          - Bps                 |
+    |                                 |                          - KBps                |
+    |                                 |                          - MBps                |
+    |                                 |     * [O] flow_group - flow group under given  |
+    |                                 |           traffic stream to set layer2 bit rate|
+    |                                 |           Default: Empty                       |
+    |                                 |     * [O] stop_traffic_time - time to wait     |
+    |                                 |           after stopping traffic for setting   |
+    |                                 |           layer2 bit rate for given traffic    |
+    |                                 |           stream.                              |
+    |                                 |           Default: 15 (seconds)                |
+    |                                 |     * [O] generate_traffic_time - time to wait |
+    |                                 |           after generating traffic for setting |
+    |                                 |           layer2 bit rate for given traffic    |
+    |                                 |           stream.                              |
+    |                                 |           Default: 15 (seconds)                |
+    |                                 |     * [O] apply_traffic_time - time to wait    |
+    |                                 |           after applying traffic for setting   |
+    |                                 |           layer2 bit rate for given traffic    |
+    |                                 |           stream.                              |
+    |                                 |           Default: 15 (seconds)                |
+    |                                 |     * [O] start_traffic_time - time to wait    |
+    |                                 |           after starting traffic for setting   |
+    |                                 |           layer2 bit rate for given traffic    |
+    |                                 |           stream.                              |
     |                                 |           Default: 15 (seconds)                |
     +==================================================================================+
 
