@@ -779,12 +779,12 @@ class IxiaNative(TrafficGen):
 
         # If all streams had:
         #   1- No traffic outage beyond threshold
-        #   2- No curret loss beyond threshold
+        #   2- No current loss beyond threshold
         #   3- No frames rate loss
         #   all good, break - else repeat, recheck
         if outage_check and loss_check and rate_check:
             log.info("Traffic outage, loss tolerance and rate tolerance are all"
-                     "within maximum expected thresholds for traffic item '{}'".\
+                     " within maximum expected thresholds for traffic item '{}'".\
                      format(traffic_stream))
             return traffic_table
         else:
@@ -1421,14 +1421,23 @@ class IxiaNative(TrafficGen):
         log.info("Getting traffic item object for traffic stream '{}'".\
                  format(traffic_stream))
 
+        ti = None
         try:
-            for ti in self.ixNet.getList('/traffic', 'trafficItem'):
-                if traffic_stream == self.get_traffic_stream_name(traffic_item=ti):
-                    return ti
+            for item in self.ixNet.getList('/traffic', 'trafficItem'):
+                if traffic_stream == self.get_traffic_stream_name(traffic_item=item):
+                    ti = item
+                    break
                 else:
                     continue
         except Exception as e:
             log.error(e)
+            raise GenieTgnError("Unable to find traffic stream '{}' in "
+                                "configuration".format(traffic_stream))
+
+        # Return to caller
+        if ti:
+            return ti
+        else:
             raise GenieTgnError("Unable to find traffic stream '{}' in "
                                 "configuration".format(traffic_stream))
 
@@ -1464,17 +1473,27 @@ class IxiaNative(TrafficGen):
         log.info("Getting flow group object for flow group '{f}' of traffic "
                  "stream '{t}'".format(f=flow_group, t=traffic_stream))
 
+        group = None
         try:
-            for group in self.get_flow_groups(traffic_stream=traffic_stream):
-                if flow_group == self.get_flow_group_name(flow_group=group):
-                    return group
+            for item in self.get_flow_groups(traffic_stream=traffic_stream):
+                if flow_group == self.get_flow_group_name(flow_group=item):
+                    group = item
+                    break
                 else:
                     continue
         except Exception as e:
             log.error(e)
-            raise GenieTgnError("Unable to find flow group '{f}' for traffic "
+            raise GenieTgnError("Unable to check for flow group '{f}' in traffic"
+                                " stream '{t}' in configuration".\
+                                format(f=flow_group, t=traffic_stream))
+
+        # Return to caller
+        if group:
+            return group
+        else:
+            raise GenieTgnError("Unable to find flow group '{f}' in traffic "
                                 "stream '{t}' in configuration".\
-                                format(traffic_stream))
+                                format(f=flow_group, t=traffic_stream))
 
 
     def get_flow_group_name(self, flow_group):
@@ -1484,14 +1503,14 @@ class IxiaNative(TrafficGen):
             return self.ixNet.getAttribute(flow_group, '-name')
         except Exception as e:
             log.error(e)
-            raise GenieTgnError("Unable to get flow group name for flow group item"
-                                " '{}'".format())
+            raise GenieTgnError("Unable to get flow group name for flow group "
+                                "item '{}'".format(flow_group))
 
 
     def generate_traffic_stream(self, traffic_stream, wait_time=15):
         '''Generate traffic for a given traffic item'''
 
-        log.info(banner("Generating traffic for traffic stream '{}'".\
+        log.info(banner("Generating L2/L3 traffic for traffic stream '{}'".\
                         format(traffic_stream)))
 
         # Get traffic item object from stream name
@@ -1510,7 +1529,6 @@ class IxiaNative(TrafficGen):
                  " '{s}'".format(t=wait_time, s=traffic_stream))
         time.sleep(wait_time)
 
-
         # Check if traffic is in 'unapplied' state
         log.info("Checking if traffic is in 'unapplied' state...")
         try:
@@ -1524,7 +1542,7 @@ class IxiaNative(TrafficGen):
     def set_line_rate(self, traffic_stream, rate, flow_group='', stop_traffic_time=15, generate_traffic_time=15, apply_traffic_time=15, start_traffic_time=15):
         '''Set the line rate for given traffic stream or given flow group of a traffic stream'''
 
-        # Check rate provided is not more than 100 as line rate is a percentage
+        # Verify rate value provided is <=100 as line rate is a percentage
         try:
             assert rate in range(100)
         except AssertionError as e:
@@ -1686,7 +1704,7 @@ class IxiaNative(TrafficGen):
             'Bps': 'bytesPerSec',
             'KBps': 'kbytesPerSec',
             'MBps': 'mbytesPerSec',
-        }
+            }
 
         # Verify valid units have been passed in
         try:
