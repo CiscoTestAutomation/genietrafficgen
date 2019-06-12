@@ -1743,7 +1743,7 @@ class IxiaNative(TrafficGen):
         group = None
         try:
             for item in self.get_flow_groups(traffic_stream=traffic_stream):
-                tmp_value = self.get_flow_group_attribute(flow_group=item,
+                tmp_value = self.get_flow_group_attribute(flow_group_object=item,
                                                           attribute='name')
                 if flow_group == tmp_value:
                     group = item
@@ -1765,7 +1765,7 @@ class IxiaNative(TrafficGen):
                                 format(f=flow_group, t=traffic_stream))
 
 
-    def get_flow_group_attribute(self, flow_group, attribute):
+    def get_flow_group_attribute(self, flow_group_object, attribute):
         '''Returns the flow group name from a given flow group object'''
 
         # Ensure valid attributes are passed in
@@ -1776,12 +1776,14 @@ class IxiaNative(TrafficGen):
                              'rxPortName',
                              'rxPortId']
 
+        # Return data requested
         try:
-            return self.ixNet.getAttribute(flow_group, '-{}'.format(attribute))
+            return self.ixNet.getAttribute(flow_group_object, '-{}'.\
+                                           format(attribute))
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Unable to get flow group name for flow group "
-                                "item '{}'".format(flow_group))
+                                "object '{}'".format(flow_group_object))
 
 
     def get_flow_statistics_data(self, traffic_stream, flow_data_field):
@@ -1827,8 +1829,9 @@ class IxiaNative(TrafficGen):
         log.info("Verify flow group '{}' state is now 'started'".\
                  format(flow_group))
         try:
-            assert 'started' == self.get_flow_group_attribute(flow_group=fgObj,
-                                                              attribute='state')
+            assert 'started' == self.\
+                        get_flow_group_attribute(flow_group_object=fgObj,
+                                                 attribute='state')
         except AssertionError as e:
             raise GenieTgnError("Flow group '{}' state is not 'started'".\
                                 format(flow_group))
@@ -1863,8 +1866,9 @@ class IxiaNative(TrafficGen):
         log.info("Verify flow group '{}' state is now 'stopped'".\
                  format(flow_group))
         try:
-            assert 'stopped' == self.get_flow_group_attribute(flow_group=fgObj,
-                                                              attribute='state')
+            assert 'stopped' == self.\
+                        get_flow_group_attribute(flow_group_object=fgObj,
+                                                 attribute='state')
         except AssertionError as e:
             raise GenieTgnError("Flow group '{}' state is not 'stopped'".\
                                 format(flow_group))
