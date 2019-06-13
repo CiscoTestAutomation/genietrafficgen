@@ -510,7 +510,7 @@ class IxiaNative(TrafficGen):
         time.sleep(wait_time)
 
 
-    def create_genie_statistics_view(self, view_create_interval=30, view_create_iteration=10):
+    def create_genie_statistics_view(self, view_create_interval=30, view_create_iteration=10, enable_tracking=True, enable_port_pair=True):
         '''Creates a custom TCL View named "Genie" with the required stats data'''
 
         log.info(banner("Creating new custom IxNetwork traffic statistics view 'GENIE'"))
@@ -528,54 +528,123 @@ class IxiaNative(TrafficGen):
                                 "traffic statistics view named 'GENIE'.") from e
 
         # Check if 'Traffic Items' filter present, if not, add it
-        log.info("Checking if 'Traffic Items' filter is found...")
-        try:
+        if enable_tracking:
+            log.info("Checking if 'Traffic Items' filter present for l2l3 traffic streams...")
             ti_added = False
-            for ti in self.ixNet.getList('/traffic', 'trafficItem'):
-                trackByList = self.ixNet.getAttribute(ti + '/tracking', '-trackBy')
+
+            # Get all traffic stream objects in configuration
+            for ti in self.get_traffic_stream_objects():
+
+                # Get traffic stream type
+                ti_type = None ; ti_name = None
+                try:
+                    ti_type = self.ixNet.getAttribute(ti, '-trafficItemType')
+                    ti_name = self.ixNet.getAttribute(ti, '-name')
+                except Exception as e:
+                    log.error(e)
+                    raise GenieTgnError("Unable to get traffic item '{}'"
+                                        " attributes".format(ti))
+
+                # If traffic streams is not of type 'l2l3' then skip to next stream
+                if ti_type != 'l2L3':
+                    continue
+
+                # Get the status of 'trackingenabled' filter
+                try:
+                    trackByList = self.ixNet.getAttribute(ti + '/tracking', '-trackBy')
+                except Exception as e:
+                    log.error(e)
+                    raise GenieTgnError("Error while checking status of filter "
+                                        "'trackingenabled' for traffic stream"
+                                        " '{}'".format(ti_name))
+
+                # If 'trackingenabled' filter is already present then skip to next stream
                 if 'trackingenabled0' in trackByList:
                     continue
-                else:
-                    ti_added = True
-                    # Traffic Item filter is not found, manually add
-                    if self._get_current_traffic_state() != 'stopped' and self._get_current_traffic_state() != 'unapplied':
-                        self.stop_traffic(wait_time=15)
-                    #self.ixNet.setAttribute(ti, '-tracking', 'trackingenabled0')
-                    trackByList.append('trackingenabled0')
+
+                # At this point, 'trackingenabled' filter is not found, add it manually
+                log.info("Adding 'Traffic Items' filter to traffic stream '{}'".\
+                         format(ti_name))
+                ti_added = True
+
+                # Stop the traffic
+                if self._get_current_traffic_state() != 'stopped' and self._get_current_traffic_state() != 'unapplied':
+                    self.stop_traffic(wait_time=15)
+
+                # Add 'trackingenabled' filter
+                trackByList.append('trackingenabled0')
+                try:
                     self.ixNet.setMultiAttribute(ti + '/tracking', '-trackBy', trackByList)
+                except Exception as e:
+                    log.error(e)
+                    raise GenieTgnError("Error while adding 'Traffic Items'"
+                                        " filter to traffic stream '{}'".\
+                                        format(ti_name))
+
+            # Loop exhausted, if 'trackignenabled' added, commit+apply+start traffic
             if ti_added:
                 self.ixNet.commit()
                 self.apply_traffic(wait_time=15)
                 self.start_traffic(wait_time=15)
-        except Exception as e:
-            log.error(e)
-            raise GenieTgnError("Error adding 'Traffic Items' filer to "
-                                "'flow tracking' for traffic items") from e
 
         # Check if 'Source/Dest Port Pair' filter present, if not, add it
-        log.info("Checking if 'Source/Dest Port Pair' filter is found for traffic items...")
-        try:
+        if enable_port_pair:
+            log.info("Checking if 'Source/Dest Port Pair' filter present for l2l3 traffic streams...")
             src_dest_added = False
-            for ti in self.ixNet.getList('/traffic', 'trafficItem'):
-                trackByList = self.ixNet.getAttribute(ti + '/tracking', '-trackBy')
-                if 'sourceDestPortPair0' in trackByList:
+
+            # Get all traffic stream objects in configuration
+            for ti in self.get_traffic_stream_objects():
+
+                # Get traffic stream type
+                ti_type = None ; ti_name = None
+                try:
+                    ti_type = self.ixNet.getAttribute(ti, '-trafficItemType')
+                    ti_name = self.ixNet.getAttribute(ti, '-name')
+                except Exception as e:
+                    raise GenieTgnError("Unable to get traffic item '{}'"
+                                        " attributes".format(ti))
+
+                # If traffic streams is not of type 'l2l3' then skip to next stream
+                if ti_type != 'l2L3':
                     continue
-                else:
-                    # Source/Dest Port Pair filter is not found, manually add
-                    src_dest_added = True
-                    if self._get_current_traffic_state() != 'stopped' and self._get_current_traffic_state() != 'unapplied':
-                        self.stop_traffic(wait_time=15)
+
+                # Get the status of 'sourceDestPortPair' filter
+                try:
+                    trackByList = self.ixNet.getAttribute(ti + '/tracking', '-trackBy')
+                except Exception as e:
+                    log.error(e)
+                    raise GenieTgnError("Error while checking status of filter "
+                                        "'sourceDestPortPair' for traffic stream"
+                                        " '{}'".format(ti_name))
+
+                # If 'sourceDestPortPair' filter is already present then skip to next stream
+                if 'sourceDestPortPair0' in trackByList:
+                        continue
+
+                # At this point, 'trackingenabled' filter is not found, add it manually
+                log.info("Adding 'Source/Dest Port Pair' filter to traffic"
+                         " stream '{}'".format(ti_name))
+                src_dest_added = True
+
+                # Stop traffic
+                if self._get_current_traffic_state() != 'stopped' and self._get_current_traffic_state() != 'unapplied':
+                    self.stop_traffic(wait_time=15)
+
+                # Add 'sourceDestPortPair' filter
+                try:
                     trackByList.append('sourceDestPortPair0')
                     self.ixNet.setMultiAttribute(ti + '/tracking', '-trackBy', trackByList)
+                except Exception as e:
+                    log.error(e)
+                    raise GenieTgnError("Error while adding 'Source/Dest Port Pair'"
+                                        " filter to traffic stream '{}'".\
+                                        format(ti_name))
 
+            # Loop exhausted, if 'sourceDestPortPair' added, commit+apply+start traffic
             if src_dest_added:
                 self.ixNet.commit()
                 self.apply_traffic(wait_time=15)
                 self.start_traffic(wait_time=15)
-        except Exception as e:
-            log.error(e)
-            raise GenieTgnError("Error adding 'Source/Dest port Pair' filer to "
-                                "'flow tracking' for traffic items") from e
 
         # Create a new TCL View called "GENIE"
         try:
@@ -2079,4 +2148,5 @@ class IxiaNative(TrafficGen):
 
             # Start traffic
             self.start_traffic(wait_time=start_traffic_time)
+
 
