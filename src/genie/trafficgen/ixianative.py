@@ -530,12 +530,12 @@ class IxiaNative(TrafficGen):
         # Check if 'Traffic Items' filter present, if not, add it
         if enable_tracking:
             log.info("Checking if 'Traffic Items' filter present for l2l3 traffic streams...")
-            self.add_flow_tracking_filter(tracking_filter='trackingenabled0')
+            self.enable_flow_tracking_filter(tracking_filter='trackingenabled0')
 
         # Check if 'Source/Dest Port Pair' filter present, if not, add it
         if enable_port_pair:
             log.info("Checking if 'Source/Dest Port Pair' filter present for l2l3 traffic streams...")
-            self.add_flow_tracking_filter(tracking_filter='sourceDestPortPair0')
+            self.enable_flow_tracking_filter(tracking_filter='sourceDestPortPair0')
 
         # Create a new TCL View called "GENIE"
         try:
@@ -655,7 +655,7 @@ class IxiaNative(TrafficGen):
                                 "statistics view 'GENIE' page.") from e
 
 
-    def add_flow_tracking_filter(self, tracking_filter):
+    def enable_flow_tracking_filter(self, tracking_filter):
         '''Enable specific flow tracking filters for traffic streams'''
 
         # Check valid tracking_filter passed in
