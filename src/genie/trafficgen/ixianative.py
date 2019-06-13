@@ -704,7 +704,7 @@ class IxiaNative(TrafficGen):
         '''
 
         # Check if traffic_stream passed in is valid/found in configuration
-        if not traffic_stream or traffic_stream not in self.get_traffic_streams():
+        if not traffic_stream or traffic_stream not in self.get_traffic_stream_names():
             log.error("WARNING: Traffic stream '{}' not found in"
                       " configuration".format(traffic_stream))
             return
@@ -1001,6 +1001,9 @@ class IxiaNative(TrafficGen):
         else:
             log.info("Comparison passed for all traffic items between profiles")
 
+    #--------------------------------------------------------------------------#
+    #                           Virtual Ports                                  #
+    #--------------------------------------------------------------------------#
 
     def set_ixia_virtual_ports(self):
         '''Set virtual Ixia ports for this configuration'''
@@ -1038,68 +1041,6 @@ class IxiaNative(TrafficGen):
                                 " port '{p}'".format(a=attribute, p=vport))
         else:
             return value
-
-
-    def get_traffic_streams(self):
-        '''Get traffic streams present in current configuration from "Traffic Item Statistics" '''
-
-        # Init
-        traffic_stream_names = []
-
-        # Get traffic streams from Ixia
-        try:
-            traffic_items = self.ixNet.execute('getColumnValues',
-                        '::ixNet::OBJ-/statistics/view:"Traffic Item Statistics"',
-                        'Traffic Item')
-        except Exception as e:
-            log.error(e)
-            raise GenieTgnError("Error while retrieving traffic items from"
-                                " 'Traffic Item Statistics'")
-
-        # Create list
-        for item in traffic_items:
-            traffic_stream_names.append(item)
-
-        # Return to caller
-        return traffic_stream_names
-
-
-    def get_traffic_stream_data(self, traffic_stream, traffic_data_field):
-        '''Get specific data field for specific traffic stream from "Traffic Item Statistics" '''
-
-        # Get all stream data for given traffic_stream
-        try:
-            return self.ixNet.execute('getValue', 
-                    '::ixNet::OBJ-/statistics/view:"Traffic Item Statistics"',
-                    traffic_stream, traffic_data_field)
-        except Exception as e:
-            log.error(e)
-            raise GenieTgnError("Error while retrieving '{data}' for traffic "
-                                "stream '{stream}' from 'Traffic Item Statistics'".\
-                                format(data=traffic_data_field, stream=traffic_stream))
-
-
-    def set_traffic_stream_data(self, traffic_stream, config_field, config_value):
-        '''Set specified configuration element for a traffic stream'''
-
-        # Change value for the stream
-        try:
-            self.ixNet.setAttribute(traffic_stream, '-{}'.format(config_field), config_value)
-        except Exception as e:
-            log.error(e)
-            raise GenieTgnError("Error while setting attribute '{data}' for traffic "
-                                "stream '{stream}' from 'Traffic Item Statistics'".\
-                                format(data=config_field, stream=traffic_stream))
-
-        # Verify that configuration value for the stream has changed
-        try:
-            assert config_value == self.get_traffic_stream_data(
-                                            traffic_stream=traffic_stream, 
-                                            traffic_data_field=config_field)
-        except Exception as e:
-            log.error(e)
-            raise GenieTgnError("'{f}' configuration not updated for '{s}'".\
-                            format(f=config_field, s=traffic_stream))
 
 
     #--------------------------------------------------------------------------#
@@ -1336,86 +1277,41 @@ class IxiaNative(TrafficGen):
 
 
     #--------------------------------------------------------------------------#
-    #                           Stream Config                                  #
+    #                        Traffic Item (Stream)                             #
     #--------------------------------------------------------------------------#
 
-    def start_traffic_stream(self, traffic_stream, wait_time=15):
-        '''Start specific traffic item/stream name on Ixia'''
+    def get_traffic_stream_names(self):
+        '''Returns a list of all traffic stream names present in current configuration'''
 
-        log.info(banner("Starting L2/L3 traffic for traffic stream '{}'".\
-                        format(traffic_stream)))
+        # Init
+        traffic_streams = []
 
-        # Get traffic item object from stream name
-        tiObj = self.get_traffc_stream_object(traffic_stream=traffic_stream)
-
+        # Get traffic streams from Ixia
         try:
-            # Start traffic for this stream
-            self.ixNet.execute('startStatelessTraffic', tiObj)
+            for item in self.get_traffic_item_objects():
+                traffic_streams.append(self.ixNet.getAttribute(item, '-name'))
         except Exception as e:
             log.error(e)
-            raise GenieTgnError("Error while starting traffic for traffic"
-                                " stream '{}'".format(traffic_stream))
-
-        # Wait for user specified interval
-        log.info("Waiting for '{t}' seconds after starting traffic stream"
-                 " '{s}'".format(t=wait_time, s=traffic_stream))
-        time.sleep(wait_time)
-
-        # Ensure the Tx Frame Rate for this stream is not 0 after stopping it
-        log.info("Checking Tx Frame Rate for traffic item '{}' is > 0".\
-                 format(traffic_stream))
-        try:
-            assert int(self.\
-                get_traffic_stream_data(traffic_stream=traffic_stream,
-                                    traffic_data_field='Tx Frame Rate')) > 0
-        except AssertionError as e:
-            raise GenieTgnError("Tx Frame Rate is not greater than 0 after "
-                                "starting traffic for traffic stream '{}'".\
-                                format(traffic_stream))
+            raise GenieTgnError("Error while retrieving traffic streams from "
+                                "configuration.")
         else:
-            log.info("Tx Frame Rate is greater than 0 after starting traffic "
-                     "for traffic stream '{}'".format(traffic_stream))
+            # Return to caller
+            return traffic_streams
 
 
-    def stop_traffic_stream(self, traffic_stream, wait_time=15):
-        '''Stop specific traffic item/stream name on Ixia'''
+    def get_traffic_item_objects(self):
+        '''Returns a list of all traffic item objects present in current configuration'''
 
-        log.info(banner("Stopping L2/L3 traffic for traffic stream '{}'".\
-                        format(traffic_stream)))
-
-        # Get traffic item object from stream name
-        tiObj = self.get_traffc_stream_object(traffic_stream=traffic_stream)
-
+        # Get traffic streams from Ixia
         try:
-            # Start traffic fo this stream
-            self.ixNet.execute('stopStatelessTraffic', tiObj)
+            return self.ixNet.getList('/traffic', 'trafficItem')
         except Exception as e:
             log.error(e)
-            raise GenieTgnError("Error while starting traffic for traffic"
-                                " stream '{}'".format(traffic_stream))
-
-        # Wait for user specified interval
-        log.info("Waiting for '{t}' seconds after stopping traffic stream"
-                 " '{s}'".format(t=wait_time, s=traffic_stream))
-        time.sleep(wait_time)
-
-        # Ensure the Tx Frame Rate for this stream is not 0 after stopping it
-        log.info("Checking Tx Frame Rate for traffic item '{}' is = 0".\
-                 format(traffic_stream))
-        try:
-            assert int(self.\
-                get_traffic_stream_data(traffic_stream=traffic_stream,
-                                    traffic_data_field='Tx Frame Rate')) == 0
-        except AssertionError as e:
-            raise GenieTgnError("Tx Frame Rate is greater than 0 after "
-                                "starting traffic for traffic stream '{}'".\
-                                format(traffic_stream))
-        else:
-            log.info("Tx Frame Rate is 0 after starting traffic for traffic "
-                     "stream '{}'".format(traffic_stream))
+            raise GenieTgnError("Error while retrieving traffic streams from "
+                                "configuration.")
 
 
-    def get_traffc_stream_object(self, traffic_stream):
+    def get_traffic_item_object(self, traffic_stream):
         '''Finds traffic item object from given traffic stream name'''
 
         log.info("Getting traffic item object for traffic stream '{}'".\
@@ -1453,58 +1349,95 @@ class IxiaNative(TrafficGen):
                                 " '{}'".format())
 
 
-    def get_flow_groups(self, traffic_stream):
-        '''Returns a list of all flow groups for a given traffic stream'''
+    def get_traffic_items_statistics_data(self, traffic_stream, traffic_data_field):
+        '''Get value of traffic_data_field of traffic_tream from "Traffic Item Statistics" '''
+
+        # Get all stream data for given traffic_stream
+        try:
+            return self.ixNet.execute('getValue', 
+                    '::ixNet::OBJ-/statistics/view:"Traffic Item Statistics"',
+                    traffic_stream, traffic_data_field)
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Error while retrieving '{data}' for traffic "
+                                "stream '{stream}' from 'Traffic Item Statistics'".\
+                                format(data=traffic_data_field, stream=traffic_stream))
+
+
+    def start_traffic_stream(self, traffic_stream, wait_time=15):
+        '''Start specific traffic item/stream name on Ixia'''
+
+        log.info(banner("Starting L2/L3 traffic for traffic stream '{}'".\
+                        format(traffic_stream)))
 
         # Get traffic item object from stream name
-        tiObj = self.get_traffc_stream_object(traffic_stream=traffic_stream)
+        tiObj = self.get_traffic_item_object(traffic_stream=traffic_stream)
 
-        # Get all flow groups
         try:
-            return self.ixNet.getList(tiObj, 'highLevelStream')
-        except Exception as e:
-            raise GenieTgnError("Unable to get list of flow groups for traffic "
-                                "stream '{}'".format(traffic_stream))
-
-
-    def get_flow_group_object(self, traffic_stream, flow_group):
-        '''Finds flow group object for the flow group of a given traffic stream'''
-
-        log.info("Getting flow group object for flow group '{f}' of traffic "
-                 "stream '{t}'".format(f=flow_group, t=traffic_stream))
-
-        group = None
-        try:
-            for item in self.get_flow_groups(traffic_stream=traffic_stream):
-                if flow_group == self.get_flow_group_name(flow_group=item):
-                    group = item
-                    break
-                else:
-                    continue
+            # Start traffic for this stream
+            self.ixNet.execute('startStatelessTraffic', tiObj)
         except Exception as e:
             log.error(e)
-            raise GenieTgnError("Unable to check for flow group '{f}' in traffic"
-                                " stream '{t}' in configuration".\
-                                format(f=flow_group, t=traffic_stream))
+            raise GenieTgnError("Error while starting traffic for traffic"
+                                " stream '{}'".format(traffic_stream))
 
-        # Return to caller
-        if group:
-            return group
+        # Wait for user specified interval
+        log.info("Waiting for '{t}' seconds after starting traffic stream"
+                 " '{s}'".format(t=wait_time, s=traffic_stream))
+        time.sleep(wait_time)
+
+        # Ensure the Tx Frame Rate for this stream is not 0 after stopping it
+        log.info("Checking Tx Frame Rate for traffic item '{}' is > 0".\
+                 format(traffic_stream))
+        try:
+            assert int(self.\
+                get_traffic_items_statistics_data(traffic_stream=traffic_stream,
+                                    traffic_data_field='Tx Frame Rate')) > 0
+        except AssertionError as e:
+            raise GenieTgnError("Tx Frame Rate is not greater than 0 after "
+                                "starting traffic for traffic stream '{}'".\
+                                format(traffic_stream))
         else:
-            raise GenieTgnError("Unable to find flow group '{f}' in traffic "
-                                "stream '{t}' in configuration".\
-                                format(f=flow_group, t=traffic_stream))
+            log.info("Tx Frame Rate is greater than 0 after starting traffic "
+                     "for traffic stream '{}'".format(traffic_stream))
 
 
-    def get_flow_group_name(self, flow_group):
-        '''Returns the flow group name from a given flow group object'''
+    def stop_traffic_stream(self, traffic_stream, wait_time=15):
+        '''Stop specific traffic item/stream name on Ixia'''
+
+        log.info(banner("Stopping L2/L3 traffic for traffic stream '{}'".\
+                        format(traffic_stream)))
+
+        # Get traffic item object from stream name
+        tiObj = self.get_traffic_item_object(traffic_stream=traffic_stream)
 
         try:
-            return self.ixNet.getAttribute(flow_group, '-name')
+            # Start traffic fo this stream
+            self.ixNet.execute('stopStatelessTraffic', tiObj)
         except Exception as e:
             log.error(e)
-            raise GenieTgnError("Unable to get flow group name for flow group "
-                                "item '{}'".format(flow_group))
+            raise GenieTgnError("Error while stopping traffic for traffic"
+                                " stream '{}'".format(traffic_stream))
+
+        # Wait for user specified interval
+        log.info("Waiting for '{t}' seconds after stopping traffic stream"
+                 " '{s}'".format(t=wait_time, s=traffic_stream))
+        time.sleep(wait_time)
+
+        # Ensure the Tx Frame Rate for this stream is not 0 after stopping it
+        log.info("Checking Tx Frame Rate for traffic item '{}' is = 0".\
+                 format(traffic_stream))
+        try:
+            assert int(self.\
+                get_traffic_items_statistics_data(traffic_stream=traffic_stream,
+                                    traffic_data_field='Tx Frame Rate')) == 0
+        except AssertionError as e:
+            raise GenieTgnError("Tx Frame Rate is greater than 0 after "
+                                "stopping traffic for traffic stream '{}'".\
+                                format(traffic_stream))
+        else:
+            log.info("Tx Frame Rate is 0 after stopping traffic for traffic "
+                     "stream '{}'".format(traffic_stream))
 
 
     def generate_traffic_stream(self, traffic_stream, wait_time=15):
@@ -1514,7 +1447,7 @@ class IxiaNative(TrafficGen):
                         format(traffic_stream)))
 
         # Get traffic item object from stream name
-        tiObj = self.get_traffc_stream_object(traffic_stream=traffic_stream)
+        tiObj = self.get_traffic_item_object(traffic_stream=traffic_stream)
 
         try:
             # Generate traffic
@@ -1539,6 +1472,10 @@ class IxiaNative(TrafficGen):
             log.info("Traffic is in 'unapplied' state")
 
 
+    #--------------------------------------------------------------------------#
+    #                     Line / Packet / Layer2 bit rate                      #
+    #--------------------------------------------------------------------------#
+
     def set_line_rate(self, traffic_stream, rate, flow_group='', stop_traffic_time=15, generate_traffic_time=15, apply_traffic_time=15, start_traffic_time=15):
         '''Set the line rate for given traffic stream or given flow group of a traffic stream'''
 
@@ -1550,7 +1487,7 @@ class IxiaNative(TrafficGen):
                                 " be between 0 to 100%".format(rate))
 
         # Get traffic item object from stream name
-        tiObj = self.get_traffc_stream_object(traffic_stream=traffic_stream)
+        tiObj = self.get_traffic_item_object(traffic_stream=traffic_stream)
 
         if flow_group:
             # Set the line rate for given flow group of this traffic item
@@ -1623,7 +1560,7 @@ class IxiaNative(TrafficGen):
         '''Set the packet rate for given traffic stream or given flow group of a traffic stream'''
 
         # Get traffic item object from stream name
-        tiObj = self.get_traffc_stream_object(traffic_stream=traffic_stream)
+        tiObj = self.get_traffic_item_object(traffic_stream=traffic_stream)
 
         if flow_group:
             # Set the packet rate for given flow group of this traffic item
@@ -1714,7 +1651,7 @@ class IxiaNative(TrafficGen):
                                 format(rate_unit))
 
         # Get traffic item object from stream name
-        tiObj = self.get_traffc_stream_object(traffic_stream=traffic_stream)
+        tiObj = self.get_traffic_item_object(traffic_stream=traffic_stream)
 
         if flow_group:
             # Set the layer2 bit rate for given flow group of this traffic item
@@ -1784,4 +1721,334 @@ class IxiaNative(TrafficGen):
 
             # Start traffic
             self.start_traffic(wait_time=start_traffic_time)
+
+
+    #--------------------------------------------------------------------------#
+    #                            Flow Groups                                   #
+    #--------------------------------------------------------------------------#
+
+    def get_flow_group_names(self, traffic_stream):
+        '''Returns a list of all the flow group names for the given traffic stream present in current configuration'''
+
+        # Init
+        flow_groups = []
+
+        # Get flow group objects of given traffic stream from Ixia
+        try:
+            for item in self.get_flow_group_objects():
+                flow_groups.append(self.ixNet.getAttribute(item, '-name'))
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Error while retrieving flow groups for traffic"
+                                " stream '{}' from configuration.".\
+                                format(traffic_stream))
+        else:
+            # Return to caller
+            return flow_groups
+
+
+    def get_flow_group_objects(self, traffic_stream):
+        '''Returns a list of flow group objects for the given traffic stream present in current configuration'''
+
+        # Get traffic item object from traffic stream name
+        ti_obj = self.get_traffic_item_object(traffic_stream=traffic_stream)
+
+        # Return list of flow group highLevelStream objects
+        try:
+            return self.ixNet.getList(ti_obj, 'highLevelStream')
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Flow groups not found in configuration for "
+                                "traffic stream '{}'".format(traffic_stream))
+
+
+    def find_flow_group_object(self, traffic_stream, flow_group):
+        '''Finds the flow group object when given the flow group name and traffic stream'''
+
+        # Init
+        fg_obj = None
+
+        # Get flow group object of the given flow group name and traffic stream
+        for item in self.get_flow_group_objects(traffic_stream=traffic_stream):
+            try:
+                if self.ixNet.getAttribute(item, '-name') == flow_group:
+                    fg_obj = item
+                    break
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Unable to get Quick Flow Group object name")
+
+        if fg_obj:
+            return fg_obj
+        else:
+            raise GenieTgnError("Unable to find ::ixNet:: object for Quick "
+                                "Flow Group '{}'".format(flow_group))
+
+
+    def get_flow_group_attribute(self, traffic_stream, flow_group, attribute):
+        '''Returns the specified attribute for the given flow group of the traffic stream'''
+
+        # Sample attributes
+        # ['name', 'state', 'txPortName', 'txPortId', 'rxPortName', 'rxPortId']
+
+        # Find flow group object
+        fg_obj = self.find_flow_group_object(traffic_stream=traffic_stream, flow_group=flow_group)
+
+        # Return the attribute specified for this Quick Flow Group
+        try:
+            return self.ixNet.getAttribute(fg_obj, '-{}'.format(attribute))
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to get '{a}' for Quick Flow Group '{f}".\
+                                format(a=attribute, f=flow_group))
+
+
+    def start_flow_group(self, traffic_stream, flow_group, wait_time=15):
+        '''Start given flow group under of traffic stream on Ixia'''
+
+        log.info(banner("Starting traffic for flow group '{}'".\
+                        format(flow_group)))
+
+        # Find flow group object from flow group name
+        fg_obj = self.find_flow_group_object(traffic_stream=traffic_stream, flow_group=flow_group)
+
+        try:
+            # Start traffic for this flow group
+            self.ixNet.execute('startStatelessTraffic', fg_obj)
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Error while starting traffic for flow group"
+                                " '{}'".format(flow_group))
+
+        # Wait for user specified interval
+        log.info("Waiting for '{t}' seconds after starting traffic for flow "
+                 "group '{f}'".format(t=wait_time, f=flow_group))
+        time.sleep(wait_time)
+
+        # Verify flow group state is now 'started'
+        log.info("Verify flow group '{}' state is now 'started'".\
+                 format(flow_group))
+        try:
+            assert 'started' == self.get_flow_group_attribute(traffic_stream=traffic_stream, flow_group=flow_group, attribute='state')
+        except AssertionError as e:
+            raise GenieTgnError("Flow group '{}' state is not 'started'".\
+                                format(flow_group))
+        else:
+            log.info("Flow group '{}' state is 'started'".format(flow_group))
+
+
+    def stop_flow_group(self, traffic_stream, flow_group, wait_time=15):
+        '''Stop given flow group under of traffic stream on Ixia'''
+
+        log.info(banner("Stopping traffic for flow group '{}'".\
+                        format(flow_group)))
+
+        # Find flow group object from flow group name
+        fg_obj = self.find_flow_group_object(traffic_stream=traffic_stream, flow_group=flow_group)
+
+        try:
+            # Stop traffic for this flow group
+            self.ixNet.execute('stopStatelessTraffic', fg_obj)
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Error while stopping traffic for flow group"
+                                " '{}'".format(flow_group))
+
+        # Wait for user specified interval
+        log.info("Waiting for '{t}' seconds after stopping traffic for flow "
+                 "group '{f}'".format(t=wait_time, f=flow_group))
+        time.sleep(wait_time)
+
+        # Verify flow group state is now 'stopped'
+        log.info("Verify flow group '{}' state is now 'stopped'".\
+                 format(flow_group))
+        try:
+            assert 'stopped' == self.get_flow_group_attribute(traffic_stream=traffic_stream, flow_group=flow_group, attribute='state')
+        except AssertionError as e:
+            raise GenieTgnError("Flow group '{}' state is not 'stopped'".\
+                                format(flow_group))
+        else:
+            log.info("Flow group '{}' state is 'stopped'".format(flow_group))
+
+
+    #--------------------------------------------------------------------------#
+    #                          Quick Flow Groups                               #
+    #--------------------------------------------------------------------------#
+
+    def get_quick_flow_group_names(self):
+        '''Returns a list of all the Quick Flow Group names present in current configuration'''
+
+        # Init
+        quick_flow_groups = []
+
+        # Get Quick Flow Group objects from Ixia
+        try:
+            for item in self.get_quick_flow_group_objects():
+                quick_flow_groups.append(self.ixNet.getAttribute(item, '-name'))
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Error while retrieving Quick Flow Groups from "
+                                "configuration.")
+        else:
+            # Return to caller
+            return quick_flow_groups
+
+
+    def get_quick_flow_group_objects(self):
+        '''Returns a list of all Quick Flow Group objects present in current configuration'''
+
+        # Init
+        qfg_traffic_item = None
+
+        # Get Quick Flow Group 'traffic stream' object
+        for item in self.get_traffic_item_objects():
+            try:
+                if self.ixNet.getAttribute(item, '-name') == 'Quick Flow Groups':
+                    qfg_traffic_item = item
+                    break
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Unable to get Quick Flow Group "
+                                    "corresponding 'traffic stream' object")
+
+        # Return list of Quick Flow Group highLevelStream objects
+        if qfg_traffic_item:
+            try:
+                return self.ixNet.getList(qfg_traffic_item, 'highLevelStream')
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Quick Flow Groups not found in configuration")
+        else:
+            raise GenieTgnError("Quick Flow Groups not found in configuration")
+
+
+    def find_quick_flow_group_object(self, quick_flow_group):
+        '''Finds the Quick Flow Group object when given the Quick Flow Group name'''
+
+        # Init
+        qfg_obj = None
+
+        # Get Quick Flow Group object of the given Quick Flow Group name
+        for item in self.get_quick_flow_group_objects():
+            try:
+                if self.ixNet.getAttribute(item, '-name') == quick_flow_group:
+                    qfg_obj = item
+                    break
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Unable to get Quick Flow Group object name")
+
+        if qfg_obj:
+            return qfg_obj
+        else:
+            raise GenieTgnError("Unable to find ::ixNet:: object for Quick "
+                                "Flow Group '{}'".format(quick_flow_group))
+
+
+    def get_quick_flow_group_attribute(self, quick_flow_group, attribute):
+        '''Returns the specified attribute for the given Quick Flow Group'''
+
+        # Sample attributes
+        # ['name', 'state', 'txPortName', 'txPortId', 'rxPortName', 'rxPortId']
+
+        # Find Quick Flow Group object
+        qfg_obj = self.find_quick_flow_group_object(quick_flow_group=quick_flow_group)
+
+        # Return the attribute specified for this Quick Flow Group
+        try:
+            return self.ixNet.getAttribute(qfg_obj, '-{}'.format(attribute))
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to get '{a}' for Quick Flow Group '{q}".\
+                                format(a=attribute, q=quick_flow_group))
+
+
+    def start_quick_flow_group(self, quick_flow_group, wait_time=15):
+        '''Start given Quick Flow Group on Ixia'''
+
+        log.info(banner("Starting traffic for Quick Flow Group '{}'".\
+                        format(quick_flow_group)))
+
+        # Find flow group object from flow group name
+        qfg_obj = self.find_quick_flow_group_object(quick_flow_group=quick_flow_group)
+
+        try:
+            # Start traffic for this Quick Flow Group
+            self.ixNet.execute('startStatelessTraffic', qfg_obj)
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Error while starting traffic for Quick Flow "
+                                "Group '{}'".format(quick_flow_group))
+
+        # Wait for user specified interval
+        log.info("Waiting for '{t}' seconds after starting traffic for Quick "
+                 "Flow Group '{q}'".format(t=wait_time, q=quick_flow_group))
+        time.sleep(wait_time)
+
+        # Verify Quick Flow Group state is now 'started'
+        log.info("Verify Quick Flow Group '{}' state is now 'started'".\
+                 format(quick_flow_group))
+        try:
+            assert 'started' == self.get_quick_flow_group_attribute(quick_flow_group=quick_flow_group, attribute='state')
+        except AssertionError as e:
+            raise GenieTgnError("Quick Flow Group '{}' state is not 'started'".\
+                                format(quick_flow_group))
+        else:
+            log.info("Quick Flow Group '{}' state is 'started'".\
+                     format(quick_flow_group))
+
+
+    def stop_quick_flow_group(self, quick_flow_group, wait_time=15):
+        '''Stop given Quick Flow Group on Ixia'''
+
+        log.info(banner("Stopping traffic for Quick Flow Group '{}'".\
+                        format(quick_flow_group)))
+
+        # Find flow group object from flow group name
+        qfg_obj = self.find_quick_flow_group_object(quick_flow_group=quick_flow_group)
+
+        try:
+            # Stop traffic for this Quick Flow Group
+            self.ixNet.execute('stopStatelessTraffic', qfg_obj)
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Error while stopping traffic for Quick Flow "
+                                "Group '{}'".format(quick_flow_group))
+
+        # Wait for user specified interval
+        log.info("Waiting for '{t}' seconds after stopping traffic for Quick "
+                 "Flow Group '{q}'".format(t=wait_time, q=quick_flow_group))
+        time.sleep(wait_time)
+
+        # Verify Quick Flow Group state is now 'stopped'
+        log.info("Verify Quick Flow Group '{}' state is now 'stopped'".\
+                 format(quick_flow_group))
+        try:
+            assert 'stopped' == self.get_quick_flow_group_attribute(quick_flow_group=quick_flow_group, attribute='state')
+        except AssertionError as e:
+            raise GenieTgnError("Quick Flow Group '{}' state is not 'stopped'".\
+                                format(quick_flow_group))
+        else:
+            log.info("Quick Flow Group '{}' state is 'stopped'".\
+                     format(quick_flow_group))
+
+
+    #--------------------------------------------------------------------------#
+    #                          Flow Statistics                                 #
+    #--------------------------------------------------------------------------#
+
+    def get_flow_statistics_data(self, traffic_stream, flow_data_field):
+        '''Get value of flow_data_field of traffic_tream from "Flow Statistics" '''
+
+        # Get all stream data for given traffic_stream
+        try:
+            return self.ixNet.execute('getValue',
+                            '::ixNet::OBJ-/statistics/view:"Flow Statistics"',
+                            traffic_stream, flow_data_field)
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Error while retrieving '{data}' for traffic "
+                                "stream '{stream}' from 'Flow Statistics'".\
+                                format(data=flow_data_field,
+                                       stream=traffic_stream))
 
