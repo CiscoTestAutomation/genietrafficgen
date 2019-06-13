@@ -529,12 +529,12 @@ class IxiaNative(TrafficGen):
 
         # Check if 'Traffic Items' filter present, if not, add it
         if enable_tracking:
-            log.info("Checking if 'Traffic Items' filter present for l2l3 traffic streams...")
+            log.info("Checking if 'Traffic Items' filter present in L2L3 traffic streams...")
             self.enable_flow_tracking_filter(tracking_filter='trackingenabled0')
 
         # Check if 'Source/Dest Port Pair' filter present, if not, add it
         if enable_port_pair:
-            log.info("Checking if 'Source/Dest Port Pair' filter present for l2l3 traffic streams...")
+            log.info("Checking if 'Source/Dest Port Pair' filter present in L2L3 traffic streams...")
             self.enable_flow_tracking_filter(tracking_filter='sourceDestPortPair0')
 
         # Create a new TCL View called "GENIE"
@@ -719,7 +719,7 @@ class IxiaNative(TrafficGen):
             self.apply_traffic(wait_time=15)
             self.start_traffic(wait_time=15)
         else:
-            log.info("Filter '{}' previously configured for all 'l2l3' traffic "
+            log.info("Filter '{}' previously configured for all L2L3 traffic "
                      "streams".format(tracking_filter))
 
 
@@ -748,7 +748,7 @@ class IxiaNative(TrafficGen):
         # Skip checks if traffic stream is not of type l2l3
         ti_type = self.get_traffic_stream_attribute(traffic_stream=traffic_stream, attribute='trafficItemType')
         if ti_type != 'l2L3':
-            log.warning("SKIP: Traffic stream '{}' is not of type l2l3".\
+            log.warning("SKIP: Traffic stream '{}' is not of type L2L3".\
                         format(traffic_stream))
             return traffic_table
 
