@@ -530,121 +530,12 @@ class IxiaNative(TrafficGen):
         # Check if 'Traffic Items' filter present, if not, add it
         if enable_tracking:
             log.info("Checking if 'Traffic Items' filter present for l2l3 traffic streams...")
-            ti_added = False
-
-            # Get all traffic stream objects in configuration
-            for ti in self.get_traffic_stream_objects():
-
-                # Get traffic stream type
-                ti_type = None ; ti_name = None
-                try:
-                    ti_type = self.ixNet.getAttribute(ti, '-trafficItemType')
-                    ti_name = self.ixNet.getAttribute(ti, '-name')
-                except Exception as e:
-                    log.error(e)
-                    raise GenieTgnError("Unable to get traffic item '{}'"
-                                        " attributes".format(ti))
-
-                # If traffic streams is not of type 'l2l3' then skip to next stream
-                if ti_type != 'l2L3':
-                    continue
-
-                # Get the status of 'trackingenabled' filter
-                try:
-                    trackByList = self.ixNet.getAttribute(ti + '/tracking', '-trackBy')
-                except Exception as e:
-                    log.error(e)
-                    raise GenieTgnError("Error while checking status of filter "
-                                        "'trackingenabled' for traffic stream"
-                                        " '{}'".format(ti_name))
-
-                # If 'trackingenabled' filter is already present then skip to next stream
-                if 'trackingenabled0' in trackByList:
-                    continue
-
-                # At this point, 'trackingenabled' filter is not found, add it manually
-                log.info("Adding 'Traffic Items' filter to traffic stream '{}'".\
-                         format(ti_name))
-                ti_added = True
-
-                # Stop the traffic
-                if self._get_current_traffic_state() != 'stopped' and self._get_current_traffic_state() != 'unapplied':
-                    self.stop_traffic(wait_time=15)
-
-                # Add 'trackingenabled' filter
-                trackByList.append('trackingenabled0')
-                try:
-                    self.ixNet.setMultiAttribute(ti + '/tracking', '-trackBy', trackByList)
-                except Exception as e:
-                    log.error(e)
-                    raise GenieTgnError("Error while adding 'Traffic Items'"
-                                        " filter to traffic stream '{}'".\
-                                        format(ti_name))
-
-            # Loop exhausted, if 'trackignenabled' added, commit+apply+start traffic
-            if ti_added:
-                self.ixNet.commit()
-                self.apply_traffic(wait_time=15)
-                self.start_traffic(wait_time=15)
+            self.add_flow_tracking_filter(tracking_filter='trackingenabled0')
 
         # Check if 'Source/Dest Port Pair' filter present, if not, add it
         if enable_port_pair:
             log.info("Checking if 'Source/Dest Port Pair' filter present for l2l3 traffic streams...")
-            src_dest_added = False
-
-            # Get all traffic stream objects in configuration
-            for ti in self.get_traffic_stream_objects():
-
-                # Get traffic stream type
-                ti_type = None ; ti_name = None
-                try:
-                    ti_type = self.ixNet.getAttribute(ti, '-trafficItemType')
-                    ti_name = self.ixNet.getAttribute(ti, '-name')
-                except Exception as e:
-                    raise GenieTgnError("Unable to get traffic item '{}'"
-                                        " attributes".format(ti))
-
-                # If traffic streams is not of type 'l2l3' then skip to next stream
-                if ti_type != 'l2L3':
-                    continue
-
-                # Get the status of 'sourceDestPortPair' filter
-                try:
-                    trackByList = self.ixNet.getAttribute(ti + '/tracking', '-trackBy')
-                except Exception as e:
-                    log.error(e)
-                    raise GenieTgnError("Error while checking status of filter "
-                                        "'sourceDestPortPair' for traffic stream"
-                                        " '{}'".format(ti_name))
-
-                # If 'sourceDestPortPair' filter is already present then skip to next stream
-                if 'sourceDestPortPair0' in trackByList:
-                        continue
-
-                # At this point, 'trackingenabled' filter is not found, add it manually
-                log.info("Adding 'Source/Dest Port Pair' filter to traffic"
-                         " stream '{}'".format(ti_name))
-                src_dest_added = True
-
-                # Stop traffic
-                if self._get_current_traffic_state() != 'stopped' and self._get_current_traffic_state() != 'unapplied':
-                    self.stop_traffic(wait_time=15)
-
-                # Add 'sourceDestPortPair' filter
-                try:
-                    trackByList.append('sourceDestPortPair0')
-                    self.ixNet.setMultiAttribute(ti + '/tracking', '-trackBy', trackByList)
-                except Exception as e:
-                    log.error(e)
-                    raise GenieTgnError("Error while adding 'Source/Dest Port Pair'"
-                                        " filter to traffic stream '{}'".\
-                                        format(ti_name))
-
-            # Loop exhausted, if 'sourceDestPortPair' added, commit+apply+start traffic
-            if src_dest_added:
-                self.ixNet.commit()
-                self.apply_traffic(wait_time=15)
-                self.start_traffic(wait_time=15)
+            self.add_flow_tracking_filter(tracking_filter='sourceDestPortPair0')
 
         # Create a new TCL View called "GENIE"
         try:
@@ -764,6 +655,74 @@ class IxiaNative(TrafficGen):
                                 "statistics view 'GENIE' page.") from e
 
 
+    def add_flow_tracking_filter(self, tracking_filter):
+        '''Enable specific flow tracking filters for traffic streams'''
+
+        # Check valid tracking_filter passed in
+        assert tracking_filter in ['trackingenabled0', 'sourceDestPortPair0']
+
+        # Init
+        filter_added = False
+
+        # Get all traffic stream objects in configuration
+        for ti in self.get_traffic_stream_objects():
+
+            # Get traffic stream type
+            ti_type = None ; ti_name = None
+            try:
+                ti_type = self.ixNet.getAttribute(ti, '-trafficItemType')
+                ti_name = self.ixNet.getAttribute(ti, '-name')
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Unable to get traffic item '{}'"
+                                    " attributes".format(ti))
+
+            # If traffic streams is not of type 'l2l3' then skip to next stream
+            if ti_type != 'l2L3':
+                continue
+
+            # Get the status of 'trackingenabled' filter
+            try:
+                trackByList = self.ixNet.getAttribute(ti + '/tracking', '-trackBy')
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Error while checking status of filter '{f}'"
+                                    " for traffic stream '{t}'".format(t=ti_name,
+                                    f=tracking_filter))
+
+            # If tracking_filter is already present then skip to next stream
+            if tracking_filter in trackByList:
+                continue
+
+            # At this point, tracking_filter is not found, add it manually
+            log.info("Adding '{f}' filter to traffic stream '{t}'".\
+                     format(f=tracking_filter, t=ti_name))
+            filter_added = True
+
+            # Stop the traffic
+            if self._get_current_traffic_state() != 'stopped' and self._get_current_traffic_state() != 'unapplied':
+                self.stop_traffic(wait_time=15)
+
+            # Add tracking_filter
+            trackByList.append(tracking_filter)
+            try:
+                self.ixNet.setMultiAttribute(ti + '/tracking', '-trackBy', trackByList)
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Error while adding '{f}' filter to traffic"
+                                    " stream '{t}'".format(t=ti_name,
+                                    f=tracking_filter))
+
+        # Loop exhausted, if tracking_filter added, commit+apply+start traffic
+        if filter_added:
+            self.ixNet.commit()
+            self.apply_traffic(wait_time=15)
+            self.start_traffic(wait_time=15)
+        else:
+            log.info("Filter '{}' previously configured for all traffic streams".\
+                     format(tracking_filter))
+
+
     def check_traffic_loss(self, max_outage=120, loss_tolerance=15, rate_tolerance=5, traffic_stream='', display_count=0):
         '''
             For each traffic stream configured on Ixia:
@@ -776,6 +735,13 @@ class IxiaNative(TrafficGen):
         if not traffic_stream or traffic_stream not in self.get_traffic_stream_names():
             log.error("WARNING: Traffic stream '{}' not found in"
                       " configuration".format(traffic_stream))
+            return
+
+        # Skip if traffic stream is not of type l2l3
+        ti_type = self.get_traffic_stream_attribute(traffic_stream=traffic_stream, attribute='trafficItemType')
+        if ti_type != 'l2L3':
+            log.warning("SKIP: Traffic stream '{}' is not of type l2l3".\
+                        format(traffic_stream))
             return
 
         # Init
@@ -803,12 +769,12 @@ class IxiaNative(TrafficGen):
             log.info("1. Verify traffic outage (in seconds) is less than tolerance threshold")
             outage = row.get_string(fields=["Outage (seconds)"]).strip()
             if float(outage) <= float(max_outage):
-                log.info("-> Traffic outage of '{o}' seconds is within "
+                log.info("* Traffic outage of '{o}' seconds is within "
                          "expected maximum outage threshold of '{s}' seconds".\
                          format(o=outage, s=max_outage))
                 outage_check = True
             else:
-                log.error("-> Traffic outage of '{o}' seconds is *NOT* within "
+                log.error("* Traffic outage of '{o}' seconds is *NOT* within "
                           "expected maximum outage threshold of '{s}' seconds".\
                           format(o=outage, s=max_outage))
 
@@ -821,12 +787,12 @@ class IxiaNative(TrafficGen):
 
             # Check traffic loss
             if float(loss_percentage) <= float(loss_tolerance):
-                log.info("-> Current traffic loss of {l}% is within"
+                log.info("* Current traffic loss of {l}% is within"
                          " maximum expected loss tolerance of {t}%".\
                          format(t=loss_tolerance, l=loss_percentage))
                 loss_check = True
             else:
-                log.error("-> Current traffic loss of {l}% is *NOT* within"
+                log.error("* Current traffic loss of {l}% is *NOT* within"
                           " maximum expected loss tolerance of {t}%".\
                           format(t=loss_tolerance, l=loss_percentage))
 
@@ -835,13 +801,13 @@ class IxiaNative(TrafficGen):
             tx_rate = row.get_string(fields=["Tx Frame Rate"]).strip()
             rx_rate = row.get_string(fields=["Rx Frame Rate"]).strip()
             if abs(float(tx_rate) - float(rx_rate)) <= float(rate_tolerance):
-                log.info("-> Difference between Tx Rate '{t}' and Rx Rate"
+                log.info("* Difference between Tx Rate '{t}' and Rx Rate"
                          " '{r}' is within expected maximum rate loss"
                          " threshold of '{m}' packets per second".\
                          format(t=tx_rate, r=rx_rate, m=rate_tolerance))
                 rate_check = True
             else:
-                log.error("-> Difference between Tx Rate '{t}' and Rx Rate"
+                log.error("* Difference between Tx Rate '{t}' and Rx Rate"
                           " '{r}' is *NOT* within expected maximum rate loss"
                           " threshold of '{m}' packets per second".\
                           format(t=tx_rate, r=rx_rate, m=rate_tolerance))
@@ -1408,7 +1374,7 @@ class IxiaNative(TrafficGen):
         '''Returns the specified attribute for the given traffic stream'''
 
         # Sample attributes
-        # ['name', 'state', 'txPortName', 'txPortId', 'rxPortName', 'rxPortId']
+        # ['name', 'state', 'txPortName', 'txPortId', 'rxPortName', 'rxPortId', 'trafficItemType']
 
         # Find traffic stream object
         ti_obj = self.find_traffic_stream_object(traffic_stream=traffic_stream)
