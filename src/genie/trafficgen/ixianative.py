@@ -1311,31 +1311,28 @@ class IxiaNative(TrafficGen):
                                 "configuration.")
 
 
-    def get_traffic_item_object(self, traffic_stream):
-        '''Finds traffic item object from given traffic stream name'''
+    def find_traffic_item_object(self, traffic_stream):
+        '''Finds the given stream name's traffic item object'''
 
-        log.info("Getting traffic item object for traffic stream '{}'".\
-                 format(traffic_stream))
+        # Init
+        ti_obj = None
 
-        ti = None
-        try:
-            for item in self.ixNet.getList('/traffic', 'trafficItem'):
-                if traffic_stream == self.get_traffic_stream_name(traffic_item=item):
-                    ti = item
+        # Get traffic item object of the given traffic stream
+        for item in self.get_traffic_item_objects():
+            try:
+                if self.ixNet.getAttribute(item, '-name') == traffic_stream:
+                    ti_obj = item
                     break
-                else:
-                    continue
-        except Exception as e:
-            log.error(e)
-            raise GenieTgnError("Unable to find traffic stream '{}' in "
-                                "configuration".format(traffic_stream))
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Unable to get traffic item object name")
 
         # Return to caller
-        if ti:
-            return ti
+        if ti_obj:
+            return ti_obj
         else:
-            raise GenieTgnError("Unable to find traffic stream '{}' in "
-                                "configuration".format(traffic_stream))
+            raise GenieTgnError("Unable to find ::ixNet:: object for traffic "
+                                "stream '{}'".format(traffic_stream))
 
 
     def get_traffic_stream_name(self, traffic_item):
@@ -1371,11 +1368,11 @@ class IxiaNative(TrafficGen):
                         format(traffic_stream)))
 
         # Get traffic item object from stream name
-        tiObj = self.get_traffic_item_object(traffic_stream=traffic_stream)
+        ti_obj = self.find_traffic_item_object(traffic_stream=traffic_stream)
 
         try:
             # Start traffic for this stream
-            self.ixNet.execute('startStatelessTraffic', tiObj)
+            self.ixNet.execute('startStatelessTraffic', ti_obj)
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Error while starting traffic for traffic"
@@ -1409,11 +1406,11 @@ class IxiaNative(TrafficGen):
                         format(traffic_stream)))
 
         # Get traffic item object from stream name
-        tiObj = self.get_traffic_item_object(traffic_stream=traffic_stream)
+        ti_obj = self.find_traffic_item_object(traffic_stream=traffic_stream)
 
         try:
             # Start traffic fo this stream
-            self.ixNet.execute('stopStatelessTraffic', tiObj)
+            self.ixNet.execute('stopStatelessTraffic', ti_obj)
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Error while stopping traffic for traffic"
@@ -1447,11 +1444,11 @@ class IxiaNative(TrafficGen):
                         format(traffic_stream)))
 
         # Get traffic item object from stream name
-        tiObj = self.get_traffic_item_object(traffic_stream=traffic_stream)
+        ti_obj = self.find_traffic_item_object(traffic_stream=traffic_stream)
 
         try:
             # Generate traffic
-            self.ixNet.execute('generate', tiObj)
+            self.ixNet.execute('generate', ti_obj)
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Error while generating traffic for traffic "
@@ -1487,7 +1484,7 @@ class IxiaNative(TrafficGen):
                                 " be between 0 to 100%".format(rate))
 
         # Get traffic item object from stream name
-        tiObj = self.get_traffic_item_object(traffic_stream=traffic_stream)
+        ti_obj = self.find_traffic_item_object(traffic_stream=traffic_stream)
 
         if flow_group:
             # Set the line rate for given flow group of this traffic item
@@ -1525,7 +1522,7 @@ class IxiaNative(TrafficGen):
 
             # Get config element object
             try:
-                config_elements = self.ixNet.getList(tiObj, "configElement")
+                config_elements = self.ixNet.getList(ti_obj, "configElement")
             except Exception as e:
                 log.error(e)
                 raise GenieTgnError("Unable to get config elements for traffic "
@@ -1560,7 +1557,7 @@ class IxiaNative(TrafficGen):
         '''Set the packet rate for given traffic stream or given flow group of a traffic stream'''
 
         # Get traffic item object from stream name
-        tiObj = self.get_traffic_item_object(traffic_stream=traffic_stream)
+        ti_obj = self.find_traffic_item_object(traffic_stream=traffic_stream)
 
         if flow_group:
             # Set the packet rate for given flow group of this traffic item
@@ -1598,7 +1595,7 @@ class IxiaNative(TrafficGen):
 
             # Get config element object
             try:
-                config_elements = self.ixNet.getList(tiObj, "configElement")
+                config_elements = self.ixNet.getList(ti_obj, "configElement")
             except Exception as e:
                 log.error(e)
                 raise GenieTgnError("Unable to get config elements for traffic "
@@ -1651,7 +1648,7 @@ class IxiaNative(TrafficGen):
                                 format(rate_unit))
 
         # Get traffic item object from stream name
-        tiObj = self.get_traffic_item_object(traffic_stream=traffic_stream)
+        ti_obj = self.find_traffic_item_object(traffic_stream=traffic_stream)
 
         if flow_group:
             # Set the layer2 bit rate for given flow group of this traffic item
@@ -1691,7 +1688,7 @@ class IxiaNative(TrafficGen):
 
             # Get config element object
             try:
-                config_elements = self.ixNet.getList(tiObj, "configElement")
+                config_elements = self.ixNet.getList(ti_obj, "configElement")
             except Exception as e:
                 log.error(e)
                 raise GenieTgnError("Unable to get config elements for traffic "
@@ -1751,7 +1748,7 @@ class IxiaNative(TrafficGen):
         '''Returns a list of flow group objects for the given traffic stream present in current configuration'''
 
         # Get traffic item object from traffic stream name
-        ti_obj = self.get_traffic_item_object(traffic_stream=traffic_stream)
+        ti_obj = self.find_traffic_item_object(traffic_stream=traffic_stream)
 
         # Return list of flow group highLevelStream objects
         try:
@@ -1778,6 +1775,7 @@ class IxiaNative(TrafficGen):
                 log.error(e)
                 raise GenieTgnError("Unable to get Quick Flow Group object name")
 
+        # Return to caller
         if fg_obj:
             return fg_obj
         else:
@@ -1938,6 +1936,7 @@ class IxiaNative(TrafficGen):
                 log.error(e)
                 raise GenieTgnError("Unable to get Quick Flow Group object name")
 
+        # Return to caller
         if qfg_obj:
             return qfg_obj
         else:
