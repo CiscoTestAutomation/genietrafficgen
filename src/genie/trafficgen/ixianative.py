@@ -719,8 +719,8 @@ class IxiaNative(TrafficGen):
             self.apply_traffic(wait_time=15)
             self.start_traffic(wait_time=15)
         else:
-            log.info("Filter '{}' previously configured for all traffic streams".\
-                     format(tracking_filter))
+            log.info("Filter '{}' previously configured for all 'l2l3' traffic "
+                     "streams".format(tracking_filter))
 
 
     def check_traffic_loss(self, max_outage=120, loss_tolerance=15, rate_tolerance=5, traffic_stream='', display_count=0):
@@ -731,19 +731,6 @@ class IxiaNative(TrafficGen):
                 * 3- Verify difference between Tx Rate & Rx Rate is less than tolerance threshold
         '''
 
-        # Check if traffic_stream passed in is valid/found in configuration
-        if not traffic_stream or traffic_stream not in self.get_traffic_stream_names():
-            log.error("WARNING: Traffic stream '{}' not found in"
-                      " configuration".format(traffic_stream))
-            return
-
-        # Skip if traffic stream is not of type l2l3
-        ti_type = self.get_traffic_stream_attribute(traffic_stream=traffic_stream, attribute='trafficItemType')
-        if ti_type != 'l2L3':
-            log.warning("SKIP: Traffic stream '{}' is not of type l2l3".\
-                        format(traffic_stream))
-            return
-
         # Init
         outage_check = False
         loss_check = False
@@ -751,6 +738,19 @@ class IxiaNative(TrafficGen):
 
         # Get 'GENIE' traffic statistics table containing outage/loss values
         traffic_table = self.create_traffic_streams_table(display=False)
+
+        # Skip checks if traffic_stream provided is not found in configuration
+        if not traffic_stream or traffic_stream not in self.get_traffic_stream_names():
+            log.error("WARNING: Traffic stream '{}' not found in"
+                      " configuration".format(traffic_stream))
+            return traffic_table
+
+        # Skip checks if traffic stream is not of type l2l3
+        ti_type = self.get_traffic_stream_attribute(traffic_stream=traffic_stream, attribute='trafficItemType')
+        if ti_type != 'l2L3':
+            log.warning("SKIP: Traffic stream '{}' is not of type l2l3".\
+                        format(traffic_stream))
+            return traffic_table
 
         # Loop over all traffic items in configuration
         for row in traffic_table:
