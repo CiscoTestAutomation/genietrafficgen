@@ -135,18 +135,6 @@ class IxiaNative(TrafficGen):
                      format(d=self.device.name, p=self.ixnetwork_tcl_port))
 
 
-    def _get_current_traffic_state(self):
-        '''Returns current traffic state'''
-
-        try:
-            state = self.ixNet.getAttribute('/traffic', '-state')
-        except Exception as e:
-            log.error(e)
-            raise GenieTgnError("Unable to get current traffic state") from e
-        else:
-            return state
-
-
     def load_configuration(self, configuration, wait_time=60):
         '''Load static configuration file onto Ixia'''
 
@@ -190,7 +178,7 @@ class IxiaNative(TrafficGen):
         # Verify traffic is in 'unapplied' state
         log.info("Verify traffic is in 'unapplied' state after loading configuration")
         try:
-            assert self._get_current_traffic_state() == 'unapplied'
+            assert self.get_traffic_attribute(attribute='state') == 'unapplied'
         except AssertionError as e:
             raise GenieTgnError("Traffic is not in 'unapplied' state after "
                                 "loading configuration onto device '{}'".\
@@ -326,7 +314,7 @@ class IxiaNative(TrafficGen):
         # Verify traffic is in 'stopped' state
         log.info("Verify traffic is in 'stopped' state...")
         try:
-            assert self._get_current_traffic_state() == 'stopped'
+            assert self.get_traffic_attribute(attribute='state') == 'stopped'
         except Exception as e:
             raise GenieTgnError("Traffic is not in 'stopped' state after "
                                 "applying L2/L3 traffic on device '{}'".\
@@ -398,6 +386,13 @@ class IxiaNative(TrafficGen):
 
         log.info(banner("Starting L2/L3 traffic"))
 
+        # Check if traffic is already started
+        state = self.get_traffic_attribute(attribute='state')
+        running = self.get_traffic_attribute(attribute='isTrafficRunning')
+        if state == 'started' or running == 'true':
+            log.info("SKIP: Traffic is already running and in 'started' state")
+            return
+
         # Start traffic on IxNetwork
         try:
             start_traffic = self.ixNet.execute('start', '/traffic')
@@ -424,7 +419,7 @@ class IxiaNative(TrafficGen):
         # Check if traffic is in 'started' state
         log.info("Checking if traffic is in 'started' state...")
         try:
-            assert self._get_current_traffic_state() == 'started'
+            assert self.get_traffic_attribute(attribute='state') == 'started'
         except Exception as e:
             raise GenieTgnError("Traffic is not in 'started' state")
         else:
@@ -462,7 +457,7 @@ class IxiaNative(TrafficGen):
         # Check if traffic is in 'stopped' state
         log.info("Checking if traffic is in 'stopped' state...")
         try:
-            assert self._get_current_traffic_state() == 'stopped'
+            assert self.get_traffic_attribute(attribute='state') == 'stopped'
         except Exception as e:
             raise GenieTgnError("Traffic is not in 'stopped' state")
         else:
@@ -700,7 +695,8 @@ class IxiaNative(TrafficGen):
             filter_added = True
 
             # Stop the traffic
-            if self._get_current_traffic_state() != 'stopped' and self._get_current_traffic_state() != 'unapplied':
+            state = get_traffic_attribute(attribute='state')
+            if state != 'stopped' and state != 'unapplied':
                 self.stop_traffic(wait_time=15)
 
             # Add tracking_filter
@@ -1035,6 +1031,25 @@ class IxiaNative(TrafficGen):
             raise GenieTgnError("Comparison failed for traffic items between profiles")
         else:
             log.info("Comparison passed for all traffic items between profiles")
+
+
+    #--------------------------------------------------------------------------#
+    #                               Traffic                                    #
+    #--------------------------------------------------------------------------#
+
+    def get_traffic_attribute(self, attribute):
+        '''Returns the specified attribute for the given traffic stream'''
+
+        # Sample attributes
+        # ['state', 'isApplicationTrafficRunning', 'isTrafficRunning']
+
+        try:
+            return self.ixNet.getAttribute('/traffic', '-{}'.format(attribute))
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to check attribute '{}'".\
+                                format(attribue)) from e
+
 
     #--------------------------------------------------------------------------#
     #                           Virtual Ports                                  #
@@ -1507,7 +1522,7 @@ class IxiaNative(TrafficGen):
         # Check if traffic is in 'unapplied' state
         log.info("Checking if traffic is in 'unapplied' state...")
         try:
-            assert self._get_current_traffic_state() == 'unapplied'
+            assert self.get_traffic_attribute(attribute='state') == 'unapplied'
         except Exception as e:
             raise GenieTgnError("Traffic is not in 'unapplied' state")
         else:
