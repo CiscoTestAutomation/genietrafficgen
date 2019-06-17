@@ -725,12 +725,11 @@ class IxiaNative(TrafficGen):
 
         # Get and display 'GENIE' traffic statistics table containing outage/loss values
         traffic_table = self.create_traffic_streams_table()
-
         traffic_streams = self.get_traffic_items_from_genie_view(traffic_table=traffic_table)
 
         for i in range(check_iteration):
 
-            log.info("Attempt #{}: Checking traffic outage/loss for all "
+            log.info("\nAttempt #{}: Checking traffic outage/loss for all "
                      "streams".format(i+1))
             outage_check = True
 
@@ -2190,6 +2189,3 @@ class IxiaNative(TrafficGen):
 
             # Start traffic
             self.start_traffic(wait_time=start_traffic_time)
-
-
-                                     
