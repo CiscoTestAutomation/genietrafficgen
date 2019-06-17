@@ -719,47 +719,95 @@ class IxiaNative(TrafficGen):
                      "streams".format(tracking_filter))
 
 
-    def check_traffic_loss(self, max_outage=120, loss_tolerance=15, rate_tolerance=5, traffic_stream='', display_count=0):
+    def check_traffic_loss(self, max_outage=120, loss_tolerance=15, rate_tolerance=5, check_iteration=10, check_interval=60, outage_dict={}):
+        '''Check traffic loss for each traffic stream configured on Ixia
+            using statistics/data from 'Traffic Item Statistics' view'''
+
+        # Get and display 'GENIE' traffic statistics table containing outage/loss values
+        traffic_table = self.create_traffic_streams_table()
+
+        traffic_streams = self.get_traffic_items_from_genie_view(traffic_table=traffic_table)
+
+        for i in range(check_iteration):
+
+            log.info("Attempt #{}: Checking traffic outage/loss for all "
+                     "streams".format(i+1))
+            outage_check = True
+
+            # Check all streams for traffic outage/loss
+            for stream in traffic_streams:
+
+                # Skip checks if traffic stream is not of type l2l3
+                ti_type = self.get_traffic_stream_attribute(traffic_stream=stream,
+                                                            attribute='trafficItemType')
+                if ti_type != 'l2L3':
+                    log.warning("SKIP: Traffic stream '{}' is not of type L2L3".\
+                                format(stream))
+                    continue
+
+                # Skip checks if traffic stream from "GENIE" table not in configuration
+                if stream not in self.get_traffic_stream_names():
+                    log.warning("SKIP: Traffic stream '{}' not found in "
+                                "configuration".format(stream))
+                    continue
+
+                # Determine outage values for this traffic stream
+                if outage_dict and 'traffic_streams' in outage_dict and \
+                    stream in outage_dict['traffic_streams']:
+                    outage=outage_dict['traffic_streams'][stream]['max_outage']
+                    loss=outage_dict['traffic_streams'][stream]['loss_tolerance']
+                    rate=outage_dict['traffic_streams'][stream]['rate_tolerance']
+                else:
+                    outage=max_outage
+                    loss=loss_tolerance
+                    rate=rate_tolerance
+
+                # Verify outage for traffic stream
+                if not self.verify_traffic_stream_outage(traffic_stream=stream,
+                                                         traffic_table=traffic_table,
+                                                         max_outage=outage,
+                                                         loss_tolerance=loss,
+                                                         rate_tolerance=rate):
+                    # Traffic loss observed for stream
+                    outage_check = False
+
+            # Check if iteration required based on results
+            if outage_check:
+                log.info("Successfully verified traffic outages/loss is within "
+                         "tolerance for all traffic streams")
+            elif i == check_iteration or i == check_iteration-1:
+                # End of iterations, raise Exception and exit
+                raise GenieTgnError("Unexpected traffic outage/loss is observed")
+            else:
+                # Traffic loss observed, sleep and recheck
+                log.error("Sleeping '{s}' seconds and rechecking traffic "
+                          "streams for traffic outage/loss".\
+                          format(s=check_interval))
+                time.sleep(check_interval)
+
+
+    def verify_traffic_stream_outage(self, traffic_stream, traffic_table, max_outage=120, loss_tolerance=15, rate_tolerance=5):
+        '''For each traffic stream configured on Ixia:
+            * 1- Verify traffic outage (in seconds) is less than tolerance threshold
+            * 2- Verify current loss % is less than tolerance threshold
+            * 3- Verify difference between Tx Rate & Rx Rate is less than tolerance threshold
         '''
-            For each traffic stream configured on Ixia:
-                * 1- Verify traffic outage (in seconds) is less than tolerance threshold
-                * 2- Verify current loss % is less than tolerance threshold
-                * 3- Verify difference between Tx Rate & Rx Rate is less than tolerance threshold
-        '''
+
+        log.info(banner("Verifying traffic item '{}'".format(traffic_stream)))
 
         # Init
         outage_check = False
         loss_check = False
         rate_check = False
 
-        # Get 'GENIE' traffic statistics table containing outage/loss values
-        traffic_table = self.create_traffic_streams_table(display=False)
-
-        # Skip checks if traffic_stream provided is not found in configuration
-        if not traffic_stream or traffic_stream not in self.get_traffic_stream_names():
-            log.error("WARNING: Traffic stream '{}' not found in"
-                      " configuration".format(traffic_stream))
-            return traffic_table
-
-        # Skip checks if traffic stream is not of type l2l3
-        ti_type = self.get_traffic_stream_attribute(traffic_stream=traffic_stream, attribute='trafficItemType')
-        if ti_type != 'l2L3':
-            log.warning("SKIP: Traffic stream '{}' is not of type L2L3".\
-                        format(traffic_stream))
-            return traffic_table
-
         # Loop over all traffic items in configuration
         for row in traffic_table:
 
-            # Get traffic item
+            # Get row in table associated with traffic stream
             row.header = False ; row.border = False
             current_stream = row.get_string(fields=["Traffic Item"]).strip()
-
-            # Skip all other streams if stream provided
-            if traffic_stream and traffic_stream != current_stream:
+            if traffic_stream != current_stream:
                 continue
-
-            log.info(banner("Checking traffic item '{}'".format(current_stream)))
 
             # 1- Verify traffic Outage (in seconds) is less than tolerance threshold
             log.info("1. Verify traffic outage (in seconds) is less than tolerance threshold")
@@ -808,30 +856,27 @@ class IxiaNative(TrafficGen):
                           " threshold of '{m}' packets per second".\
                           format(t=tx_rate, r=rx_rate, m=rate_tolerance))
 
+            # Checks completed, avoid checking other streams with duplicate names
+            break
+
         # If all streams had:
         #   1- No traffic outage beyond threshold
         #   2- No current loss beyond threshold
         #   3- No frames rate loss
-        #   all good, break - else repeat, recheck
         if outage_check and loss_check and rate_check:
-            log.info("Traffic outage, loss tolerance and rate tolerance are all"
-                     " within maximum expected thresholds for traffic item '{}'".\
+            log.info("Traffic stream '{}': traffic outage, loss% and Tx/Rx Rate"
+                     " difference within maximum expected threshold".\
                      format(traffic_stream))
-            return traffic_table
+            return True
         else:
-            # If this is the first time we failed, display traffic table as
-            # caller will be catching the exception and won't be able to print
-            # the table. Only print if this is the first time for corner case
-            # when *ALL* traffic streams have traffic loss/outage
-            if display_count == 0:
-                log.info(traffic_table)
-            raise GenieTgnError("Traffic outage, loss tolerance or rate tolerance"
-                                " are *NOT* within maximum expected thresholds"
-                                " for traffic item '{}'".format(traffic_stream))
+            log.error("Traffic stream '{}': traffic outage, loss% and Tx/Rx Rate"
+                      " difference *NOT* within maximum expected threshold".\
+                      format(traffic_stream))
+            return False
 
 
     def create_traffic_streams_table(self, set_golden=False, clear_stats=False, clear_stats_time=30, view_create_interval=30, view_create_iteration=5, display=True):
-        '''Create traffic profile of configured streams on Ixia'''
+        '''Returns traffic profile of configured streams on Ixia'''
 
         # Init
         traffic_table = prettytable.PrettyTable()
@@ -1049,6 +1094,22 @@ class IxiaNative(TrafficGen):
             log.error(e)
             raise GenieTgnError("Unable to check attribute '{}'".\
                                 format(attribue)) from e
+
+
+    def get_traffic_items_from_genie_view(self, traffic_table):
+        '''Returns list of all traffic items from within the "GENIE" view traffic table'''
+
+        # Init
+        traffic_streams = []
+
+        # Loop over traffic table provided
+        for row in traffic_table:
+            row.header = False
+            row.border = False
+            traffic_streams.append(row.get_string(fields=["Traffic Item"]).strip())
+
+        # Return to caller
+        return traffic_streams
 
 
     #--------------------------------------------------------------------------#
@@ -2131,3 +2192,4 @@ class IxiaNative(TrafficGen):
             self.start_traffic(wait_time=start_traffic_time)
 
 
+                                     
