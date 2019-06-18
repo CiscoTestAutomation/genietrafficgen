@@ -510,6 +510,15 @@ class IxiaNative(TrafficGen):
 
         log.info(banner("Creating new custom IxNetwork traffic statistics view 'GENIE'"))
 
+        # Default statistics to add to custom 'GENIE' traffic statistics view
+        default_stats_list = ["Frames Delta",
+                              "Tx Frames",
+                              "Rx Frames",
+                              "Loss %",
+                              "Tx Frame Rate",
+                              "Rx Frame Rate",
+                              ]
+
         # Delete any previously created TCL Views called "GENIE"
         log.info("Deleting any existing traffic statistics view 'GENIE'...")
         try:
@@ -522,17 +531,16 @@ class IxiaNative(TrafficGen):
             raise GenieTgnError("Unable to delete any previously created "
                                 "traffic statistics view named 'GENIE'.") from e
 
-        # Check if 'Traffic Items' filter present, if not, add it
+        # Enable 'Traffic Items' filter if not present
         if enable_tracking:
-            log.info("Checking if 'Traffic Items' filter present in L2L3 traffic streams...")
             self.enable_flow_tracking_filter(tracking_filter='trackingenabled0')
 
-        # Check if 'Source/Dest Port Pair' filter present, if not, add it
+        # Enable 'Source/Dest Port Pair' filter if not present
         if enable_port_pair:
-            log.info("Checking if 'Source/Dest Port Pair' filter present in L2L3 traffic streams...")
             self.enable_flow_tracking_filter(tracking_filter='sourceDestPortPair0')
 
         # Create a new TCL View called "GENIE"
+        log.info("Creating a new traffic statistics view 'GENIE'")
         try:
             self._genie_view = self.ixNet.add(self.ixNet.getRoot() + '/statistics', 'view')
             self.ixNet.setAttribute(self._genie_view, '-caption', 'GENIE')
@@ -564,12 +572,8 @@ class IxiaNative(TrafficGen):
 
             # Add specified columns to TCL view
             availableStatList = self.ixNet.getList(self._genie_view, 'statistic')
-            for statName in ["Frames Delta",
-                             "Tx Frames",
-                             "Rx Frames",
-                             "Loss %",
-                             "Tx Frame Rate",
-                             "Rx Frame Rate"]:
+            for statName in default_stats_list:
+                log.info("Adding '{}' statistics to 'GENIE' view".format(statName))
                 stat = self._genie_view + '/statistic:' + '"{}"'.format(statName)
                 if stat in availableStatList:
                     self.ixNet.setAttribute(stat, '-enabled', 'true')
@@ -579,19 +583,24 @@ class IxiaNative(TrafficGen):
             raise GenieTgnError("Unable to add Tx/Rx Frame Rate, Loss %, Frames"
                         " delta data to 'GENIE' traffic statistics view") from e
 
-        # Add 'Source/Dest Port Pair' data to 'GENIE' view
-        log.info("Add 'Source/Dest Port Pair' data to 'GENIE' traffic statistics view...")
+        # Create and set enumerationFilter to descending
+        log.info("Get enumerationFilter to add custom columns to view")
         try:
-            # Create and set enumerationFilter to descending
+            # Get enumerationFilter object
             enumerationFilter = self.ixNet.add(self._genie_view+'/layer23TrafficFlowFilter', 'enumerationFilter')
             self.ixNet.setAttribute(enumerationFilter, '-sortDirection', 'descending')
             self.ixNet.commit()
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to get enumerationFilter object for"
+                                " 'GENIE' view") from e
 
-            # Add 'Source/Dest Port Pair' column to TCL view (extracted through trackingFilterIds)
+        # Adding 'Source/Dest Port Pair' column to 'GENIE' view
+        log.info("Add 'Source/Dest Port Pair' column to 'GENIE' custom traffic statistics view...")
+        try:
+            # Find the 'Source/Dest Port Pair' object, add it to the 'GENIE' view
             source_dest_track_id = None
             trackingFilterIdList = self.ixNet.getList(self._genie_view, 'availableTrackingFilter')
-
-            # Find the 'Source/Dest Port Pair' object, add it to the 'GENIE' view
             for track_id in trackingFilterIdList:
                 if re.search('Source/Dest Port Pair', track_id):
                     source_dest_track_id = track_id
@@ -600,8 +609,9 @@ class IxiaNative(TrafficGen):
                 self.ixNet.setAttribute(enumerationFilter, '-trackingFilterId', source_dest_track_id)
                 self.ixNet.commit()
             else:
-                raise GenieTgnError("Unable to add 'Source/Dest Port Pair' to "
-                                    "'GENIE' traffic statistics view.")
+                raise GenieTgnError("Unable to add column for filter "
+                                    "'Source/Dest Port Pair' to 'GENIE' "
+                                    "traffic statistics view.")
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Unable to add 'Source/Dest Port Pair' to "
@@ -654,10 +664,23 @@ class IxiaNative(TrafficGen):
         '''Enable specific flow tracking filters for traffic streams'''
 
         # Check valid tracking_filter passed in
-        assert tracking_filter in ['trackingenabled0', 'sourceDestPortPair0']
+        assert tracking_filter in ['trackingenabled0',
+                                   'sourceDestPortPair0',
+                                   'sourceDestValuePair0',
+                                   ]
 
         # Init
         filter_added = False
+
+        # Mapping for filter names
+        map_dict = {
+            'trackingenabled0': "'Traffic Items'",
+            'sourceDestPortPair0': "'Source/Dest Port Pair'",
+            'sourceDestValuePair0': "'Source/Dest Value Pair"
+            }
+
+        log.info("Checking if {} filter present in L2L3 traffic streams...".\
+                 format(map_dict[tracking_filter]))
 
         # Get all traffic stream objects in configuration
         for ti in self.get_traffic_stream_objects():
@@ -719,7 +742,7 @@ class IxiaNative(TrafficGen):
                      "streams".format(tracking_filter))
 
 
-    def check_traffic_loss(self, max_outage=120, loss_tolerance=15, rate_tolerance=5, check_iteration=10, check_interval=60, outage_dict={}):
+    def check_traffic_loss(self, max_outage=120, loss_tolerance=15, rate_tolerance=5, check_iteration=10, check_interval=60, traffic_stream='', outage_dict={}):
         '''Check traffic loss for each traffic stream configured on Ixia
             using statistics/data from 'Traffic Item Statistics' view'''
 
@@ -735,6 +758,10 @@ class IxiaNative(TrafficGen):
 
             # Check all streams for traffic outage/loss
             for stream in traffic_streams:
+
+                # Skip other streams if stream provided
+                if traffic_stream and stream != traffic_stream:
+                    continue
 
                 # Skip checks if traffic stream is not of type l2l3
                 ti_type = self.get_traffic_stream_attribute(traffic_stream=stream,
@@ -1013,14 +1040,14 @@ class IxiaNative(TrafficGen):
                         assert abs(float(profile1_row_values['tx_rate']) - float(profile2_row_values['tx_rate'])) <= float(rate_tolerance)
                     except AssertionError as e:
                         compare_profile_failed = True
-                        log.error("  -> Tx Frames Rate for profile 1 '{p1}' and "
+                        log.error("* Tx Frames Rate for profile 1 '{p1}' and "
                                   "profile 2 '{p2}' is more than expected "
                                   "tolerance of '{t}'".\
                                   format(p1=profile1_row_values['tx_rate'],
                                          p2=profile2_row_values['tx_rate'],
                                          t=rate_tolerance))
                     else:
-                        log.info("  -> Tx Frames Rate difference between "
+                        log.info("* Tx Frames Rate difference between "
                                  "profiles is less than threshold of '{}'".\
                                  format(rate_tolerance))
 
@@ -1029,14 +1056,14 @@ class IxiaNative(TrafficGen):
                         assert abs(float(profile1_row_values['rx_rate']) - float(profile2_row_values['rx_rate'])) <= float(rate_tolerance)
                     except AssertionError as e:
                         compare_profile_failed = True
-                        log.error("  -> Rx Frames Rate for profile 1 '{p1}' and"
+                        log.error("* Rx Frames Rate for profile 1 '{p1}' and"
                                   " profile 2 '{p2}' is more than expected "
                                   "tolerance of '{t}'".\
                                   format(p1=profile1_row_values['rx_rate'],
                                          p2=profile2_row_values['rx_rate'],
                                          t=rate_tolerance))
                     else:
-                        log.info("  -> Rx Frames Rate difference between "
+                        log.info("* Rx Frames Rate difference between "
                                  "profiles is less than threshold of '{}'".\
                                  format(rate_tolerance))
 
@@ -1055,14 +1082,14 @@ class IxiaNative(TrafficGen):
                         assert abs(float(profile1_row_values['loss']) - float(profile2_row_values['loss'])) <= float(loss_tolerance)
                     except AssertionError as e:
                         compare_profile_failed = True
-                        log.error("  -> Loss % for profile 1 '{p1}' and "
+                        log.error("* Loss % for profile 1 '{p1}' and "
                                   "profile 2 '{p2}' is more than expected "
                                   "tolerance of '{t}'".\
                                   format(p1=profile1_row_values['loss'],
                                          p2=profile2_row_values['loss'],
                                          t=loss_tolerance))
                     else:
-                        log.info("  -> Loss % difference between profiles "
+                        log.info("* Loss % difference between profiles "
                                  "is less than threshold of '{}'".\
                                  format(loss_tolerance))
                 else:
@@ -1501,7 +1528,7 @@ class IxiaNative(TrafficGen):
         log.info("Verify Tx Frame Rate > 0 for traffic stream '{}'".\
                  format(traffic_stream))
         try:
-            assert int(self.get_traffic_items_statistics_data(traffic_stream=traffic_stream, traffic_data_field='Tx Frame Rate')) > 0
+            assert float(self.get_traffic_items_statistics_data(traffic_stream=traffic_stream, traffic_data_field='Tx Frame Rate')) > 0.0
         except AssertionError as e:
             raise GenieTgnError("Tx Frame Rate is not greater than 0 after "
                                 "starting traffic for traffic stream '{}'".\
@@ -1548,7 +1575,7 @@ class IxiaNative(TrafficGen):
         log.info("Verify Tx Frame Rate == 0 for traffic stream '{}'".\
                  format(traffic_stream))
         try:
-            assert int(self.get_traffic_items_statistics_data(traffic_stream=traffic_stream, traffic_data_field='Tx Frame Rate')) == 0
+            assert float(self.get_traffic_items_statistics_data(traffic_stream=traffic_stream, traffic_data_field='Tx Frame Rate')) == 0.0
         except AssertionError as e:
             raise GenieTgnError("Tx Frame Rate is greater than 0 after "
                                 "stopping traffic for traffic stream '{}'".\
