@@ -774,6 +774,7 @@ class IxiaNative(TrafficGen):
             if outage_check:
                 log.info("Successfully verified traffic outages/loss is within "
                          "tolerance for all traffic streams")
+                break
             elif i == check_iteration or i == check_iteration-1:
                 # End of iterations, raise Exception and exit
                 raise GenieTgnError("Unexpected traffic outage/loss is observed")
