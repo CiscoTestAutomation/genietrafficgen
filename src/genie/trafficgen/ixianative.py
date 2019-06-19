@@ -2217,3 +2217,48 @@ class IxiaNative(TrafficGen):
 
             # Start traffic
             self.start_traffic(wait_time=start_traffic_time)
+
+
+    def set_packet_size_fixed(self, traffic_stream, packet_size, stop_traffic_time=15, generate_traffic_time=15, apply_traffic_time=15, start_traffic_time=15):
+        '''Set the packet size for given traffic stream'''
+
+        # Get traffic item object from stream name
+        ti_obj = self.find_traffic_stream_object(traffic_stream=traffic_stream)
+
+        # Set the packet size for the traffic stream
+        log.info(banner("Setting traffic stream '{t}' packet size to '{p}'".\
+                        format(t=traffic_stream, p=packet_size)))
+
+        # Stop traffic for the given stream
+        self.stop_traffic(wait_time=stop_traffic_time)
+
+        # Get config element object
+        try:
+            config_elements = self.ixNet.getList(ti_obj, "configElement")
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to get config elements for traffic "
+                                "stream '{}'".format(traffic_stream))
+
+        for config_element in config_elements:
+            try:
+                self.ixNet.setMultiAttribute(config_element + "/frameSize",
+                                             '-fixedSize', packet_size)
+                self.ixNet.commit()
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Error while changing traffic stream "
+                                    "'{t}' packet size to '{p}'".\
+                                    format(t=traffic_stream, p=packet_size))
+            else:
+                log.info("Successfully changed traffic stream '{t}' packet "
+                         "size to '{p}'".format(t=traffic_stream, p=packet_size))
+
+        # Generate traffic
+        self.generate_traffic_stream(traffic_stream=traffic_stream, wait_time=generate_traffic_time)
+
+        # Apply traffic
+        self.apply_traffic(wait_time=apply_traffic_time)
+
+        # Start traffic
+        self.start_traffic(wait_time=start_traffic_time)
