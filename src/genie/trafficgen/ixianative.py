@@ -837,7 +837,8 @@ class IxiaNative(TrafficGen):
                 continue
 
             # 1- Verify traffic Outage (in seconds) is less than tolerance threshold
-            log.info("1. Verify traffic outage (in seconds) is less than tolerance threshold")
+            log.info("1. Verify traffic outage (in seconds) is less than "
+                     "tolerance threshold of '{}' seconds".format(max_outage))
             outage = row.get_string(fields=["Outage (seconds)"]).strip()
             if float(outage) <= float(max_outage):
                 log.info("* Traffic outage of '{o}' seconds is within "
@@ -850,7 +851,8 @@ class IxiaNative(TrafficGen):
                           format(o=outage, s=max_outage))
 
             # 2- Verify current loss % is less than tolerance threshold
-            log.info("2. Verify current loss % is less than tolerance threshold")
+            log.info("2. Verify current loss % is less than tolerance "
+                     "threshold of '{}' %".format(loss_tolerance))
             if row.get_string(fields=["Loss %"]).strip() != '':
                 loss_percentage = row.get_string(fields=["Loss %"]).strip()
             else:
@@ -868,7 +870,8 @@ class IxiaNative(TrafficGen):
                           format(t=loss_tolerance, l=loss_percentage))
 
             # 3- Verify difference between Tx Rate & Rx Rate is less than tolerance threshold
-            log.info("3. Verify difference between Tx Rate & Rx Rate is less than tolerance threshold")
+            log.info("3. Verify difference between Tx Rate & Rx Rate is less "
+                     "than tolerance threshold of '{}' pps".format(rate_tolerance))
             tx_rate = row.get_string(fields=["Tx Frame Rate"]).strip()
             rx_rate = row.get_string(fields=["Rx Frame Rate"]).strip()
             if abs(float(tx_rate) - float(rx_rate)) <= float(rate_tolerance):
