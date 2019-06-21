@@ -660,89 +660,7 @@ class IxiaNative(TrafficGen):
                                 "statistics view 'GENIE' page.") from e
 
 
-    def enable_flow_tracking_filter(self, tracking_filter):
-        '''Enable specific flow tracking filters for traffic streams'''
-
-        # Check valid tracking_filter passed in
-        assert tracking_filter in ['trackingenabled0',
-                                   'sourceDestPortPair0',
-                                   'sourceDestValuePair0',
-                                   ]
-
-        # Init
-        filter_added = False
-
-        # Mapping for filter names
-        map_dict = {
-            'trackingenabled0': "'Traffic Items'",
-            'sourceDestPortPair0': "'Source/Dest Port Pair'",
-            'sourceDestValuePair0': "'Source/Dest Value Pair"
-            }
-
-        log.info("Checking if {} filter present in L2L3 traffic streams...".\
-                 format(map_dict[tracking_filter]))
-
-        # Get all traffic stream objects in configuration
-        for ti in self.get_traffic_stream_objects():
-
-            # Get traffic stream type
-            ti_type = None ; ti_name = None
-            try:
-                ti_type = self.ixNet.getAttribute(ti, '-trafficItemType')
-                ti_name = self.ixNet.getAttribute(ti, '-name')
-            except Exception as e:
-                log.error(e)
-                raise GenieTgnError("Unable to get traffic item '{}'"
-                                    " attributes".format(ti))
-
-            # If traffic streams is not of type 'l2l3' then skip to next stream
-            if ti_type != 'l2L3':
-                continue
-
-            # Get the status of 'trackingenabled' filter
-            try:
-                trackByList = self.ixNet.getAttribute(ti + '/tracking', '-trackBy')
-            except Exception as e:
-                log.error(e)
-                raise GenieTgnError("Error while checking status of filter '{f}'"
-                                    " for traffic stream '{t}'".format(t=ti_name,
-                                    f=tracking_filter))
-
-            # If tracking_filter is already present then skip to next stream
-            if tracking_filter in trackByList:
-                continue
-
-            # At this point, tracking_filter is not found, add it manually
-            log.info("Adding '{f}' filter to traffic stream '{t}'".\
-                     format(f=tracking_filter, t=ti_name))
-            filter_added = True
-
-            # Stop the traffic
-            state = get_traffic_attribute(attribute='state')
-            if state != 'stopped' and state != 'unapplied':
-                self.stop_traffic(wait_time=15)
-
-            # Add tracking_filter
-            trackByList.append(tracking_filter)
-            try:
-                self.ixNet.setMultiAttribute(ti + '/tracking', '-trackBy', trackByList)
-            except Exception as e:
-                log.error(e)
-                raise GenieTgnError("Error while adding '{f}' filter to traffic"
-                                    " stream '{t}'".format(t=ti_name,
-                                    f=tracking_filter))
-
-        # Loop exhausted, if tracking_filter added, commit+apply+start traffic
-        if filter_added:
-            self.ixNet.commit()
-            self.apply_traffic(wait_time=15)
-            self.start_traffic(wait_time=15)
-        else:
-            log.info("Filter '{}' previously configured for all L2L3 traffic "
-                     "streams".format(tracking_filter))
-
-
-    def check_traffic_loss(self, max_outage=120, loss_tolerance=15, rate_tolerance=5, check_iteration=10, check_interval=60, traffic_stream='', outage_dict={}):
+    def check_traffic_loss(self, traffic_stream='', max_outage=120, loss_tolerance=15, rate_tolerance=5, check_iteration=10, check_interval=60, outage_dict={}):
         '''Check traffic loss for each traffic stream configured on Ixia
             using statistics/data from 'Traffic Item Statistics' view'''
 
@@ -1137,6 +1055,88 @@ class IxiaNative(TrafficGen):
 
         # Return to caller
         return traffic_streams
+
+
+    def enable_flow_tracking_filter(self, tracking_filter):
+        '''Enable specific flow tracking filters for traffic streams'''
+
+        # Check valid tracking_filter passed in
+        assert tracking_filter in ['trackingenabled0',
+                                   'sourceDestPortPair0',
+                                   'sourceDestValuePair0',
+                                   ]
+
+        # Init
+        filter_added = False
+
+        # Mapping for filter names
+        map_dict = {
+            'trackingenabled0': "'Traffic Items'",
+            'sourceDestPortPair0': "'Source/Dest Port Pair'",
+            'sourceDestValuePair0': "'Source/Dest Value Pair"
+            }
+
+        log.info("Checking if {} filter present in L2L3 traffic streams...".\
+                 format(map_dict[tracking_filter]))
+
+        # Get all traffic stream objects in configuration
+        for ti in self.get_traffic_stream_objects():
+
+            # Get traffic stream type
+            ti_type = None ; ti_name = None
+            try:
+                ti_type = self.ixNet.getAttribute(ti, '-trafficItemType')
+                ti_name = self.ixNet.getAttribute(ti, '-name')
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Unable to get traffic item '{}'"
+                                    " attributes".format(ti))
+
+            # If traffic streams is not of type 'l2l3' then skip to next stream
+            if ti_type != 'l2L3':
+                continue
+
+            # Get the status of 'trackingenabled' filter
+            try:
+                trackByList = self.ixNet.getAttribute(ti + '/tracking', '-trackBy')
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Error while checking status of filter '{f}'"
+                                    " for traffic stream '{t}'".format(t=ti_name,
+                                    f=tracking_filter))
+
+            # If tracking_filter is already present then skip to next stream
+            if tracking_filter in trackByList:
+                continue
+
+            # At this point, tracking_filter is not found, add it manually
+            log.info("Adding '{f}' filter to traffic stream '{t}'".\
+                     format(f=tracking_filter, t=ti_name))
+            filter_added = True
+
+            # Stop the traffic
+            state = get_traffic_attribute(attribute='state')
+            if state != 'stopped' and state != 'unapplied':
+                self.stop_traffic(wait_time=15)
+
+            # Add tracking_filter
+            trackByList.append(tracking_filter)
+            try:
+                self.ixNet.setMultiAttribute(ti + '/tracking', '-trackBy', trackByList)
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Error while adding '{f}' filter to traffic"
+                                    " stream '{t}'".format(t=ti_name,
+                                    f=tracking_filter))
+
+        # Loop exhausted, if tracking_filter added, commit+apply+start traffic
+        if filter_added:
+            self.ixNet.commit()
+            self.apply_traffic(wait_time=15)
+            self.start_traffic(wait_time=15)
+        else:
+            log.info("Filter '{}' previously configured for all L2L3 traffic "
+                     "streams".format(tracking_filter))
 
 
     #--------------------------------------------------------------------------#
@@ -2262,3 +2262,4 @@ class IxiaNative(TrafficGen):
 
         # Start traffic
         self.start_traffic(wait_time=start_traffic_time)
+
