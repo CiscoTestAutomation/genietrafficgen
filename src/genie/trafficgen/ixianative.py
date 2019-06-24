@@ -1097,6 +1097,7 @@ class IxiaNative(TrafficGen):
                 continue
 
             # Get the status of 'trackingenabled' filter
+            trackByList = []
             try:
                 trackByList = self.ixNet.getAttribute(ti + '/tracking', '-trackBy')
             except Exception as e:
@@ -1110,14 +1111,13 @@ class IxiaNative(TrafficGen):
                 continue
 
             # At this point, tracking_filter is not found, add it manually
-            log.info("Adding '{f}' filter to traffic stream '{t}'".\
-                     format(f=tracking_filter, t=ti_name))
-            filter_added = True
-
             # Stop the traffic
-            state = get_traffic_attribute(attribute='state')
+            state = self.get_traffic_attribute(attribute='state')
             if state != 'stopped' and state != 'unapplied':
                 self.stop_traffic(wait_time=15)
+
+            log.info("Adding '{f}' filter to traffic stream '{t}'".\
+                     format(f=tracking_filter, t=ti_name))
 
             # Add tracking_filter
             trackByList.append(tracking_filter)
@@ -1128,6 +1128,8 @@ class IxiaNative(TrafficGen):
                 raise GenieTgnError("Error while adding '{f}' filter to traffic"
                                     " stream '{t}'".format(t=ti_name,
                                     f=tracking_filter))
+            else:
+                filter_added = True
 
         # Loop exhausted, if tracking_filter added, commit+apply+start traffic
         if filter_added:
