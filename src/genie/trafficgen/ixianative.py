@@ -2266,3 +2266,67 @@ class IxiaNative(TrafficGen):
         # Start traffic
         self.start_traffic(wait_time=start_traffic_time)
 
+
+    #--------------------------------------------------------------------------#
+    #                               QuickTest                                  #
+    #--------------------------------------------------------------------------#
+
+    def load_quicktest_configuration(self, configuration, wait_time=30):
+        '''Load QuickTest configuration file'''
+
+        # Load the QuickTest configuration file onto Ixia
+        try:
+            import pdb ; pdb.set_trace()
+            load_config = self.ixNet.execute('loadConfig',
+                                             self.ixNet.readFrom(configuration))
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to load configuration file '{f}' onto "
+                                "device '{d}'".format(d=self.device.name,
+                                                f=configuration)) from e
+        else:
+            assert load_config
+
+        # Verify return
+        try:
+            assert load_config == _PASS
+        except AssertionError as e:
+            log.error(load_config)
+            raise GenieTgnError("Unable to load configuration file '{f}' onto "
+                                "device '{d}'".format(d=self.device.name,
+                                                f=configuration)) from e
+        else:
+            log.info("Loaded configuration file '{f}' onto device '{d}'".\
+                    format(f=configuration, d=self.device.name))
+
+        # Wait after loading configuration file
+        log.info("Waiting for '{}' seconds after loading configuration...".\
+                 format(wait_time))
+        time.sleep(wait_time)
+
+        # Verify traffic is in 'unapplied' state
+        log.info("Verify traffic is in 'unapplied' state after loading configuration")
+        try:
+            assert self.get_traffic_attribute(attribute='state') == 'unapplied'
+        except AssertionError as e:
+            raise GenieTgnError("Traffic is not in 'unapplied' state after "
+                                "loading configuration onto device '{}'".\
+                                format(self.device.name)) from e
+        else:
+            log.info("Traffic in 'unapplied' state after loading configuration "
+                     "onto device '{}'".format(self.device.name))
+
+
+    def execute_quicktest(self, quicktest, check_interval, check_iteration):
+        '''Execute specific RFC QuickTest'''
+        pass
+
+
+    def generate_quicktest_report(self):
+        '''Generate and returns destination of QuickTest PDF report'''
+        pass
+
+
+    def export_quicktest_report(self, destination):
+        '''Export QuickTest PDF report to given destination'''
+        pass
