@@ -10,6 +10,7 @@ SPHINXOPTS    =
 SPHINXBUILD   = sphinx-build
 PAPER         = letter
 BUILDDIR      = $(shell pwd)/../__build__/documentation
+SOURCEDIR     = .
 PROD_USER     = pyadm@pyats-ci
 PROD_DIR      = /auto/pyats/wwwin-pyats/genietrafficgen/
 PROD_BKUP_DIR = /auto/pyats/wwwin-pyats/genietrafficgen/genietrafficgen-backup/$(shell date +%d-%m-%y-%H:%M:%S)
