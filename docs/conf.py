@@ -39,7 +39,7 @@ extensions = [
     'sphinx.ext.intersphinx',
     'sphinx.ext.viewcode',
     'sphinx.ext.extlinks',
-    'sphinxcontrib.napoleon',
+    'sphinx.ext.napoleon',
 ]
 
 #html_theme_options = {
