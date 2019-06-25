@@ -669,15 +669,14 @@ class IxiaNative(TrafficGen):
         '''Check traffic loss for each traffic stream configured on Ixia
             using statistics/data from 'Traffic Item Statistics' view'''
 
-        # Get and display 'GENIE' traffic statistics table containing outage/loss values
-        traffic_table = self.create_traffic_streams_table()
-        traffic_streams = self.get_traffic_items_from_genie_view(traffic_table=traffic_table)
-
         for i in range(check_iteration):
 
-            log.info("\nAttempt #{}: Checking traffic outage/loss for all "
-                     "streams".format(i+1))
+            log.info("\nAttempt #{}: Checking for traffic outage/loss".format(i+1))
             outage_check = True
+
+            # Get and display 'GENIE' traffic statistics table containing outage/loss values
+            traffic_table = self.create_traffic_streams_table()
+            traffic_streams = self.get_traffic_items_from_genie_view(traffic_table=traffic_table)
 
             # Check all streams for traffic outage/loss
             for stream in traffic_streams:
