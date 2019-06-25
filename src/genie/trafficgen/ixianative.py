@@ -52,6 +52,11 @@ class IxiaNative(TrafficGen):
         self._genie_view = None
         self._genie_page = None
         self._golden_profile = prettytable.PrettyTable()
+        # Valid QuickTests (to be expanded as tests have been validated)
+        self.valid_quicktests = ['rfc2544frameLoss',
+                                 'rfc2544throughput',
+                                 'rfc2544back2back',
+                                 ]
 
         # Get Ixia device arguments from testbed YAML file
         for key in ['ixnetwork_api_server_ip', 'ixnetwork_tcl_port',
@@ -755,7 +760,8 @@ class IxiaNative(TrafficGen):
                 continue
 
             # 1- Verify traffic Outage (in seconds) is less than tolerance threshold
-            log.info("1. Verify traffic outage (in seconds) is less than tolerance threshold")
+            log.info("1. Verify traffic outage (in seconds) is less than "
+                     "tolerance threshold of '{}' seconds".format(max_outage))
             outage = row.get_string(fields=["Outage (seconds)"]).strip()
             if float(outage) <= float(max_outage):
                 log.info("* Traffic outage of '{o}' seconds is within "
@@ -768,7 +774,8 @@ class IxiaNative(TrafficGen):
                           format(o=outage, s=max_outage))
 
             # 2- Verify current loss % is less than tolerance threshold
-            log.info("2. Verify current loss % is less than tolerance threshold")
+            log.info("2. Verify current loss % is less than tolerance "
+                     "threshold of '{}' %".format(loss_tolerance))
             if row.get_string(fields=["Loss %"]).strip() != '':
                 loss_percentage = row.get_string(fields=["Loss %"]).strip()
             else:
@@ -786,7 +793,8 @@ class IxiaNative(TrafficGen):
                           format(t=loss_tolerance, l=loss_percentage))
 
             # 3- Verify difference between Tx Rate & Rx Rate is less than tolerance threshold
-            log.info("3. Verify difference between Tx Rate & Rx Rate is less than tolerance threshold")
+            log.info("3. Verify difference between Tx Rate & Rx Rate is less "
+                     "than tolerance threshold of '{}' pps".format(rate_tolerance))
             tx_rate = row.get_string(fields=["Tx Frame Rate"]).strip()
             rx_rate = row.get_string(fields=["Rx Frame Rate"]).strip()
             if abs(float(tx_rate) - float(rx_rate)) <= float(rate_tolerance):
@@ -2264,4 +2272,213 @@ class IxiaNative(TrafficGen):
 
         # Start traffic
         self.start_traffic(wait_time=start_traffic_time)
+
+
+    #--------------------------------------------------------------------------#
+    #                               QuickTest                                  #
+    #--------------------------------------------------------------------------#
+
+    def find_quicktest_object(self, quicktest):
+        '''Finds and returns the QuickTest object for the specific test'''
+
+        # Ensure valid QuickTest types have been passed in
+        try:
+            assert quicktest in self.valid_quicktests
+        except AssertionError as e:
+            raise GenieTgnError("Invalid QuickTest '{q}' provided.\nValid "
+                                "options are {l}".format(q=quicktest, l=self.valid_quicktests))
+
+        # Get QuickTest root
+        qt_root = None
+        try:
+            qt_root = self.ixNet.getList(self.ixNet.getRoot(), 'quickTest')[0]
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to get QuickTest root object")
+
+        # Get list of QuickTests configured on Ixia
+        try:
+            qt_list = self.ixNet.getAttribute(qt_root, '-testIds')
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to get list of QuickTests configured")
+
+        # Get specific QuickTest test
+        qt_obj = None
+        for item in qt_list:
+            if quicktest in item:
+                qt_obj = item
+                break
+
+        # Return to caller
+        if qt_obj:
+            return qt_obj
+        else:
+            raise GenieTgnError("Unable to find ::ixNet:: object for QuickTest "
+                                "'{}'".format(quicktest))
+
+
+    def load_quicktest_configuration(self, configuration, wait_time=30):
+        '''Load QuickTest configuration file'''
+
+        log.info(banner("Loading Quicktest configuration..."))
+
+        # Load the QuickTest configuration file onto Ixia
+        try:
+            load_config = self.ixNet.execute('loadConfig',
+                                             self.ixNet.readFrom(configuration))
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to load Quicktest configuration file "
+                                "'{f}' onto device '{d}'".format(f=configuration,
+                                d=self.device.name)) from e
+
+        # Verify return
+        try:
+            assert load_config == _PASS
+        except AssertionError as e:
+            log.error(load_config)
+            raise GenieTgnError("Unable to load Quicktest configuration file "
+                                "'{f}' onto device '{d}'".format(f=configuration,
+                                d=self.device.name)) from e
+        else:
+            log.info("Successfully loaded Quicktest configuration file '{f}' "
+                     "onto device '{d}'".format(f=configuration,
+                     d=self.device.name))
+
+        # Wait after loading configuration file
+        log.info("Waiting for '{}' seconds after loading configuration...".\
+                 format(wait_time))
+        time.sleep(wait_time)
+
+        # Verify traffic is in 'unapplied' state
+        log.info("Verify traffic is in 'unapplied' state after loading configuration")
+        try:
+            assert self.get_traffic_attribute(attribute='state') == 'unapplied'
+        except AssertionError as e:
+            raise GenieTgnError("Traffic is not in 'unapplied' state after "
+                                "loading configuration onto device '{}'".\
+                                format(self.device.name)) from e
+        else:
+            log.info("Traffic in 'unapplied' state after loading configuration "
+                     "onto device '{}'".format(self.device.name))
+
+
+    def execute_quicktest(self, quicktest, apply_wait=60, exec_wait=1500):
+        '''Execute specific RFC QuickTest'''
+
+        log.info(banner("Prepare execution of Quicktest '{}'...".\
+                        format(quicktest)))
+
+        # Get QuickTest object
+        qt_obj = self.find_quicktest_object(quicktest=quicktest)
+
+        # Apply QuickTest configuration
+        log.info("Apply QuickTest '{}' configuration".format(quicktest))
+        try:
+            apply_qt = self.ixNet.execute('apply', qt_obj)
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to apply traffic configuration for "
+                                "QuickTest '{}'".format(quicktest))
+
+        # Verify QuickTest configuration application passed
+        try:
+            assert apply_qt == _PASS
+        except AssertionError as e:
+            log.error(apply_qt)
+            raise GenieTgnError("Unable to apply QuickTest '{}' configuration".\
+                                format(quicktest))
+        else:
+            log.info("Successfully applied QuickTest '{}' configuration".\
+                     format(configuration))
+
+        # Wait after applying QuickTest configuration
+        log.info("Waiting '{}' seconds after applying QuickTest "
+                 "configuration".format(apply_wait))
+        time.sleep(apply_wait)
+
+        # Start QuickTest execution
+        log.info("Start execution of QuickTest '{}'".format(quicktest))
+        try:
+            start_qt = self.ixNet.execute('start', qt_obj)
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to start execution of Quicktest"
+                                " '{}'".format(quicktest))
+
+        # Verify QuickTest successfully started
+        try:
+            assert start_qt == _PASS
+        except AssertionError as e:
+            log.error(start_qt)
+            raise GenieTgnError("Unable to start execution of QuickTest '{}'".\
+                                format(quicktest))
+        else:
+            log.info("Successfully started execution of QuickTest '{}'".\
+                     format(configuration))
+
+        # Wait after starting QuickTest execution
+        log.info("Waiting '{}' seconds after starting QuickTest execution".\
+                 format(exec_wait))
+        time.sleep(exec_wait)
+
+        # Check that execution has completed
+        try:
+            exec_status = self.ixNet.execute('waitForTest', qt_obj)
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to get exection status for "
+                                "Quicktest '{}'".format(quicktest))
+        else:
+            log.info("Execution status for Quicktest '{q}' is '{s}'".\
+                     format(q=quicktest, s=exec_status))
+
+
+    def generate_quicktest_report(self, quicktest):
+        '''Generate QuickTest PDF report'''
+
+        log.info(banner("Generating report for Quicktest {}...".format(quicktest)))
+
+        # Get QuickTest object
+        qt_obj = self.find_quicktest_object(quicktest=quicktest)
+
+        # Generate the PDF report
+        try:
+            self.ixNet.execute('generateReport', qt_obj)
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to generate PDF report for Quicktest"
+                                " '{}'".format(quicktest))
+        else:
+            log.info("Successfully generated PDF report for Quicktest '{}'".\
+                     format(quicktest))
+
+
+    def export_quicktest_report(self, src_file, dest_file):
+        '''Export QuickTest PDF report to given destination'''
+
+        log.info(banner("Exporting Quicktest '{}' results file...".\
+                        format(quicktest)))
+
+        # Get QuickTest object
+        qt_obj = self.find_quicktest_object(quicktest=quicktest)
+
+        # Get QuickTest report results path
+        try:
+            result_path = self.ixNet.getAttribute(qt_obj + '/results', '-resultPath')
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to get results path for QuickTest "
+                                "'{}' report".format(quicktest))
+
+        # Exporting the QuickTest PDF file
+        try:
+            self.ixNet.execute('copyFile',
+                               self.ixNet.readFrom(src_file, '-ixNetRelative'),
+                               self.ixNet.writeTo(dest_file, '-overwrite'))
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to copy '{s}' to '{d}'".\
+                                                format(s=src_file, d=dest_file))
 
