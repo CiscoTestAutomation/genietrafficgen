@@ -2455,8 +2455,11 @@ class IxiaNative(TrafficGen):
                      format(quicktest))
 
 
-    def export_quicktest_report(self, destination):
+    def export_quicktest_report(self, src_file, dest_file):
         '''Export QuickTest PDF report to given destination'''
+
+        log.info(banner("Exporting Quicktest '{}' results file...".\
+                        format(quicktest)))
 
         # Get QuickTest object
         qt_obj = self.find_quicktest_object(quicktest=quicktest)
@@ -2469,7 +2472,13 @@ class IxiaNative(TrafficGen):
             raise GenieTgnError("Unable to get results path for QuickTest "
                                 "'{}' report".format(quicktest))
 
-        # Export it now - TODO
-
-
+        # Exporting the QuickTest PDF file
+        try:
+            self.ixNet.execute('copyFile',
+                               self.ixNet.readFrom(src_file, '-ixNetRelative'),
+                               self.ixNet.writeTo(dest_file, '-overwrite'))
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to copy '{s}' to '{d}'".\
+                                                format(s=src_file, d=dest_file))
 
