@@ -1045,7 +1045,7 @@ class IxiaNative(TrafficGen):
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Unable to check attribute '{}'".\
-                                format(attribue)) from e
+                                format(attribute)) from e
 
 
     def get_traffic_items_from_genie_view(self, traffic_table):
@@ -1978,7 +1978,7 @@ class IxiaNative(TrafficGen):
 
 
     #--------------------------------------------------------------------------#
-    #                     Line / Packet / Layer2 bit rate                      #
+    #                     Line / Packet / Layer2-bit Rate                      #
     #--------------------------------------------------------------------------#
 
     def set_line_rate(self, traffic_stream, rate, flow_group='', stop_traffic_time=15, generate_traffic_time=15, apply_traffic_time=15, start_traffic_time=15):

@@ -428,7 +428,9 @@ an Ixia traffic generator device:
     |                                 |           generating L2/L3 traffic for the     |
     |                                 |           given traffic stream.                |
     |                                 |           Default: 15 (seconds)                |
-    |---------------------------------+------------------------------------------------|
+    |----------------------------------------------------------------------------------|
+    |                       Line / Packet / Layer2-bit Rate                            |
+    |----------------------------------------------------------------------------------|
     | set_line_rate                   | Set the line rate for given traffic stream or  |
     |                                 | given flow group of a traffic stream on Ixia.  |
     |                                 | Arguments:                                     |
@@ -522,6 +524,26 @@ an Ixia traffic generator device:
     |                                 |           layer2 bit rate for given traffic    |
     |                                 |           stream.                              |
     |                                 |           Default: 15 (seconds)                |
+    |----------------------------------------------------------------------------------|
+    |                              QUICKTEST                                           |
+    |----------------------------------------------------------------------------------|
+    | find_quicktest_object           | Finds and returns the QuickTest object for the |
+    |                                 | specific test.                                 |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] quicktest - Valid QuickTest name or  |
+    |                                 |           type. Valid Options:                 |
+    |                                 |             - rfc2544frameLoss                 |
+    |                                 |             - rfc2544throughput                |
+    |                                 |             - rfc2544back2back                 |
+    |---------------------------------+------------------------------------------------|
+    | load_quicktest_configuration    | Load QuickTest configuration file on Ixia.     |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] configuration - Absolute path to the |
+    |                                 |           QuickTest configuration file to load |
+    |                                 |           on Ixia.                             |
+    |                                 |     * [O] wait_time 
+    |---------------------------------+------------------------------------------------|
+    |---------------------------------+------------------------------------------------|
     +==================================================================================+
 
 The methods listed above can be executed directly on an Ixia traffic generator
