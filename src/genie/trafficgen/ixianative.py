@@ -1045,7 +1045,7 @@ class IxiaNative(TrafficGen):
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Unable to check attribute '{}'".\
-                                format(attribue)) from e
+                                format(attribute)) from e
 
 
     def get_traffic_items_from_genie_view(self, traffic_table):
@@ -1978,7 +1978,7 @@ class IxiaNative(TrafficGen):
 
 
     #--------------------------------------------------------------------------#
-    #                     Line / Packet / Layer2 bit rate                      #
+    #                     Line / Packet / Layer2-bit Rate                      #
     #--------------------------------------------------------------------------#
 
     def set_line_rate(self, traffic_stream, rate, flow_group='', stop_traffic_time=15, generate_traffic_time=15, apply_traffic_time=15, start_traffic_time=15):
@@ -2030,7 +2030,7 @@ class IxiaNative(TrafficGen):
 
             # Get config element object
             try:
-                config_elements = self.ixNet.getList(ti_obj, "configElement")
+                config_elements = self.ixNet.getList(ti_obj, 'configElement')
             except Exception as e:
                 log.error(e)
                 raise GenieTgnError("Unable to get config elements for traffic "
@@ -2038,7 +2038,7 @@ class IxiaNative(TrafficGen):
 
             for config_element in config_elements:
                 try:
-                    self.ixNet.setMultiAttribute(config_element + "/frameRate",
+                    self.ixNet.setMultiAttribute(config_element + '/frameRate',
                                                  '-rate', rate,
                                                  '-type', 'percentLineRate')
                     self.ixNet.commit()
@@ -2103,7 +2103,7 @@ class IxiaNative(TrafficGen):
 
             # Get config element object
             try:
-                config_elements = self.ixNet.getList(ti_obj, "configElement")
+                config_elements = self.ixNet.getList(ti_obj, 'configElement')
             except Exception as e:
                 log.error(e)
                 raise GenieTgnError("Unable to get config elements for traffic "
@@ -2111,7 +2111,7 @@ class IxiaNative(TrafficGen):
 
             for config_element in config_elements:
                 try:
-                    self.ixNet.setMultiAttribute(config_element + "/frameRate",
+                    self.ixNet.setMultiAttribute(config_element + '/frameRate',
                                                  '-rate', rate,
                                                  '-type', 'framesPerSecond')
                     self.ixNet.commit()
@@ -2196,7 +2196,7 @@ class IxiaNative(TrafficGen):
 
             # Get config element object
             try:
-                config_elements = self.ixNet.getList(ti_obj, "configElement")
+                config_elements = self.ixNet.getList(ti_obj, 'configElement')
             except Exception as e:
                 log.error(e)
                 raise GenieTgnError("Unable to get config elements for traffic "
@@ -2204,7 +2204,7 @@ class IxiaNative(TrafficGen):
 
             for config_element in config_elements:
                 try:
-                    self.ixNet.setMultiAttribute(config_element + "/frameRate",
+                    self.ixNet.setMultiAttribute(config_element + '/frameRate',
                                                  '-rate', rate,
                                                  '-bitRateUnitsType', units_dict[rate_unit],
                                                  '-type', 'bitsPerSecond')
@@ -2243,7 +2243,7 @@ class IxiaNative(TrafficGen):
 
         # Get config element object
         try:
-            config_elements = self.ixNet.getList(ti_obj, "configElement")
+            config_elements = self.ixNet.getList(ti_obj, 'configElement')
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Unable to get config elements for traffic "
@@ -2251,7 +2251,7 @@ class IxiaNative(TrafficGen):
 
         for config_element in config_elements:
             try:
-                self.ixNet.setMultiAttribute(config_element + "/frameSize",
+                self.ixNet.setMultiAttribute(config_element + '/frameSize',
                                              '-fixedSize', packet_size)
                 self.ixNet.commit()
             except Exception as e:
@@ -2272,6 +2272,257 @@ class IxiaNative(TrafficGen):
         # Start traffic
         self.start_traffic(wait_time=start_traffic_time)
 
+
+    def get_line_rate(self, traffic_stream, flow_group=''):
+        '''Returns the line rate for given traffic stream or flow group'''
+
+        # Init
+        line_rate = None
+
+        # Get traffic item object from stream name
+        ti_obj = self.find_traffic_stream_object(traffic_stream=traffic_stream)
+
+        if flow_group:
+            # Get flow group object of the given traffic stream
+            flowgroupObj = self.get_flow_group_object(traffic_stream=traffic_stream, flow_group=flow_group)
+
+            # Set attribute to be the line rate
+            try:
+                self.ixNet.setAttribute(flowgroupObj + '/frameRate',
+                                        '-type', 'percentLineRate')
+                self.ixNet.commit()
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Error while getting line rate for flow "
+                                    "group '{}'".format(flow_group))
+
+            # Get the line rate
+            try:
+                line_rate = self.ixNet.getAttribute(flowgroupObj, '-rate')
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Error while getting line rate for flow "
+                                    "group '{}'".format(flow_group))
+
+            # Return to caller
+            if line_rate:
+                return line_rate
+            else:
+                raise GenieTgnError("Unable to find line rate for flow "
+                                    "group '{}".format(flow_group))
+        else:
+            # Get config element object
+            try:
+                config_elements = self.ixNet.getList(ti_obj, 'configElement')
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Unable to get config elements for traffic "
+                                    "stream '{}'".format(traffic_stream))
+
+            for config_element in config_elements:
+                # Set attribute to be the line rate
+                try:
+                    self.ixNet.setAttribute(config_element + '/frameRate',
+                                            '-type', 'percentLineRate')
+                    self.ixNet.commit()
+                except Exception as e:
+                    log.error(e)
+                    raise GenieTgnError("Error while getting line rate for "
+                                        "traffic stream '{}'".format(traffic_stream))
+
+                # Get the line rate
+                try:
+                    line_rate = self.ixNet.getAttribute(config_element + '/frameRate', '-rate')
+                except Exception as e:
+                    log.error(e)
+                    raise GenieTgnError("Error while getting line rate for "
+                                        "traffic stream '{}'".format(traffic_stream))
+
+            # Return to caller
+            if line_rate:
+                return line_rate
+            else:
+                raise GenieTgnError("Unable to find line rate for traffic "
+                                    "stream '{}".format(traffic_stream))
+
+
+    def get_packet_rate(self, traffic_stream, flow_group=''):
+        '''Returns the packet rate for given traffic stream or flow group'''
+
+        # Init
+        packet_rate = None
+
+        # Get traffic item object from stream name
+        ti_obj = self.find_traffic_stream_object(traffic_stream=traffic_stream)
+
+        if flow_group:
+            # Get flow group object of the given traffic stream
+            flowgroupObj = self.get_flow_group_object(traffic_stream=traffic_stream, flow_group=flow_group)
+
+            # Set attribute to be the packet rate
+            try:
+                self.ixNet.setAttribute(flowgroupObj + '/frameRate',
+                                        '-type', 'framesPerSecond')
+                self.ixNet.commit()
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Error while getting packet rate for flow "
+                                    "group '{}'".format(flow_group))
+
+            # Get the packet rate
+            try:
+                packet_rate = self.ixNet.getAttribute(flowgroupObj, '-rate')
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Error while getting packet rate for flow "
+                                    "group '{}'".format(flow_group))
+
+            # Return to caller
+            if packet_rate:
+                return packet_rate
+            else:
+                raise GenieTgnError("Unable to find packet rate for flow "
+                                    "group '{}".format(flow_group))
+        else:
+            # Get config element object
+            try:
+                config_elements = self.ixNet.getList(ti_obj, 'configElement')
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Unable to get config elements for traffic "
+                                    "stream '{}'".format(traffic_stream))
+
+            for config_element in config_elements:
+                # Set attribute to be the packet rate
+                try:
+                    self.ixNet.setAttribute(config_element + '/frameRate',
+                                            '-type', 'framesPerSecond')
+                    self.ixNet.commit()
+                except Exception as e:
+                    log.error(e)
+                    raise GenieTgnError("Error while getting packet rate for "
+                                        "traffic stream '{}'".format(traffic_stream))
+
+                # Get the packet rate
+                try:
+                    packet_rate = self.ixNet.getAttribute(config_element + '/frameRate', '-rate')
+                except Exception as e:
+                    log.error(e)
+                    raise GenieTgnError("Error while getting packet rate for "
+                                        "traffic stream '{}'".format(traffic_stream))
+
+            # Return to caller
+            if packet_rate:
+                return packet_rate
+            else:
+                raise GenieTgnError("Unable to find packet rate for traffic "
+                                    "stream '{}".format(traffic_stream))
+
+
+    def get_layer2_bit_rate(self, traffic_stream, flow_group=''):
+        '''Returns the layer2 bit rate given traffic stream or flow group'''
+
+        # Init
+        layer2bit_rate = None
+
+        # Get traffic item object from stream name
+        ti_obj = self.find_traffic_stream_object(traffic_stream=traffic_stream)
+
+        if flow_group:
+            # Get flow group object of the given traffic stream
+            flowgroupObj = self.get_flow_group_object(traffic_stream=traffic_stream, flow_group=flow_group)
+
+            # Set attribute to be the layer2 bit rate
+            try:
+                self.ixNet.setAttribute(flowgroupObj + '/frameRate',
+                                        '-type', 'bitsPerSecond')
+                self.ixNet.commit()
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Error while getting layer2 bit rate for "
+                                    "flow group '{}'".format(flow_group))
+
+            # Get the layer2 bit rate
+            try:
+                layer2bit_rate = self.ixNet.getAttribute(flowgroupObj, '-rate')
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Error while getting layer2 bit rate for "
+                                    "flow group '{}'".format(flow_group))
+
+            # Return to caller
+            if layer2bit_rate:
+                return layer2bit_rate
+            else:
+                raise GenieTgnError("Unable to find layer2 bit rate for flow "
+                                    "group '{}".format(flow_group))
+        else:
+            # Get config element object
+            try:
+                config_elements = self.ixNet.getList(ti_obj, 'configElement')
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Unable to get config elements for traffic "
+                                    "stream '{}'".format(traffic_stream))
+
+            for config_element in config_elements:
+                # Set attribute to be the layer2 bit rate
+                try:
+                    self.ixNet.setAttribute(config_element + '/frameRate',
+                                            '-type', 'bitsPerSecond')
+                    self.ixNet.commit()
+                except Exception as e:
+                    log.error(e)
+                    raise GenieTgnError("Error while getting layer2 bit rate for "
+                                        "traffic stream '{}'".format(traffic_stream))
+
+                # Get the layer2 bit rate
+                try:
+                    layer2bit_rate = self.ixNet.getAttribute(config_element + '/frameRate', '-rate')
+                except Exception as e:
+                    log.error(e)
+                    raise GenieTgnError("Error while getting layer2 bit rate for "
+                                        "traffic stream '{}'".format(traffic_stream))
+
+            # Return to caller
+            if layer2bit_rate:
+                return layer2bit_rate
+            else:
+                raise GenieTgnError("Unable to find packet rate for traffic "
+                                    "stream '{}".format(traffic_stream))
+
+
+    def get_packet_size(self, traffic_stream):
+        '''Returns the packet size for given traffic stream'''
+
+        # Init
+        packet_size = None
+
+        # Get traffic item object from stream name
+        ti_obj = self.find_traffic_stream_object(traffic_stream=traffic_stream)
+
+        # Get config element object
+        try:
+            config_elements = self.ixNet.getList(ti_obj, 'configElement')
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to get config elements for traffic "
+                                "stream '{}'".format(traffic_stream))
+
+        for config_element in config_elements:
+            try:
+                packet_size = self.ixNet.getAttribute(config_element + '/frameSize', '-fixedSize')
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Error while getting the packet size for"
+                                    " '{p}'".format(t=traffic_stream))
+
+        # Return to caller
+        if packet_size:
+            return packet_size
+        else:
+            raise GenieTgnError("Unable to find packet rate for traffic "
+                                "stream '{}".format(traffic_stream))
 
     #--------------------------------------------------------------------------#
     #                               QuickTest                                  #
