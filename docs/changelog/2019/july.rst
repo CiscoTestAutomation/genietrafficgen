@@ -20,5 +20,3 @@ Features:
 * Get layer2 bit rate per traffic stream
 * Get line rate per flow group
 * Get line rate per traffic stream
-* Bugfix pull multi-page stats for custom "GENIE" view
-* Check traffic loss per flow group
