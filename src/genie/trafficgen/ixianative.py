@@ -425,7 +425,8 @@ class IxiaNative(TrafficGen):
         log.info("Checking if traffic is in 'started' state...")
         try:
             assert self.get_traffic_attribute(attribute='state') == 'started'
-        except Exception as e:
+        except AssertionError as e:
+            log.error(e)
             raise GenieTgnError("Traffic is not in 'started' state")
         else:
             log.info("Traffic is in 'started' state")
@@ -435,6 +436,13 @@ class IxiaNative(TrafficGen):
         '''Stop traffic on Ixia'''
 
         log.info(banner("Stopping L2/L3 traffic"))
+
+        # Check if traffic is already stopped
+        state = self.get_traffic_attribute(attribute='state')
+        running = self.get_traffic_attribute(attribute='isTrafficRunning')
+        if state == 'stopped' or running == 'false':
+            log.info("SKIP: Traffic is not running or already in 'stopped' state")
+            return
 
         # Stop traffic on IxNetwork
         try:
@@ -463,7 +471,8 @@ class IxiaNative(TrafficGen):
         log.info("Checking if traffic is in 'stopped' state...")
         try:
             assert self.get_traffic_attribute(attribute='state') == 'stopped'
-        except Exception as e:
+        except AssertionError as e:
+            log.error(e)
             raise GenieTgnError("Traffic is not in 'stopped' state")
         else:
             log.info("Traffic is in 'stopped' state")
@@ -1620,7 +1629,8 @@ class IxiaNative(TrafficGen):
         log.info("Checking if traffic is in 'unapplied' state...")
         try:
             assert self.get_traffic_attribute(attribute='state') == 'unapplied'
-        except Exception as e:
+        except AssertionError as e:
+            log.error(e)
             raise GenieTgnError("Traffic is not in 'unapplied' state")
         else:
             log.info("Traffic is in 'unapplied' state")
