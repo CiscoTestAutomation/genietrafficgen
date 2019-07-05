@@ -2824,5 +2824,3 @@ class IxiaNative(TrafficGen):
             log.error(e)
             raise GenieTgnError("Unable to copy '{s}' to '{d}'".\
                                                 format(s=src_file, d=dest_file))
-
-                                              
