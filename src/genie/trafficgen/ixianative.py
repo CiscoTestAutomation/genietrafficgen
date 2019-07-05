@@ -89,6 +89,7 @@ class IxiaNative(TrafficGen):
 
         # If already connected do nothing
         if self._is_connected:
+            log.info("SKIP: Already connected to Ixia Chassis")
             return
 
         log.info(banner("Connecting to IXIA"))
@@ -137,6 +138,35 @@ class IxiaNative(TrafficGen):
         else:
             self._is_connected = True
             log.info("Connected to IxNetwork API server on TCL port '{p}'".\
+                     format(d=self.device.name, p=self.ixnetwork_tcl_port))
+
+
+    def disconnect(self):
+        '''Disconnect from traffic generator device'''
+
+        # If already disconnected do nothing
+        if not self._is_connected:
+            log.info("SKIP: Already disconnected from Ixia Chassis")
+            return
+
+        # Execute disconnect on IxNetwork
+        try:
+            disconnect = self.ixNet.disconnect()
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to disconnect from '{}".\
+                                format(self.device.name))
+
+        # Verify return
+        try:
+            assert connect == _PASS
+        except AssertionError as e:
+            log.error(connect)
+            raise GenieTgnError("Unable to disconnect from '{}'".\
+                                format(self.device.name))
+        else:
+            self._is_connected = False
+            log.info("Disconnected from IxNetwork API server on TCL port '{p}'".\
                      format(d=self.device.name, p=self.ixnetwork_tcl_port))
 
 
@@ -192,45 +222,98 @@ class IxiaNative(TrafficGen):
             log.info("Traffic in 'unapplied' state after loading configuration "
                      "onto device '{}'".format(self.device.name))
 
-        # Assign Ixia ports for the configuration
+
+    def assign_ixia_ports(self, wait_time=15):
+        '''Assign Ixia ports for the configuration '''
+
         log.info(banner("Assigning Ixia ports"))
 
         # Get list of physical ports
+        log.info("Getting a list of physical ports...")
         self.physical_ports = []
         for item in self.ixia_port_list:
+            log.info("-> {}".format(item))
             ixnet_port = []
             lc, port = item.split('/')
             for tmpvar in self.ixia_chassis_ip, lc, port:
                 ixnet_port.append(tmpvar)
             self.physical_ports.append(ixnet_port)
 
+        # Add the chassis
+        log.info("Adding chassis...")
         try:
-            # Add the chassis
             self.chassis = self.ixNet.add(self.ixNet.getRoot() + \
                                           'availableHardware',\
                                           'chassis', '-hostname',\
                                           self.ixia_chassis_ip)
             self.ixNet.commit()
             self.chassis = self.ixNet.remapIds(self.chassis)
-
-            # Create virtual ports for extracted physical ports
-            self.virtual_ports = self.ixNet.getList(self.ixNet.getRoot(), 'vport')
-
-            # Assign ports
-            self.ixNet.execute('assignPorts', self.physical_ports, [],
-                               self.virtual_ports, True)
-
-            # Verify ports are up and connected
-            for vport in self.virtual_ports:
-                assert self.ixNet.getAttribute(vport, '-state') == 'up'
-                assert self.ixNet.getAttribute(vport, '-isConnected') == 'true'
         except Exception as e:
             log.error(e)
-            raise GenieTgnError("Error assigning Ixia ports") from e
+            raise GenieTgnError("Error while adding chassis '{}'".\
+                                format(self.ixia_chassis_ip))
         else:
-            log.info("Assigned the following Ixia ports for configuration:")
-            for port in self.ixia_port_list:
-                log.info("-> Ixia Port: '{}'".format(port))
+            log.info("Successfully added chassis '{}'".\
+                     format(self.ixia_chassis_ip))
+
+        # Get virtual ports
+        log.info("Getting virtual ports...")
+        try:
+            self.virtual_ports = self.ixNet.getList(self.ixNet.getRoot(), 'vport')
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Error while getting virtual ports from "
+                                "the loaded configuration")
+        else:
+            log.info("Found virtual ports from loaded configuration:")
+            for item in self.virtual_ports:
+                log.info("-> {}".format(item))
+
+        # Assign ports
+        log.info("Assign physical ports to virtual ports...")
+        try:
+            self.ixNet.execute('assignPorts', self.physical_ports, [],
+                               self.virtual_ports, True)
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to assign physical ports to virtual ports")
+        else:
+            log.info("Successfully assigned physical ports to virtual ports")
+            log.info("Waiting {} seconds after assigning ports...".format(wait_time))
+            time.sleep(wait_time)
+
+        # Verify ports are up and connected
+        log.info("Verify ports are up and connected...")
+        for vport in self.virtual_ports:
+            # Get the name
+            try:
+                name = self.ixNet.getAttribute(vport, '-name')
+            except Exception as e:
+                raise GenieTgnError("Unable to get 'name' for virtual port"
+                                    " '{}'".format(vport))
+            # Verify port is up
+            try:
+                state = self.ixNet.getAttribute(vport, '-state')
+                assert state == 'up'
+            except AssertionError as e:
+                log.error(e)
+                raise GenieTgnError("Port '{n}' is '{s}'".format(n=name, s=state))
+            else:
+                log.info("Port '{}' is up".format(name))
+
+            # Verify port is connected
+            try:
+                assert self.ixNet.getAttribute(vport, '-isConnected') == 'true'
+            except AssertionError as e:
+                log.error(e)
+                raise GenieTgnError("Port '{}' is not connected".format(name))
+            else:
+                log.info("Port '{}' is connected".format(name))
+
+        # If all pass
+        log.info("Assigned the following physical Ixia ports to virtual ports:")
+        for port in self.ixia_port_list:
+            log.info("-> Ixia Port: '{}'".format(port))
 
 
     def start_all_protocols(self, wait_time=60):
@@ -2741,4 +2824,3 @@ class IxiaNative(TrafficGen):
             log.error(e)
             raise GenieTgnError("Unable to copy '{s}' to '{d}'".\
                                                 format(s=src_file, d=dest_file))
-

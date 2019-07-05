@@ -27,6 +27,11 @@ class TrafficGen(BaseConnection):
         raise NotImplementedError
 
 
+    def disconnect(self):
+        '''Disconnect from traffic generator device'''
+        raise NotImplementedError
+
+
     def load_configuration(self):
         '''Load static configuration file onto traffic generator device'''
         raise NotImplementedError
