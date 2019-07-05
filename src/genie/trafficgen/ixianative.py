@@ -89,7 +89,7 @@ class IxiaNative(TrafficGen):
 
         # If already connected do nothing
         if self._is_connected:
-            log.info("SKIP: Already connected to Ixia Chassis")
+            log.info("Already connected to Ixia Chassis")
             return
 
         log.info(banner("Connecting to IXIA"))
@@ -146,7 +146,7 @@ class IxiaNative(TrafficGen):
 
         # If already disconnected do nothing
         if not self._is_connected:
-            log.info("SKIP: Already disconnected from Ixia Chassis")
+            log.info("Not connected to Ixia Chassis")
             return
 
         # Execute disconnect on IxNetwork
@@ -159,9 +159,9 @@ class IxiaNative(TrafficGen):
 
         # Verify return
         try:
-            assert connect == _PASS
+            assert disconnect == _PASS
         except AssertionError as e:
-            log.error(connect)
+            log.error(disconnect)
             raise GenieTgnError("Unable to disconnect from '{}'".\
                                 format(self.device.name))
         else:
@@ -478,7 +478,7 @@ class IxiaNative(TrafficGen):
         state = self.get_traffic_attribute(attribute='state')
         running = self.get_traffic_attribute(attribute='isTrafficRunning')
         if state == 'started' or running == 'true':
-            log.info("SKIP: Traffic is already running and in 'started' state")
+            log.info("Traffic is already running and in 'started' state")
             return
 
         # Start traffic on IxNetwork
@@ -524,7 +524,7 @@ class IxiaNative(TrafficGen):
         state = self.get_traffic_attribute(attribute='state')
         running = self.get_traffic_attribute(attribute='isTrafficRunning')
         if state == 'stopped' or running == 'false':
-            log.info("SKIP: Traffic is not running or already in 'stopped' state")
+            log.info("Traffic is not running or already in 'stopped' state")
             return
 
         # Stop traffic on IxNetwork
@@ -813,15 +813,15 @@ class IxiaNative(TrafficGen):
 
             # Check if iteration required based on results
             if outage_check:
-                log.info("Successfully verified traffic outages/loss is within "
+                log.info("\nSuccessfully verified traffic outages/loss is within "
                          "tolerance for all traffic streams")
                 break
             elif i == check_iteration or i == check_iteration-1:
                 # End of iterations, raise Exception and exit
-                raise GenieTgnError("Unexpected traffic outage/loss is observed")
+                raise GenieTgnError("\nUnexpected traffic outage/loss is observed")
             else:
                 # Traffic loss observed, sleep and recheck
-                log.error("Sleeping '{s}' seconds and rechecking traffic "
+                log.error("\nSleeping '{s}' seconds and rechecking traffic "
                           "streams for traffic outage/loss".\
                           format(s=check_interval))
                 time.sleep(check_interval)
