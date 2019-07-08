@@ -757,7 +757,7 @@ class IxiaNative(TrafficGen):
                                 "statistics view 'GENIE' page.") from e
 
 
-    def check_traffic_loss(self, traffic_stream='', max_outage=120, loss_tolerance=15, rate_tolerance=5, check_iteration=10, check_interval=60, outage_dict={}):
+    def check_traffic_loss(self, traffic_streams=[], max_outage=120, loss_tolerance=15, rate_tolerance=5, check_iteration=10, check_interval=60, outage_dict={}):
         '''Check traffic loss for each traffic stream configured on Ixia
             using statistics/data from 'Traffic Item Statistics' view'''
 
@@ -768,13 +768,13 @@ class IxiaNative(TrafficGen):
 
             # Get and display 'GENIE' traffic statistics table containing outage/loss values
             traffic_table = self.create_traffic_streams_table()
-            traffic_streams = self.get_traffic_items_from_genie_view(traffic_table=traffic_table)
+            traffic_table_streams = self.get_traffic_items_from_genie_view(traffic_table=traffic_table)
 
             # Check all streams for traffic outage/loss
-            for stream in traffic_streams:
+            for stream in traffic_table_streams:
 
-                # Skip other streams if stream provided
-                if traffic_stream and stream != traffic_stream:
+                # Skip other streams if list of stream provided
+                if traffic_streams and stream not in traffic_streams:
                     continue
 
                 # Skip checks if traffic stream is not of type l2l3
