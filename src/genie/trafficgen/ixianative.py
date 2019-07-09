@@ -75,8 +75,9 @@ class IxiaNative(TrafficGen):
                                     format(k=key, d=self.device.name))
 
         # Genie Traffic Documentation
-        log.info('For more information, see Genie traffic documention: '
-                 '{url}/harness/user/ixia.html'.format(url=get_url()))
+        url = get_url().replace("genie", "genietrafficgen")
+        log.info('For more information, see Genie traffic documentation: '
+                 '{}/ixianative.html'.format(url))
 
 
     def get_golden_profile(self):
