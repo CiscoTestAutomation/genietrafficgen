@@ -261,17 +261,17 @@ class IxiaNative(TrafficGen):
             stop_protocols = self.ixNet.execute('stopAllProtocols')
         except Exception as e:
             log.error(e)
-            raise GenieTgnError("Unable to stop all protocols on device '{}".\
+            raise GenieTgnError("Unable to stop all protocols on device '{}'".\
                                 format(self.device.name)) from e
         # Verify return
         try:
             assert stop_protocols == _PASS
         except AssertionError as e:
             log.error(stop_protocols)
-            raise GenieTgnError("Unable to stop all protocols on device '{}".\
+            raise GenieTgnError("Unable to stop all protocols on device '{}'".\
                                 format(self.device.name)) from e
         else:
-            log.info("Stopped protocols on device '{}".format(self.device.name))
+            log.info("Stopped protocols on device '{}'".format(self.device.name))
 
         # Wait after stopping protocols
         log.info("Waiting for  '{}' seconds after stopping all protocols...".\
