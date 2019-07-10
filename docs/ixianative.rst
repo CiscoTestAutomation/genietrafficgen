@@ -157,45 +157,47 @@ an Ixia traffic generator device:
     |---------------------------------+------------------------------------------------|
     | stop_all_protocols              | Stops all protocols on Ixia device.            |
     |                                 | Arguments:                                     |
-    |                                 |   * [O] wait_time - time to wait after stopping|
-    |                                 |         all protocols on Ixia.                 |
-    |                                 |         Default: 60 (seconds)                  |
+    |                                 |     * [O] wait_time - time to wait after       |
+    |                                 |           stopping all protocols on Ixia.      |
+    |                                 |           Default: 60 (seconds)                |
     |---------------------------------+------------------------------------------------|
     | apply_traffic                   | Apply L2/L3 traffic on Ixia device.            |
     |                                 | Arguments:                                     |
-    |                                 |   * [O] wait_time - time to wait after applying|
-    |                                 |         L2/L3 traffic on Ixia.                 |
-    |                                 |         Default: 60 (seconds)                  |
+    |                                 |     * [O] wait_time - time to wait after       |
+    |                                 |           applying L2/L3 traffic on Ixia.      |
+    |                                 |           Default: 60 (seconds)                |
     |---------------------------------+------------------------------------------------|
     | send_arp                        | Send ARP to all interfaces from Ixia device.   |
     |                                 | Arguments:                                     |
-    |                                 |   * [O] wait_time - time to wait after sending |
-    |                                 |         ARP to all interfaces (in seconds).    |
-    |                                 |         Default: 10 (seconds)                  |
+    |                                 |     * [O] wait_time - time to wait after       |
+    |                                 |           sending ARP to all interfaces.       |
+    |                                 |           Default: 10 (seconds)                |
     |---------------------------------+------------------------------------------------|
     | send_ns                         | Send NS to all interfaces from Ixia device.    |
     |                                 | Arguments:                                     |
-    |                                 |   * [O] wait_time - time to wait after sending |
-    |                                 |         NS packet to all interfaces from Ixia. |
-    |                                 |         Default: 10 (seconds)                  |
+    |                                 |     * [O] wait_time - time to wait after       |
+    |                                 |           sending NS packet to all interfaces  |
+    |                                 |           from Ixia.                           |
+    |                                 |           Default: 10 (seconds)                |
     |---------------------------------+------------------------------------------------|
     | start_traffic                   | Starts L2/L3 traffic on Ixia device.           |
     |                                 | Arguments:                                     |
-    |                                 |   * [O] wait_time - time to wait after starting|
-    |                                 |         L2/L3 traffic on Ixia.                 |
-    |                                 |         Default: 60 (seconds)                  |
+    |                                 |     * [O] wait_time - time to wait after       |
+    |                                 |           starting L2/L3 traffic on Ixia.      |
+    |                                 |           Default: 60 (seconds)                |
     |---------------------------------+------------------------------------------------|
     | stop_traffic                    | Stops L2/L3 traffic on Ixia device.            |
     |                                 | Arguments:                                     |
-    |                                 |   * [O] wait_time - time to wait after stopping|
-    |                                 |         L2/L3 traffic on Ixia.                 |
-    |                                 |         Default: 60 (seconds)                  |
+    |                                 |     * [O] wait_time - time to wait after       |
+    |                                 |           stopping L2/L3 traffic on Ixia.      |
+    |                                 |           Default: 60 (seconds)                |
     |---------------------------------+------------------------------------------------|
     | clear_statistics                | Clears L2/L3 traffic statistics on Ixia device.|
     |                                 | Arguments:                                     |
-    |                                 |   * [O] wait_time - time to wait after clearing|
-    |                                 |         protocol and traffic statistics on Ixia|
-    |                                 |         Default: 10 (seconds)                  |
+    |                                 |     * [O] wait_time - time to wait after       |
+    |                                 |           clearing protocol and traffic        |
+    |                                 |           statistics on Ixia.                  |
+    |                                 |           Default: 10 (seconds)                |
     |---------------------------------+------------------------------------------------|
     | create_genie_statistics_view    | Creates a custom statistics view on IxNetwork  |
     |                                 | named "GENIE" with the required data fields    |
@@ -246,6 +248,30 @@ an Ixia traffic generator device:
     |                                 |           and rate_tolerance values for checks.|
     |                                 |           Default: {}                          |
     |---------------------------------+------------------------------------------------|
+    | verify_traffic_stream_outage    | For each traffic stream configured on Ixia:    |
+    |                                 |   1. Verify traffic outage (in seconds) is less|
+    |                                 |      than tolerance threshold value.           |
+    |                                 |   2. Verify current loss % is less than        |
+    |                                 |      tolerance threshold value.                |
+    |                                 |   3. Verify difference between Tx Rate & Rx    |
+    |                                 |      Rate is less than tolerance threshold.    |
+    |                                 | ** This function is for internal use only **   |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic_stream - exact name of       |
+    |                                 |           traffic to perform checks on.        |
+    |                                 |     * [M] traffic_table - Python prettytable   |
+    |                                 |           containing all the traffic statistics|
+    |                                 |           data.                                |
+    |                                 |     * [O] max_outage - maximum outage expected |
+    |                                 |           in packets/frames per second.        |
+    |                                 |           Default: 120 (seconds)               |
+    |                                 |     * [O] loss_tolerance - maximum traffic loss|
+    |                                 |           expected in percentage %.            |
+    |                                 |           Default: 15%.                        |
+    |                                 |     * [O] rate_tolerance - maximum difference  |
+    |                                 |           Tx Rate and Rx Rate expected.        |
+    |                                 |           Default: 5 (packets per second)      |
+    |---------------------------------+------------------------------------------------|
     | create_traffic_streams_table    | Creates and returns a table containing traffic |
     |                                 | statistics for all traffic items/streams that  |
     |                                 | are configured on traffic generator devicce.   |
@@ -270,25 +296,59 @@ an Ixia traffic generator device:
     |                                 |           for checking if custom traffic items |
     |                                 |           view is ready. Default: 10.          |
     |---------------------------------+------------------------------------------------|
-    | compare_traffic_profile         | Compare two traffic generator traffic profile  |
-    |                                 | statistics tables in Python PrettyTable format.|
+    | compare_traffic_profile         | Compares values between two Ixia traffic table |
+    |                                 | statistics created from custom IxNetwork view  |
     |                                 | Arguments:                                     |
-    |                                 |     * [M] profile1 - traffic table to compare  |
-    |                                 |     * [M] profile2 - traffic table to compare  |
+    |                                 |     * [M] profile1 - 1st Ixia traffic profile  |
+    |                                 |     * [M] profile2 - 2nd Ixia traffic profile  |
     |                                 |     * [O] loss_tolerance - maximum expected    |
     |                                 |           difference between loss % statistics |
-    |                                 |           between both traffic tables.         |
+    |                                 |           between both Ixia traffic profiles.  |
     |                                 |           Default: 5%                          |
     |                                 |     * [O] rate_tolerance - maximum expected    |
     |                                 |           difference of Tx Rate & Rx Rate      |
-    |                                 |           between both traffic tables.         |
+    |                                 |           between both Ixia traffic profiles.  |
     |                                 |           Default: 2 (packets per second)      |
+    |----------------------------------------------------------------------------------|
+    |                               Traffic                                            |
+    |---------------------------------+------------------------------------------------|
+    | get_traffic_attribute           | Returns the value of the specified traffic     |
+    |                                 | configuration attribute.                       |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] attribute - traffic configuration    |
+    |                                 |           attribute to retrieve value of.      |
+    |                                 |           Sample attributes are:               |
+    |                                 |           - 'state'                            |
+    |                                 |           - 'isApplicationTrafficRunning'      |
+    |                                 |           - 'isTrafficRunning'                 |
+    |---------------------------------+------------------------------------------------|
+    |get_traffic_items_from_genie_view| Returns list of all traffic items from within  |
+    |                                 | the custome created IxNetwork view "GENIE"     |
+    |                                 | Arguments:                                     |
+    |                                 |     None                                       |
+    |---------------------------------+------------------------------------------------|
+    | enable_flow_tracking_filter     | Enable specific flow tracking filter for all   |
+    |                                 | the configured traffic streams.                |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] tracking_filter - name of the Ixia   |
+    |                                 |           tracking filter to enable for the    |
+    |                                 |           configured traffic streams.          |
     |---------------------------------+------------------------------------------------|
     | get_golden_profile              | Returns the "golden" traffic profile in Python |
     |                                 | PrettyTable format. If not set, returns empty  |
     |                                 | table.                                         |
     |---------------------------------+------------------------------------------------|
-    | set_ixia_virtual_ports          | Set virtual Ixia ports for this configuration  |
+    |                             Virtual Ports                                        |
+    |---------------------------------+------------------------------------------------|
+    | assign_ixia_ports               | Assign physical Ixia ports from the loaded     |
+    |                                 | configuration to corresponding virtual ports.  |
+    |                                 | Arguments:                                     |
+    |                                 |     * [O] wait_time - Time to wait after       |
+    |                                 |           assigning physical Ixia ports to the |
+    |                                 |           corresponding virtual ports.         |
+    |---------------------------------+------------------------------------------------|
+    | set_ixia_virtual_ports          | Set virtual Ixia ports to the IxiaNative object|
+    |                                 | for the given configuration.                   |
     |                                 | Arguments:                                     |
     |                                 |     None                                       |
     |---------------------------------+------------------------------------------------|
@@ -302,29 +362,6 @@ an Ixia traffic generator device:
     |                                 |     * [M] vport - virtual Ixia port for config |
     |                                 |     * [M] attribute - attribute of the virtual |
     |                                 |           to return to the caller.             |
-    |---------------------------------+------------------------------------------------|
-    | get_traffic_streams             | Get list of all traffic streams configured on  |
-    |                                 | Ixia device from "Traffic Item Statisics" view |
-    |                                 | Arguments:                                     |
-    |                                 |     None                                       |
-    |---------------------------------+------------------------------------------------|
-    | get_traffic_stream_data         | Get specific data field for specific traffic   |
-    |                                 | stream from "Traffic Item Statistics" view.    |
-    |                                 | Arguments:                                     |
-    |                                 |     * [M] traffic_stream - the traffic item    |
-    |                                 |           or stream to extract statistic from  |
-    |                                 |     * [M] traffic_data_field - traffic,        |
-    |                                 |           statistic field (ex: Tx Frame Rate)  |
-    |                                 |           to get of the traffic item.          |
-    |---------------------------------+------------------------------------------------|
-    | set_traffic_stream_data         | Set specific configuration for a traffic stream|
-    |                                 | Arguments:                                     |
-    |                                 |     * [M] traffic_stream - the traffic item or |
-    |                                 |           stream to configure with value.      |
-    |                                 |     * [M] config_field - traffic field to      |
-    |                                 |           configure for the given stream.      |
-    |                                 |     * [M] config_value - value to configure the|
-    |                                 |           traffic_stream config_field to.      |
     |----------------------------------------------------------------------------------|
     |                              Packet Capture (PCAP)                               |
     |---------------------------------+------------------------------------------------|
@@ -462,7 +499,15 @@ an Ixia traffic generator device:
     |----------------------------------------------------------------------------------|
     |                             Traffic Item Statistics                              |
     |----------------------------------------------------------------------------------|
-    |                                 |                                                |
+    |get_traffic_items_statistics_data| Get value of specified Traffic Items Statistics|
+    |                                 | IxNetwork column data for the given traffic    |
+    |                                 | stream.                                        |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic_stream - name of the traffic |
+    |                                 |            stream to get data for.             |
+    |                                 |     * [M] traffic_data_field - column name from|
+    |                                 |           "Traffic Item Statistics" IxNetwork  |
+    |                                 |           view to get the data of.             |
     |----------------------------------------------------------------------------------|
     |                              Flow Groups                                         |
     |----------------------------------------------------------------------------------|
@@ -487,7 +532,15 @@ an Ixia traffic generator device:
     |----------------------------------------------------------------------------------|
     |                               Quick Flow Groups                                  |
     |----------------------------------------------------------------------------------|
-    |                                 |                                                |
+    | get_quick_flow_group_names      | Returns a list of names of all the Quick Flow  |
+    |                                 | Groups present in current configuration.       |
+    |                                 | Arguments:                                     |
+    |                                 |     None                                       |
+    |---------------------------------+------------------------------------------------|
+    | get_quick_flow_group_objects    | Returns a list of all the Quick Flow Group     |
+    |                                 | IxNetwork objects in current configuration.    |
+    |                                 | Arguments:                                     |
+    |                                 |     None                                       |
     |----------------------------------------------------------------------------------|
     |                       Line / Packet / Layer2-bit Rate                            |
     |----------------------------------------------------------------------------------|

@@ -74,27 +74,6 @@ class IxiaNative(TrafficGen):
                                     "YAML for device '{d}'".\
                                     format(k=key, d=self.device.name))
 
-        # Genie Traffic Documentation
-        url = get_url().replace("genie", "genietrafficgen")
-        log.info('For more information, see Genie traffic documentation: '
-                 '{}/ixianative.html'.format(url))
-
-
-    def get_golden_profile(self):
-        ''' Returns golden profile'''
-        return self._golden_profile
-
-
-    def connect(self):
-        '''Connect to Ixia'''
-
-        # If already connected do nothing
-        if self._is_connected:
-            log.info("Already connected to Ixia Chassis")
-            return
-
-        log.info(banner("Connecting to IXIA"))
-
         # Ixia Chassis Details
         header = "Ixia Chassis Details"
         summary = Summary(title=header, width=45)
@@ -116,6 +95,44 @@ class IxiaNative(TrafficGen):
                          format(self.ixnetwork_tcl_port))
         summary.add_sep_line()
         summary.print()
+
+        # Genie Traffic Documentation
+        url = get_url().replace("genie", "genietrafficgen")
+        log.info('For more information, see Genie traffic documentation: '
+                 '{}/ixianative.html'.format(url))
+
+
+    def isconnected(func):
+        '''Decorator to make sure session to device is active
+
+           There is limitation on the amount of time the session can be active
+           to IxNetwork API server. However, there are no way to verify if the
+           session is still active unless we test sending a command.
+         '''
+        def decorated(self, *args, **kwargs):
+            # Check if connected
+            try:
+                log.propagate = False
+                self.ixNet.getAttribute('/globals', '-buildNumber')
+            except Exception:
+                self.disconnect()
+                self.connect()
+            finally:
+                log.propagate = True
+            return func(self, *args, **kwargs)
+        return decorated
+
+
+    @BaseConnection.locked
+    def connect(self):
+        '''Connect to Ixia'''
+
+        # If already connected do nothing
+        if self._is_connected:
+            log.info("Already connected to Ixia Chassis")
+            return
+
+        log.info(banner("Connecting to IXIA"))
 
         # Execute connect on IxNetwork
         try:
@@ -142,6 +159,7 @@ class IxiaNative(TrafficGen):
                      format(d=self.device.name, p=self.ixnetwork_tcl_port))
 
 
+    @BaseConnection.locked
     def disconnect(self):
         '''Disconnect from traffic generator device'''
 
@@ -171,6 +189,8 @@ class IxiaNative(TrafficGen):
                      format(d=self.device.name, p=self.ixnetwork_tcl_port))
 
 
+    @BaseConnection.locked
+    @isconnected
     def load_configuration(self, configuration, wait_time=60):
         '''Load static configuration file onto Ixia'''
 
@@ -224,6 +244,8 @@ class IxiaNative(TrafficGen):
                      "onto device '{}'".format(self.device.name))
 
 
+    @BaseConnection.locked
+    @isconnected
     def start_all_protocols(self, wait_time=60):
         '''Start all protocols on Ixia'''
 
@@ -252,6 +274,8 @@ class IxiaNative(TrafficGen):
         time.sleep(wait_time)
 
 
+    @BaseConnection.locked
+    @isconnected
     def stop_all_protocols(self, wait_time=60):
         '''Stop all protocols on Ixia'''
 
@@ -280,6 +304,8 @@ class IxiaNative(TrafficGen):
         time.sleep(wait_time)
 
 
+    @BaseConnection.locked
+    @isconnected
     def apply_traffic(self, wait_time=60):
         '''Apply L2/L3 traffic on Ixia'''
 
@@ -320,6 +346,8 @@ class IxiaNative(TrafficGen):
                      "expected")
 
 
+    @BaseConnection.locked
+    @isconnected
     def send_arp(self, wait_time=10):
         '''Send ARP to all interfaces from Ixia'''
 
@@ -349,6 +377,8 @@ class IxiaNative(TrafficGen):
         time.sleep(wait_time)
 
 
+    @BaseConnection.locked
+    @isconnected
     def send_ns(self, wait_time=10):
         '''Send NS to all interfaces from Ixia'''
 
@@ -377,6 +407,8 @@ class IxiaNative(TrafficGen):
         time.sleep(wait_time)
 
 
+    @BaseConnection.locked
+    @isconnected
     def start_traffic(self, wait_time=60):
         '''Start traffic on Ixia'''
 
@@ -423,6 +455,8 @@ class IxiaNative(TrafficGen):
             log.info("Traffic is in 'started' state")
 
 
+    @BaseConnection.locked
+    @isconnected
     def stop_traffic(self, wait_time=60):
         '''Stop traffic on Ixia'''
 
@@ -469,6 +503,8 @@ class IxiaNative(TrafficGen):
             log.info("Traffic is in 'stopped' state")
 
 
+    @BaseConnection.locked
+    @isconnected
     def clear_statistics(self, wait_time=10):
         '''Clear all traffic, port, protocol statistics on Ixia'''
 
@@ -510,6 +546,8 @@ class IxiaNative(TrafficGen):
         time.sleep(wait_time)
 
 
+    @BaseConnection.locked
+    @isconnected
     def create_genie_statistics_view(self, view_create_interval=30, view_create_iteration=10, enable_tracking=True, enable_port_pair=True):
         '''Creates a custom TCL View named "Genie" with the required stats data'''
 
@@ -665,6 +703,8 @@ class IxiaNative(TrafficGen):
                                 "statistics view 'GENIE' page.") from e
 
 
+    @BaseConnection.locked
+    @isconnected
     def check_traffic_loss(self, traffic_streams=[], max_outage=120, loss_tolerance=15, rate_tolerance=5, check_iteration=10, check_interval=60, outage_dict={}):
         '''Check traffic loss for each traffic stream configured on Ixia
             using statistics/data from 'Traffic Item Statistics' view'''
@@ -735,6 +775,8 @@ class IxiaNative(TrafficGen):
                 time.sleep(check_interval)
 
 
+    @BaseConnection.locked
+    @isconnected
     def verify_traffic_stream_outage(self, traffic_stream, traffic_table, max_outage=120, loss_tolerance=15, rate_tolerance=5):
         '''For each traffic stream configured on Ixia:
             * 1- Verify traffic outage (in seconds) is less than tolerance threshold
@@ -827,7 +869,9 @@ class IxiaNative(TrafficGen):
             return False
 
 
-    def create_traffic_streams_table(self, set_golden=False, clear_stats=False, clear_stats_time=30, view_create_interval=30, view_create_iteration=5, display=True):
+    @BaseConnection.locked
+    @isconnected
+    def create_traffic_streams_table(self, set_golden=False, clear_stats=False, clear_stats_time=30, view_create_interval=30, view_create_iteration=5):
         '''Returns traffic profile of configured streams on Ixia'''
 
         # Init
@@ -895,8 +939,7 @@ class IxiaNative(TrafficGen):
 
         # Align and print profile table in the logs
         traffic_table.align = "l"
-        if display:
-            log.info(traffic_table)
+        log.info(traffic_table)
 
         # If flag set, reset the golden profile
         if set_golden:
@@ -907,6 +950,8 @@ class IxiaNative(TrafficGen):
         return traffic_table
 
 
+    @BaseConnection.locked
+    @isconnected
     def compare_traffic_profile(self, profile1, profile2, loss_tolerance=5, rate_tolerance=2):
         '''Compare two Ixia traffic profiles'''
 
@@ -1034,8 +1079,10 @@ class IxiaNative(TrafficGen):
     #                               Traffic                                    #
     #--------------------------------------------------------------------------#
 
+    @BaseConnection.locked
+    @isconnected
     def get_traffic_attribute(self, attribute):
-        '''Returns the specified attribute for the given traffic stream'''
+        '''Returns the specified attribute for the given traffic configuration'''
 
         # Sample attributes
         # ['state', 'isApplicationTrafficRunning', 'isTrafficRunning']
@@ -1048,6 +1095,8 @@ class IxiaNative(TrafficGen):
                                 format(attribute)) from e
 
 
+    @BaseConnection.locked
+    @isconnected
     def get_traffic_items_from_genie_view(self, traffic_table):
         '''Returns list of all traffic items from within the "GENIE" view traffic table'''
 
@@ -1064,6 +1113,8 @@ class IxiaNative(TrafficGen):
         return traffic_streams
 
 
+    @BaseConnection.locked
+    @isconnected
     def enable_flow_tracking_filter(self, tracking_filter):
         '''Enable specific flow tracking filters for traffic streams'''
 
@@ -1148,12 +1199,21 @@ class IxiaNative(TrafficGen):
                      "streams".format(tracking_filter))
 
 
+    @BaseConnection.locked
+    @isconnected
+    def get_golden_profile(self):
+        ''' Returns golden profile'''
+        return self._golden_profile
+
+
     #--------------------------------------------------------------------------#
     #                           Virtual Ports                                  #
     #--------------------------------------------------------------------------#
 
+    @BaseConnection.locked
+    @isconnected
     def assign_ixia_ports(self, wait_time=15):
-        '''Assign Ixia ports for the configuration '''
+        '''Assign physical Ixia ports from the loaded configuration to the corresponding virtual ports'''
 
         log.info(banner("Assigning Ixia ports"))
 
@@ -1250,6 +1310,8 @@ class IxiaNative(TrafficGen):
             log.info("-> Ixia Port: '{}'".format(port))
 
 
+    @BaseConnection.locked
+    @isconnected
     def set_ixia_virtual_ports(self):
         '''Set virtual Ixia ports for this configuration'''
 
@@ -1261,6 +1323,8 @@ class IxiaNative(TrafficGen):
             raise GenieTgnError("Unable to get virtual ports on Ixia")
 
 
+    @BaseConnection.locked
+    @isconnected
     def get_ixia_virtual_port(self, port_name):
         '''Return virtual Ixia port object from port_name'''
 
@@ -1274,6 +1338,8 @@ class IxiaNative(TrafficGen):
                 return item
 
 
+    @BaseConnection.locked
+    @isconnected
     def get_ixia_virtual_port_attribute(self, vport, attribute):
         '''Get attibute for virtual Ixia port'''
 
@@ -1292,6 +1358,8 @@ class IxiaNative(TrafficGen):
     #                           Packet Capture                                 #
     #--------------------------------------------------------------------------#
 
+    @BaseConnection.locked
+    @isconnected
     def get_ixia_virtual_port_capture(self, port_name):
 
         # Get virtual Ixia port object
@@ -1310,6 +1378,8 @@ class IxiaNative(TrafficGen):
                                 format(port_name))
 
 
+    @BaseConnection.locked
+    @isconnected
     def enable_data_packet_capture(self, ports):
         '''Enable data packet capture on ports specified'''
 
@@ -1328,6 +1398,8 @@ class IxiaNative(TrafficGen):
                                     "on port '{}'".format(port))
 
 
+    @BaseConnection.locked
+    @isconnected
     def disable_data_packet_capture(self, ports):
         '''Disable data packet capture on ports specified'''
 
@@ -1346,6 +1418,8 @@ class IxiaNative(TrafficGen):
                                     "on port '{}'".format(port))
 
 
+    @BaseConnection.locked
+    @isconnected
     def enable_control_packet_capture(self, ports):
         '''Enable data packet capture on ports specified'''
 
@@ -1364,6 +1438,8 @@ class IxiaNative(TrafficGen):
                                     "on port '{}'".format(port))
 
 
+    @BaseConnection.locked
+    @isconnected
     def disable_control_packet_capture(self, ports):
         '''Disable data packet capture on ports specified'''
 
@@ -1382,6 +1458,8 @@ class IxiaNative(TrafficGen):
                                     "on port '{}'".format(port))
 
 
+    @BaseConnection.locked
+    @isconnected
     def start_packet_capture(self, capture_time=60):
         '''Start capturing packets for a specified amount of time'''
 
@@ -1399,6 +1477,8 @@ class IxiaNative(TrafficGen):
         time.sleep(capture_time)
 
 
+    @BaseConnection.locked
+    @isconnected
     def stop_packet_capture(self):
         '''Stop capturing packets'''
 
@@ -1411,6 +1491,8 @@ class IxiaNative(TrafficGen):
             raise GenieTgnError("Unable to start packet capture")
 
 
+    @BaseConnection.locked
+    @isconnected
     def get_packet_capture_count(self, port_name, pcap_type):
         ''' Get the total count of packets captured during packet capture'''
 
@@ -1445,6 +1527,8 @@ class IxiaNative(TrafficGen):
                 return packet_count
 
 
+    @BaseConnection.locked
+    @isconnected
     def get_packet_capture_data(self, port_name):
         '''Search inside packet collected from pcap for specific data'''
 
@@ -1481,6 +1565,8 @@ class IxiaNative(TrafficGen):
                 raise GenieTgnError("Error while extracting data of packet capture")
 
 
+    @BaseConnection.locked
+    @isconnected
     def save_packet_capture_file(self, port_name, pcap_type, filename, directory='C:/Results'):
         '''Save packet capture file as specified filename to desired location'''
 
@@ -1507,6 +1593,8 @@ class IxiaNative(TrafficGen):
             format(port_name=port_name, pcap=pcap_dict[pcap_type], f=filename)
 
 
+    @BaseConnection.locked
+    @isconnected
     def export_packet_capture_file(self, src_file, dest_file):
         '''Export packet capture file as specified filename to desired location'''
 
@@ -1525,6 +1613,8 @@ class IxiaNative(TrafficGen):
     #                        Traffic Item (Stream)                             #
     #--------------------------------------------------------------------------#
 
+    @BaseConnection.locked
+    @isconnected
     def get_traffic_stream_names(self):
         '''Returns a list of all traffic stream names present in current configuration'''
 
@@ -1544,6 +1634,8 @@ class IxiaNative(TrafficGen):
             return traffic_streams
 
 
+    @BaseConnection.locked
+    @isconnected
     def get_traffic_stream_objects(self):
         '''Returns a list of all traffic stream objects present in current configuration'''
 
@@ -1556,6 +1648,8 @@ class IxiaNative(TrafficGen):
                                 "configuration.")
 
 
+    @BaseConnection.locked
+    @isconnected
     def find_traffic_stream_object(self, traffic_stream):
         '''Finds the given stream name's traffic stream object'''
 
@@ -1580,6 +1674,8 @@ class IxiaNative(TrafficGen):
                                 "stream '{}'".format(traffic_stream))
 
 
+    @BaseConnection.locked
+    @isconnected
     def get_traffic_stream_attribute(self, traffic_stream, attribute):
         '''Returns the specified attribute for the given traffic stream'''
 
@@ -1598,6 +1694,8 @@ class IxiaNative(TrafficGen):
                                 format(a=attribute, t=traffic_stream))
 
 
+    @BaseConnection.locked
+    @isconnected
     def start_traffic_stream(self, traffic_stream, wait_time=15):
         '''Start specific traffic stream on Ixia'''
 
@@ -1645,6 +1743,8 @@ class IxiaNative(TrafficGen):
                      "for traffic stream '{}'".format(traffic_stream))
 
 
+    @BaseConnection.locked
+    @isconnected
     def stop_traffic_stream(self, traffic_stream, wait_time=15):
         '''Stop specific traffic stream on Ixia'''
 
@@ -1692,6 +1792,8 @@ class IxiaNative(TrafficGen):
                      "stream '{}'".format(traffic_stream))
 
 
+    @BaseConnection.locked
+    @isconnected
     def generate_traffic_stream(self, traffic_stream, wait_time=15):
         '''Generate traffic for a given traffic stream'''
 
@@ -1729,6 +1831,8 @@ class IxiaNative(TrafficGen):
     #                       Traffic Item Statistics                            #
     #--------------------------------------------------------------------------#
 
+    @BaseConnection.locked
+    @isconnected
     def get_traffic_items_statistics_data(self, traffic_stream, traffic_data_field):
         '''Get value of traffic_data_field of traffic_tream from "Traffic Item Statistics" '''
 
@@ -1748,6 +1852,8 @@ class IxiaNative(TrafficGen):
     #                            Flow Groups                                   #
     #--------------------------------------------------------------------------#
 
+    @BaseConnection.locked
+    @isconnected
     def get_flow_group_names(self, traffic_stream):
         '''Returns a list of all the flow group names for the given traffic stream present in current configuration'''
 
@@ -1768,6 +1874,8 @@ class IxiaNative(TrafficGen):
             return flow_groups
 
 
+    @BaseConnection.locked
+    @isconnected
     def get_flow_group_objects(self, traffic_stream):
         '''Returns a list of flow group objects for the given traffic stream present in current configuration'''
 
@@ -1783,6 +1891,8 @@ class IxiaNative(TrafficGen):
                                 "traffic stream '{}'".format(traffic_stream))
 
 
+    @BaseConnection.locked
+    @isconnected
     def find_flow_group_object(self, traffic_stream, flow_group):
         '''Finds the flow group object when given the flow group name and traffic stream'''
 
@@ -1807,6 +1917,8 @@ class IxiaNative(TrafficGen):
                                 "Flow Group '{}'".format(flow_group))
 
 
+    @BaseConnection.locked
+    @isconnected
     def get_flow_group_attribute(self, traffic_stream, flow_group, attribute):
         '''Returns the specified attribute for the given flow group of the traffic stream'''
 
@@ -1825,6 +1937,8 @@ class IxiaNative(TrafficGen):
                                 format(a=attribute, f=flow_group))
 
 
+    @BaseConnection.locked
+    @isconnected
     def start_flow_group(self, traffic_stream, flow_group, wait_time=15):
         '''Start given flow group under of traffic stream on Ixia'''
 
@@ -1859,6 +1973,8 @@ class IxiaNative(TrafficGen):
             log.info("Flow group '{}' state is 'started'".format(flow_group))
 
 
+    @BaseConnection.locked
+    @isconnected
     def stop_flow_group(self, traffic_stream, flow_group, wait_time=15):
         '''Stop given flow group under of traffic stream on Ixia'''
 
@@ -1897,6 +2013,8 @@ class IxiaNative(TrafficGen):
     #                          Quick Flow Groups                               #
     #--------------------------------------------------------------------------#
 
+    @BaseConnection.locked
+    @isconnected
     def get_quick_flow_group_names(self):
         '''Returns a list of all the Quick Flow Group names present in current configuration'''
 
@@ -1916,6 +2034,8 @@ class IxiaNative(TrafficGen):
             return quick_flow_groups
 
 
+    @BaseConnection.locked
+    @isconnected
     def get_quick_flow_group_objects(self):
         '''Returns a list of all Quick Flow Group objects present in current configuration'''
 
@@ -1944,6 +2064,8 @@ class IxiaNative(TrafficGen):
             raise GenieTgnError("Quick Flow Groups not found in configuration")
 
 
+    @BaseConnection.locked
+    @isconnected
     def find_quick_flow_group_object(self, quick_flow_group):
         '''Finds the Quick Flow Group object when given the Quick Flow Group name'''
 
@@ -1968,6 +2090,8 @@ class IxiaNative(TrafficGen):
                                 "Flow Group '{}'".format(quick_flow_group))
 
 
+    @BaseConnection.locked
+    @isconnected
     def get_quick_flow_group_attribute(self, quick_flow_group, attribute):
         '''Returns the specified attribute for the given Quick Flow Group'''
 
@@ -1986,6 +2110,8 @@ class IxiaNative(TrafficGen):
                                 format(a=attribute, q=quick_flow_group))
 
 
+    @BaseConnection.locked
+    @isconnected
     def start_quick_flow_group(self, quick_flow_group, wait_time=15):
         '''Start given Quick Flow Group on Ixia'''
 
@@ -2021,6 +2147,8 @@ class IxiaNative(TrafficGen):
                      format(quick_flow_group))
 
 
+    @BaseConnection.locked
+    @isconnected
     def stop_quick_flow_group(self, quick_flow_group, wait_time=15):
         '''Stop given Quick Flow Group on Ixia'''
 
@@ -2060,6 +2188,8 @@ class IxiaNative(TrafficGen):
     #                          Flow Statistics                                 #
     #--------------------------------------------------------------------------#
 
+    @BaseConnection.locked
+    @isconnected
     def get_flow_statistics_data(self, traffic_stream, flow_data_field):
         '''Get value of flow_data_field of traffic_tream from "Flow Statistics" '''
 
@@ -2080,6 +2210,8 @@ class IxiaNative(TrafficGen):
     #                     Line / Packet / Layer2-bit Rate                      #
     #--------------------------------------------------------------------------#
 
+    @BaseConnection.locked
+    @isconnected
     def set_line_rate(self, traffic_stream, rate, flow_group='', stop_traffic_time=15, generate_traffic_time=15, apply_traffic_time=15, start_traffic_time=15):
         '''Set the line rate for given traffic stream or given flow group of a traffic stream'''
 
@@ -2160,6 +2292,8 @@ class IxiaNative(TrafficGen):
             self.start_traffic(wait_time=start_traffic_time)
 
 
+    @BaseConnection.locked
+    @isconnected
     def set_packet_rate(self, traffic_stream, rate, flow_group='', stop_traffic_time=15, generate_traffic_time=15, apply_traffic_time=15, start_traffic_time=15):
         '''Set the packet rate for given traffic stream or given flow group of a traffic stream'''
 
@@ -2233,6 +2367,8 @@ class IxiaNative(TrafficGen):
             self.start_traffic(wait_time=start_traffic_time)
 
 
+    @BaseConnection.locked
+    @isconnected
     def set_layer2_bit_rate(self, traffic_stream, rate, rate_unit, flow_group='', stop_traffic_time=15, generate_traffic_time=15, apply_traffic_time=15, start_traffic_time=15):
         '''Set the Layer2 bit rate for given traffic stream or given flow group
            within the traffic stream'''
@@ -2327,6 +2463,8 @@ class IxiaNative(TrafficGen):
             self.start_traffic(wait_time=start_traffic_time)
 
 
+    @BaseConnection.locked
+    @isconnected
     def set_packet_size_fixed(self, traffic_stream, packet_size, stop_traffic_time=15, generate_traffic_time=15, apply_traffic_time=15, start_traffic_time=15):
         '''Set the packet size for given traffic stream'''
 
@@ -2372,6 +2510,8 @@ class IxiaNative(TrafficGen):
         self.start_traffic(wait_time=start_traffic_time)
 
 
+    @BaseConnection.locked
+    @isconnected
     def get_line_rate(self, traffic_stream, flow_group=''):
         '''Returns the line rate for given traffic stream or flow group'''
 
@@ -2445,6 +2585,8 @@ class IxiaNative(TrafficGen):
                                     "stream '{}".format(traffic_stream))
 
 
+    @BaseConnection.locked
+    @isconnected
     def get_packet_rate(self, traffic_stream, flow_group=''):
         '''Returns the packet rate for given traffic stream or flow group'''
 
@@ -2518,6 +2660,8 @@ class IxiaNative(TrafficGen):
                                     "stream '{}".format(traffic_stream))
 
 
+    @BaseConnection.locked
+    @isconnected
     def get_layer2_bit_rate(self, traffic_stream, flow_group=''):
         '''Returns the layer2 bit rate given traffic stream or flow group'''
 
@@ -2591,6 +2735,8 @@ class IxiaNative(TrafficGen):
                                     "stream '{}".format(traffic_stream))
 
 
+    @BaseConnection.locked
+    @isconnected
     def get_packet_size(self, traffic_stream):
         '''Returns the packet size for given traffic stream'''
 
@@ -2627,6 +2773,8 @@ class IxiaNative(TrafficGen):
     #                               QuickTest                                  #
     #--------------------------------------------------------------------------#
 
+    @BaseConnection.locked
+    @isconnected
     def find_quicktest_object(self, quicktest):
         '''Finds and returns the QuickTest object for the specific test'''
 
@@ -2667,6 +2815,8 @@ class IxiaNative(TrafficGen):
                                 "'{}'".format(quicktest))
 
 
+    @BaseConnection.locked
+    @isconnected
     def load_quicktest_configuration(self, configuration, wait_time=30):
         '''Load QuickTest configuration file'''
 
@@ -2713,6 +2863,8 @@ class IxiaNative(TrafficGen):
                      "onto device '{}'".format(self.device.name))
 
 
+    @BaseConnection.locked
+    @isconnected
     def execute_quicktest(self, quicktest, apply_wait=60, exec_wait=1500):
         '''Execute specific RFC QuickTest'''
 
@@ -2784,6 +2936,8 @@ class IxiaNative(TrafficGen):
                      format(q=quicktest, s=exec_status))
 
 
+    @BaseConnection.locked
+    @isconnected
     def generate_quicktest_report(self, quicktest):
         '''Generate QuickTest PDF report'''
 
@@ -2804,6 +2958,8 @@ class IxiaNative(TrafficGen):
                      format(quicktest))
 
 
+    @BaseConnection.locked
+    @isconnected
     def export_quicktest_report(self, src_file, dest_file):
         '''Export QuickTest PDF report to given destination'''
 
