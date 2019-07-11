@@ -548,7 +548,7 @@ class IxiaNative(TrafficGen):
 
     @BaseConnection.locked
     @isconnected
-    def create_genie_statistics_view(self, view_create_interval=30, view_create_iteration=10, enable_tracking=True, enable_port_pair=True):
+    def create_genie_statistics_view(self, view_create_interval=30, view_create_iteration=10, enable_tracking=False, enable_port_pair=False):
         '''Creates a custom TCL View named "Genie" with the required stats data'''
 
         log.info(banner("Creating new custom IxNetwork traffic statistics view 'GENIE'"))
@@ -576,10 +576,14 @@ class IxiaNative(TrafficGen):
 
         # Enable 'Traffic Items' filter if not present
         if enable_tracking:
+            log.info("Not enabling 'Traffic Items' filter for all traffic streams")
+        else:
             self.enable_flow_tracking_filter(tracking_filter='trackingenabled0')
 
         # Enable 'Source/Dest Port Pair' filter if not present
         if enable_port_pair:
+            log.info("Not enabling 'Source/Dest Port Pair' filter for all traffic streams")
+        else:
             self.enable_flow_tracking_filter(tracking_filter='sourceDestPortPair0')
 
         # Create a new TCL View called "GENIE"
@@ -729,14 +733,14 @@ class IxiaNative(TrafficGen):
                 ti_type = self.get_traffic_stream_attribute(traffic_stream=stream,
                                                             attribute='trafficItemType')
                 if ti_type != 'l2L3':
-                    log.warning("SKIP: Traffic stream '{}' is not of type L2L3".\
-                                format(stream))
+                    log.warning("SKIP: Traffic stream '{}' is not of type L2L3 "
+                                "- skipping traffic loss checks".format(stream))
                     continue
 
                 # Skip checks if traffic stream from "GENIE" table not in configuration
                 if stream not in self.get_traffic_stream_names():
-                    log.warning("SKIP: Traffic stream '{}' not found in "
-                                "configuration".format(stream))
+                    log.warning("SKIP: Traffic stream '{}' not found in current"
+                                " configuration".format(stream))
                     continue
 
                 # Determine outage values for this traffic stream
