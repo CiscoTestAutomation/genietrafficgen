@@ -548,7 +548,7 @@ class IxiaNative(TrafficGen):
 
     @BaseConnection.locked
     @isconnected
-    def create_genie_statistics_view(self, view_create_interval=30, view_create_iteration=10, enable_tracking=False, enable_port_pair=False):
+    def create_genie_statistics_view(self, view_create_interval=30, view_create_iteration=10, disable_tracking=False, disable_port_pair=False):
         '''Creates a custom TCL View named "Genie" with the required stats data'''
 
         log.info(banner("Creating new custom IxNetwork traffic statistics view 'GENIE'"))
@@ -575,13 +575,13 @@ class IxiaNative(TrafficGen):
                                 "traffic statistics view named 'GENIE'.") from e
 
         # Enable 'Traffic Items' filter if not present
-        if enable_tracking:
+        if disable_tracking:
             log.info("Not enabling 'Traffic Items' filter for all traffic streams")
         else:
             self.enable_flow_tracking_filter(tracking_filter='trackingenabled0')
 
         # Enable 'Source/Dest Port Pair' filter if not present
-        if enable_port_pair:
+        if disable_port_pair:
             log.info("Not enabling 'Source/Dest Port Pair' filter for all traffic streams")
         else:
             self.enable_flow_tracking_filter(tracking_filter='sourceDestPortPair0')
