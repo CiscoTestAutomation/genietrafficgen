@@ -548,7 +548,7 @@ class IxiaNative(TrafficGen):
 
     @BaseConnection.locked
     @isconnected
-    def create_genie_statistics_view(self, view_create_interval=30, view_create_iteration=10, enable_tracking=True, enable_port_pair=True):
+    def create_genie_statistics_view(self, view_create_interval=30, view_create_iteration=10, disable_tracking=False, disable_port_pair=False):
         '''Creates a custom TCL View named "Genie" with the required stats data'''
 
         log.info(banner("Creating new custom IxNetwork traffic statistics view 'GENIE'"))
@@ -575,11 +575,15 @@ class IxiaNative(TrafficGen):
                                 "traffic statistics view named 'GENIE'.") from e
 
         # Enable 'Traffic Items' filter if not present
-        if enable_tracking:
+        if disable_tracking:
+            log.info("Not enabling 'Traffic Items' filter for all traffic streams")
+        else:
             self.enable_flow_tracking_filter(tracking_filter='trackingenabled0')
 
         # Enable 'Source/Dest Port Pair' filter if not present
-        if enable_port_pair:
+        if disable_port_pair:
+            log.info("Not enabling 'Source/Dest Port Pair' filter for all traffic streams")
+        else:
             self.enable_flow_tracking_filter(tracking_filter='sourceDestPortPair0')
 
         # Create a new TCL View called "GENIE"
@@ -709,6 +713,9 @@ class IxiaNative(TrafficGen):
         '''Check traffic loss for each traffic stream configured on Ixia
             using statistics/data from 'Traffic Item Statistics' view'''
 
+        # Verified streams to avoid duplicates
+        verified_streams = []
+
         for i in range(check_iteration):
 
             log.info("\nAttempt #{}: Checking for traffic outage/loss".format(i+1))
@@ -725,18 +732,22 @@ class IxiaNative(TrafficGen):
                 if traffic_streams and stream not in traffic_streams:
                     continue
 
+                # Skip if duplicate (previously verified uni-direction stream with same name)
+                if stream in verified_streams:
+                    continue
+
                 # Skip checks if traffic stream is not of type l2l3
                 ti_type = self.get_traffic_stream_attribute(traffic_stream=stream,
                                                             attribute='trafficItemType')
                 if ti_type != 'l2L3':
-                    log.warning("SKIP: Traffic stream '{}' is not of type L2L3".\
-                                format(stream))
+                    log.warning("SKIP: Traffic stream '{}' is not of type L2L3 "
+                                "- skipping traffic loss checks".format(stream))
                     continue
 
                 # Skip checks if traffic stream from "GENIE" table not in configuration
                 if stream not in self.get_traffic_stream_names():
-                    log.warning("SKIP: Traffic stream '{}' not found in "
-                                "configuration".format(stream))
+                    log.warning("SKIP: Traffic stream '{}' not found in current"
+                                " configuration".format(stream))
                     continue
 
                 # Determine outage values for this traffic stream
@@ -750,19 +761,40 @@ class IxiaNative(TrafficGen):
                     loss=loss_tolerance
                     rate=rate_tolerance
 
-                # Verify outage for traffic stream
-                if not self.verify_traffic_stream_outage(traffic_stream=stream,
-                                                         traffic_table=traffic_table,
-                                                         max_outage=outage,
-                                                         loss_tolerance=loss,
-                                                         rate_tolerance=rate):
-                    # Traffic loss observed for stream
-                    outage_check = False
+                # Get source/dest port pair's associated with this traffic stream
+                source_dest_pairs = []
+                for row in traffic_table:
+                    row.header = False ; row.border = False
+                    if stream == row.get_string(fields=["Traffic Item"]).strip():
+                        source_dest_pairs.append(row.get_string(fields=["Source/Dest Port Pair"]).strip())
+
+                if not source_dest_pairs:
+                    raise GenieTgnError("Unable to find source/dest port pairs "
+                                        "associated with this traffic stream "
+                                        "'{}'".format(stream))
+
+                if len(source_dest_pairs) > 2:
+                    raise GenieTgnError("Configuration mismatch - more than 2 "
+                                        "source/dest port pairs found for "
+                                        "traffic stream '{}'".format(stream))
+
+                for pair in source_dest_pairs:
+                    # Verify outage for traffic stream
+                    if not self.verify_traffic_stream_outage(traffic_stream=stream,
+                                                             source_dest_pair=pair,
+                                                             traffic_table=traffic_table,
+                                                             max_outage=outage,
+                                                             loss_tolerance=loss,
+                                                             rate_tolerance=rate):
+                        # Traffic loss observed for stream
+                        outage_check = False
+                    # Add to list
+                    verified_streams.append(stream)
 
             # Check if iteration required based on results
             if outage_check:
                 log.info("\nSuccessfully verified traffic outages/loss is within "
-                         "tolerance for all traffic streams")
+                         "tolerance for given traffic streams")
                 break
             elif i == check_iteration or i == check_iteration-1:
                 # End of iterations, raise Exception and exit
@@ -777,14 +809,14 @@ class IxiaNative(TrafficGen):
 
     @BaseConnection.locked
     @isconnected
-    def verify_traffic_stream_outage(self, traffic_stream, traffic_table, max_outage=120, loss_tolerance=15, rate_tolerance=5):
+    def verify_traffic_stream_outage(self, traffic_stream, source_dest_pair, traffic_table, max_outage=120, loss_tolerance=15, rate_tolerance=5):
         '''For each traffic stream configured on Ixia:
             * 1- Verify traffic outage (in seconds) is less than tolerance threshold
             * 2- Verify current loss % is less than tolerance threshold
             * 3- Verify difference between Tx Rate & Rx Rate is less than tolerance threshold
         '''
 
-        log.info(banner("Verifying traffic item '{}'".format(traffic_stream)))
+        log.info(banner("Checking traffic stream: '{s} | {t}'".format(s=source_dest_pair, t=traffic_stream)))
 
         # Init
         outage_check = False
@@ -796,8 +828,10 @@ class IxiaNative(TrafficGen):
 
             # Get row in table associated with traffic stream
             row.header = False ; row.border = False
+            # Get stream name and source dest/port pair
             current_stream = row.get_string(fields=["Traffic Item"]).strip()
-            if traffic_stream != current_stream:
+            current_srcdest_pair = row.get_string(fields=["Source/Dest Port Pair"]).strip()
+            if traffic_stream != current_stream or current_srcdest_pair != source_dest_pair:
                 continue
 
             # 1- Verify traffic Outage (in seconds) is less than tolerance threshold
