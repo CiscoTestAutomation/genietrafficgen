@@ -2458,7 +2458,7 @@ class IxiaNative(TrafficGen):
         else:
             # Set the layer2 bit rate for the entire traffic stream
             log.info(banner("Setting traffic stream '{t}' layer2 bit rate to"
-                            " '{r}'".format(t=traffic_stream, r=rate)))
+                            " '{r}' {u}".format(t=traffic_stream, r=rate, u=rate_unit)))
 
             # Stop traffic for the given stream
             self.stop_traffic(wait_time=stop_traffic_time)
