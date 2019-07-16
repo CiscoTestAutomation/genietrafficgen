@@ -1172,7 +1172,15 @@ class IxiaNative(TrafficGen):
                  format(map_dict[tracking_filter]))
 
         # Get all traffic stream objects in configuration
-        for ti in self.get_traffic_stream_objects():
+        traffic_streams = self.get_traffic_stream_objects()
+
+        if not traffic_streams:
+            raise GenieTgnError("Unable to find traffic streams for configuration")
+
+        # Initial state
+        initial_state = self.get_traffic_attribute(attribute='state')
+
+        for ti in traffic_streams:
 
             # Get traffic stream type
             ti_type = None ; ti_name = None
@@ -1227,7 +1235,8 @@ class IxiaNative(TrafficGen):
         if filter_added:
             self.ixNet.commit()
             self.apply_traffic(wait_time=15)
-            self.start_traffic(wait_time=15)
+            if initial_state == 'started':
+                self.start_traffic(wait_time=15)
         else:
             log.info("Filter '{}' previously configured for all L2L3 traffic "
                      "streams".format(tracking_filter))
