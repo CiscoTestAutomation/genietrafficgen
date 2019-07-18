@@ -2431,9 +2431,10 @@ class IxiaNative(TrafficGen):
         if flow_group:
             # Set the layer2 bit rate for given flow group of this traffic item
             log.info(banner("Setting flow group '{f}' of traffic stream '{t}' "
-                            "layer2 bit rate to '{r}'".format(f=flow_group,
-                                                              t=traffic_stream,
-                                                              r=rate)))
+                            "layer2 bit rate to '{r}' {u}".format(f=flow_group,
+                                                                  t=traffic_stream,
+                                                                  r=rate,
+                                                                  u=rate_unit)))
 
             # Get flow group object of the given traffic stream
             flowgroupObj = self.get_flow_group_object(traffic_stream=traffic_stream, flow_group=flow_group)
@@ -2448,14 +2449,15 @@ class IxiaNative(TrafficGen):
             except Exception as e:
                 log.error(e)
                 raise GenieTgnError("Error while changing flow group '{f}' of "
-                                    "traffic stream '{t}' layer2 bit rate to"
-                                    " '{r}'".format(f=flow_group,
-                                                    t=traffic_stream,
-                                                    r=rate))
+                                    "traffic stream '{t}' layer2 bit rate to "
+                                    "'{r}' {u}".format(f=flow_group,
+                                                       t=traffic_stream,
+                                                       r=rate,
+                                                       u=rate_unit))
             else:
                 log.info("Successfully changed flow group '{f}' of traffic "
-                         "stream '{t}' layer2 bit rate to '{r}'".\
-                         format(f=flow_group, t=traffic_stream, r=rate))
+                         "stream '{t}' layer2 bit rate to '{r}' {u}".\
+                         format(f=flow_group, t=traffic_stream, r=rate, u=rate_unit))
         else:
             # Set the layer2 bit rate for the entire traffic stream
             log.info(banner("Setting traffic stream '{t}' layer2 bit rate to"
@@ -2482,11 +2484,15 @@ class IxiaNative(TrafficGen):
                 except Exception as e:
                     log.error(e)
                     raise GenieTgnError("Error while changing traffic stream "
-                                        "'{t}' layer2 bit rate to '{r}'".\
-                                        format(t=traffic_stream, r=rate))
+                                        "'{t}' layer2 bit rate to '{r}' {u}".\
+                                        format(t=traffic_stream,
+                                               r=rate,
+                                               u=rate_unit))
                 else:
                     log.info("Successfully changed traffic stream '{t}' layer2 "
-                             "bit rate to '{r}'".format(t=traffic_stream, r=rate))
+                             "bit rate to '{r}' {u}".format(t=traffic_stream,
+                                                            r=rate,
+                                                            u=rate_unit))
 
             # Generate traffic
             self.generate_traffic_stream(traffic_stream=traffic_stream, wait_time=generate_traffic_time)
