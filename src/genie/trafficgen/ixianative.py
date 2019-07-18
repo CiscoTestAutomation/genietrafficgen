@@ -20,9 +20,10 @@ from ats.log.utils import banner
 from ats.connections import BaseConnection
 
 # Genie
-from genie.trafficgen.trafficgen import TrafficGen
+from genie.utils.timeout import Timeout
 from genie.utils.summary import Summary
 from genie.harness.utils import get_url
+from genie.trafficgen.trafficgen import TrafficGen
 from genie.harness.exceptions import GenieTgnError
 
 # IxNetwork Native
@@ -1739,7 +1740,7 @@ class IxiaNative(TrafficGen):
 
     @BaseConnection.locked
     @isconnected
-    def start_traffic_stream(self, traffic_stream, wait_time=15):
+    def start_traffic_stream(self, traffic_stream, check_stream=True, wait_time=15):
         '''Start specific traffic stream on Ixia'''
 
         log.info(banner("Starting L2/L3 traffic for traffic stream '{}'".\
@@ -1761,29 +1762,30 @@ class IxiaNative(TrafficGen):
                  " '{s}'".format(t=wait_time, s=traffic_stream))
         time.sleep(wait_time)
 
-        # Verify traffic stream state is now 'started'
-        log.info("Verify traffic stream '{}' state is now 'started'".\
-                 format(traffic_stream))
-        try:
-            assert 'started' == self.get_traffic_stream_attribute(traffic_stream=traffic_stream, attribute='state')
-        except AssertionError as e:
-            raise GenieTgnError("Traffic stream '{}' state is not 'started'".\
-                                format(traffic_stream))
-        else:
-            log.info("Traffic stream '{}' state is 'started'".format(traffic_stream))
+        if check_stream:
+            # Verify traffic stream state is now 'started'
+            log.info("Verify traffic stream '{}' state is now 'started'".\
+                     format(traffic_stream))
+            try:
+                assert 'started' == self.get_traffic_stream_attribute(traffic_stream=traffic_stream, attribute='state')
+            except AssertionError as e:
+                raise GenieTgnError("Traffic stream '{}' state is not 'started'".\
+                                    format(traffic_stream))
+            else:
+                log.info("Traffic stream '{}' state is 'started'".format(traffic_stream))
 
-        # Verify Tx Frame Rate for this stream is > 0 after starting it
-        log.info("Verify Tx Frame Rate > 0 for traffic stream '{}'".\
-                 format(traffic_stream))
-        try:
-            assert float(self.get_traffic_items_statistics_data(traffic_stream=traffic_stream, traffic_data_field='Tx Frame Rate')) > 0.0
-        except AssertionError as e:
-            raise GenieTgnError("Tx Frame Rate is not greater than 0 after "
-                                "starting traffic for traffic stream '{}'".\
-                                format(traffic_stream))
-        else:
-            log.info("Tx Frame Rate is greater than 0 after starting traffic "
-                     "for traffic stream '{}'".format(traffic_stream))
+            # Verify Tx Frame Rate for this stream is > 0 after starting it
+            log.info("Verify Tx Frame Rate > 0 for traffic stream '{}'".\
+                     format(traffic_stream))
+            try:
+                assert float(self.get_traffic_items_statistics_data(traffic_stream=traffic_stream, traffic_data_field='Tx Frame Rate')) > 0.0
+            except AssertionError as e:
+                raise GenieTgnError("Tx Frame Rate is not greater than 0 after "
+                                    "starting traffic for traffic stream '{}'".\
+                                    format(traffic_stream))
+            else:
+                log.info("Tx Frame Rate is greater than 0 after starting traffic "
+                         "for traffic stream '{}'".format(traffic_stream))
 
 
     @BaseConnection.locked
@@ -2860,6 +2862,36 @@ class IxiaNative(TrafficGen):
 
     @BaseConnection.locked
     @isconnected
+    def get_quicktest_results_attribute(self, quicktest, attribute):
+        '''Returns the value of specified quicktest results attribute '''
+
+        # Verify valid attribute provided
+        try:
+            assert attribute in ['isRunning',
+                                 'status',
+                                 'progress',
+                                 'result',
+                                 'resultPath',
+                                 'startTime',
+                                 'duration']
+        except AssertionError as e:
+            raise GenieTgnError("Invalid attribute '{}' provided for Quicktest "
+                                "results".format(attribute))
+
+        # Get QuickTest object
+        qt_obj = self.find_quicktest_object(quicktest=quicktest)
+
+        # Return attribute value
+        try:
+            return self.ixNet.getAttribute(qt_obj+'/results', '-{}'.format(attribute))
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to get value of Quicktest results "
+                                "attribute '{}'".format(attribute))
+
+
+    @BaseConnection.locked
+    @isconnected
     def load_quicktest_configuration(self, configuration, wait_time=30):
         '''Load QuickTest configuration file'''
 
@@ -2908,7 +2940,7 @@ class IxiaNative(TrafficGen):
 
     @BaseConnection.locked
     @isconnected
-    def execute_quicktest(self, quicktest, apply_wait=60, exec_wait=1500):
+    def execute_quicktest(self, quicktest, apply_wait=60, exec_wait=1800, exec_interval=300):
         '''Execute specific RFC QuickTest'''
 
         log.info(banner("Prepare execution of Quicktest '{}'...".\
@@ -2935,7 +2967,7 @@ class IxiaNative(TrafficGen):
                                 format(quicktest))
         else:
             log.info("Successfully applied QuickTest '{}' configuration".\
-                     format(configuration))
+                     format(quicktest))
 
         # Wait after applying QuickTest configuration
         log.info("Waiting '{}' seconds after applying QuickTest "
@@ -2960,7 +2992,7 @@ class IxiaNative(TrafficGen):
                                 format(quicktest))
         else:
             log.info("Successfully started execution of QuickTest '{}'".\
-                     format(configuration))
+                     format(quicktest))
 
         # Wait after starting QuickTest execution
         log.info("Waiting '{}' seconds after starting QuickTest execution".\
@@ -2968,21 +3000,29 @@ class IxiaNative(TrafficGen):
         time.sleep(exec_wait)
 
         # Check that execution has completed
-        try:
-            exec_status = self.ixNet.execute('waitForTest', qt_obj)
+        timeout = Timeout(max_time=exec_wait, interval=exec_interval)
+        while timeout.iterate():
+            try:
+                exec_status = self.get_quicktest_results_attribute(quicktest=quicktest, attribute='isRunning')
+            except GenieTgnError:
+                pass
+            # Check the status
+            if exec_status == 'false':
+                break
+            else:
+                log.info("Quicktest is still executing...")
+
+        # Final result
+        if self.get_quicktest_results_attribute(quicktest=quicktest, attribute='status') == 'pass'
+            log.info("Successfully completed execution of Quicktest '{}'".format(quicktest))
         except Exception as e:
-            log.error(e)
-            raise GenieTgnError("Unable to get exection status for "
-                                "Quicktest '{}'".format(quicktest))
-        else:
-            log.info("Execution status for Quicktest '{q}' is '{s}'".\
-                     format(q=quicktest, s=exec_status))
+            log.error("Quicktest test did not pass.")
 
 
     @BaseConnection.locked
     @isconnected
     def generate_quicktest_report(self, quicktest):
-        '''Generate QuickTest PDF report'''
+        '''Generate QuickTest PDF report and return the location'''
 
         log.info(banner("Generating report for Quicktest {}...".format(quicktest)))
 
@@ -3029,3 +3069,5 @@ class IxiaNative(TrafficGen):
             log.error(e)
             raise GenieTgnError("Unable to copy '{s}' to '{d}'".\
                                                 format(s=src_file, d=dest_file))
+
+
