@@ -116,7 +116,6 @@ class IxiaNative(TrafficGen):
                 log.propagate = False
                 self.ixNet.getAttribute('/globals', '-buildNumber')
             except Exception:
-                self.disconnect()
                 self.connect()
             finally:
                 log.propagate = True
@@ -127,11 +126,6 @@ class IxiaNative(TrafficGen):
     @BaseConnection.locked
     def connect(self):
         '''Connect to Ixia'''
-
-        # If already connected do nothing
-        if self._is_connected:
-            log.info("Already connected to Ixia Chassis")
-            return
 
         log.info(banner("Connecting to IXIA"))
 
@@ -163,11 +157,6 @@ class IxiaNative(TrafficGen):
     @BaseConnection.locked
     def disconnect(self):
         '''Disconnect from traffic generator device'''
-
-        # If already disconnected do nothing
-        if not self._is_connected:
-            log.info("Not connected to Ixia Chassis")
-            return
 
         # Execute disconnect on IxNetwork
         try:
@@ -938,14 +927,16 @@ class IxiaNative(TrafficGen):
         headers[6], headers[5] = headers[5], headers[6]
         traffic_table.field_names = headers
 
-        try:
-            # Check that all the expected headers were found
-            assert headers == ['Source/Dest Port Pair', 'Traffic Item',
-                               'Tx Frames', 'Rx Frames', 'Frames Delta',
-                               'Tx Frame Rate', 'Rx Frame Rate', 'Loss %',
-                               'Outage (seconds)']
-        except AssertionError as e:
-            raise GenieTgnError("Incorrect headers extracted from custom view 'GENIE'")
+        required_headers = ['Source/Dest Port Pair', 'Traffic Item',
+                            'Tx Frames', 'Rx Frames', 'Frames Delta',
+                            'Tx Frame Rate', 'Rx Frame Rate', 'Loss %',
+                            'Outage (seconds)']
+        # Check that all the expected headers were found
+        for item in required_headers:
+            try:
+                assert item in headers
+            except AssertionError as e:
+                raise GenieTgnError("Column '{}' is missing from custom created 'GENIE' view".format(item))
 
         try:
             # Add rows with data
@@ -2250,7 +2241,6 @@ class IxiaNative(TrafficGen):
                                 format(data=flow_data_field,
                                        stream=traffic_stream))
 
-
     #--------------------------------------------------------------------------#
     #                     Line / Packet / Layer2-bit Rate                      #
     #--------------------------------------------------------------------------#
@@ -3013,9 +3003,9 @@ class IxiaNative(TrafficGen):
                 log.info("Quicktest is still executing...")
 
         # Final result
-        if self.get_quicktest_results_attribute(quicktest=quicktest, attribute='status') == 'pass'
+        if self.get_quicktest_results_attribute(quicktest=quicktest, attribute='status') == 'pass':
             log.info("Successfully completed execution of Quicktest '{}'".format(quicktest))
-        except Exception as e:
+        else:
             log.error("Quicktest test did not pass.")
 
 
