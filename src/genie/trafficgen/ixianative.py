@@ -2241,6 +2241,53 @@ class IxiaNative(TrafficGen):
                                 format(data=flow_data_field,
                                        stream=traffic_stream))
 
+
+    @BaseConnection.locked
+    @isconnected
+    def find_flow_statistics_page_obj(self):
+        '''Returns the page object for "Flow Statistics View"'''
+
+        # Get the page object
+        try:
+            return self.ixNet.getList('::ixNet::OBJ-/statistics/view:"Flow Statistics"', 'page')[0]
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Error while finding 'Flow Statistics' view page object")
+
+
+    @BaseConnection.locked
+    @isconnected
+    def create_traffic_flow_groups_table(self):
+        '''Creates a table containing data on all the traffic flow groups configured'''
+
+        # Init
+        flow_group_table = prettytable.PrettyTable()
+
+        # Get 'Flow Statistics' view page object
+        page_obj = self.find_flow_statistics_page_obj()
+
+        # Change page size to some high value so that we get all the stats on one page
+        # self.ixNet.setAttribute('::ixNet::OBJ-/statistics/view:"Flow Statistics"/page', '-pageSize', '2000')
+        try:
+            self.ixNet.setAttribute(page_obj, '-pageSize', '2000')
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to change pageSize to 2000 for 'Flow Statistics' view")
+
+        # Add data to pretty table
+        for item in self.ixNet.getAttribute(page_obj, '-pageValues'):
+            item[0]
+
+        #self.ixNet.execute('getValue', '::ixNet::OBJ-/statistics/view:"Flow Statistics"', "L3VPN", "Tx Frames")
+
+        # Align and print flow groups table in the logs
+        flow_group_table.align = "l"
+        log.info(flow_group_table)
+
+        # Return profile table to caller
+        return flow_group_table
+
+
     #--------------------------------------------------------------------------#
     #                     Line / Packet / Layer2-bit Rate                      #
     #--------------------------------------------------------------------------#
@@ -2291,8 +2338,14 @@ class IxiaNative(TrafficGen):
             log.info(banner("Setting traffic stream '{t}' line rate to '{r}'".\
                             format(t=traffic_stream, r=rate)))
 
+            # Initial state
+            initial_state = self.get_traffic_attribute(attribute='state')
+
             # Stop traffic for the given stream
-            self.stop_traffic(wait_time=stop_traffic_time)
+            if initial_state == 'started':
+                self.stop_traffic(wait_time=stop_traffic_time)
+            else:
+                self.stop_traffic_stream(traffic_stream=traffic_stream, wait_time=stop_traffic_time)
 
             # Get config element object
             try:
@@ -2324,7 +2377,10 @@ class IxiaNative(TrafficGen):
             self.apply_traffic(wait_time=apply_traffic_time)
 
             # Start traffic
-            self.start_traffic(wait_time=start_traffic_time)
+            if initial_state == 'started':
+                self.start_traffic(wait_time=start_traffic_time)
+            else:
+                self.start_traffic_stream(traffic_stream=traffic_stream, wait_time=start_traffic_time)
 
 
     @BaseConnection.locked
@@ -2366,8 +2422,14 @@ class IxiaNative(TrafficGen):
             log.info(banner("Setting traffic stream '{t}' packet rate to '{r}'".\
                             format(t=traffic_stream, r=rate)))
 
+            # Initial state
+            initial_state = self.get_traffic_attribute(attribute='state')
+
             # Stop traffic for the given stream
-            self.stop_traffic(wait_time=stop_traffic_time)
+            if initial_state == 'started':
+                self.stop_traffic(wait_time=stop_traffic_time)
+            else:
+                self.stop_traffic_stream(traffic_stream=traffic_stream, wait_time=stop_traffic_time)
 
             # Get config element object
             try:
@@ -2399,7 +2461,10 @@ class IxiaNative(TrafficGen):
             self.apply_traffic(wait_time=apply_traffic_time)
 
             # Start traffic
-            self.start_traffic(wait_time=start_traffic_time)
+            if initial_state == 'started':
+                self.start_traffic(wait_time=start_traffic_time)
+            else:
+                self.start_traffic_stream(traffic_stream=traffic_stream, wait_time=start_traffic_time)
 
 
     @BaseConnection.locked
@@ -2463,8 +2528,14 @@ class IxiaNative(TrafficGen):
             log.info(banner("Setting traffic stream '{t}' layer2 bit rate to"
                             " '{r}' {u}".format(t=traffic_stream, r=rate, u=rate_unit)))
 
+            # Initial state
+            initial_state = self.get_traffic_attribute(attribute='state')
+
             # Stop traffic for the given stream
-            self.stop_traffic(wait_time=stop_traffic_time)
+            if initial_state == 'started':
+                self.stop_traffic(wait_time=stop_traffic_time)
+            else:
+                self.stop_traffic_stream(traffic_stream=traffic_stream, wait_time=stop_traffic_time)
 
             # Get config element object
             try:
@@ -2501,7 +2572,10 @@ class IxiaNative(TrafficGen):
             self.apply_traffic(wait_time=apply_traffic_time)
 
             # Start traffic
-            self.start_traffic(wait_time=start_traffic_time)
+            if initial_state == 'started':
+                self.start_traffic(wait_time=start_traffic_time)
+            else:
+                self.start_traffic_stream(traffic_stream=traffic_stream, wait_time=start_traffic_time)
 
 
     @BaseConnection.locked
@@ -2516,8 +2590,14 @@ class IxiaNative(TrafficGen):
         log.info(banner("Setting traffic stream '{t}' packet size to '{p}'".\
                         format(t=traffic_stream, p=packet_size)))
 
+        # Initial state
+        initial_state = self.get_traffic_attribute(attribute='state')
+
         # Stop traffic for the given stream
-        self.stop_traffic(wait_time=stop_traffic_time)
+        if initial_state == 'started':
+            self.stop_traffic(wait_time=stop_traffic_time)
+        else:
+            self.stop_traffic_stream(traffic_stream=traffic_stream, wait_time=stop_traffic_time)
 
         # Get config element object
         try:
@@ -2548,7 +2628,10 @@ class IxiaNative(TrafficGen):
         self.apply_traffic(wait_time=apply_traffic_time)
 
         # Start traffic
-        self.start_traffic(wait_time=start_traffic_time)
+        if initial_state == 'started':
+            self.start_traffic(wait_time=start_traffic_time)
+        else:
+            self.start_traffic_stream(traffic_stream=traffic_stream, wait_time=start_traffic_time)
 
 
     @BaseConnection.locked
@@ -2810,6 +2893,7 @@ class IxiaNative(TrafficGen):
             raise GenieTgnError("Unable to find packet rate for traffic "
                                 "stream '{}".format(traffic_stream))
 
+
     #--------------------------------------------------------------------------#
     #                               QuickTest                                  #
     #--------------------------------------------------------------------------#
@@ -2990,44 +3074,54 @@ class IxiaNative(TrafficGen):
             log.info("Successfully started execution of QuickTest '{}'".\
                      format(quicktest))
 
-        # Wait after starting QuickTest execution
-        log.info("Waiting '{}' seconds after starting QuickTest execution".\
-                 format(exec_wait))
-        time.sleep(exec_wait)
-
-        # Check that execution has completed
+        # Poll until execution has completed
+        log.info("Poll until Quicktest '{}' execution completes".format(quicktest))
         timeout = Timeout(max_time=exec_wait, interval=exec_interval)
         while timeout.iterate():
-            try:
-                exec_status = self.get_quicktest_results_attribute(quicktest=quicktest, attribute='isRunning')
-            except GenieTgnError:
-                pass
-            # Check the status
-            if exec_status == 'false':
+            if self.get_quicktest_results_attribute(quicktest=quicktest, attribute='isRunning') == 'false':
+                log.info("Quicktest '{}' execution completed".format(quicktest))
+                # Print test exeuction duration to user
+                duration = self.get_quicktest_results_attribute(quicktest=quicktest, attribute='duration')
+                start_time = self.get_quicktest_results_attribute(quicktest=quicktest, attribute='startTime')
+                log.info("Quicktest '{q}':\nTest Duration = {d}\nStart Time = {s}".\
+                         format(q=quicktest, d=duration, s=start_time))
                 break
-            else:
-                log.info("Quicktest is still executing...")
+
+        # Sleep after execution completes
+        time.sleep(60)
 
         # Final result
-        if self.get_quicktest_results_attribute(quicktest=quicktest, attribute='status') == 'pass':
-            log.info("Successfully completed execution of Quicktest '{}'".format(quicktest))
+        if self.get_quicktest_results_attribute(quicktest=quicktest, attribute='result') == 'pass':
+            log.info("Quicktest '{}' passed".format(quicktest))
         else:
-            log.error("Quicktest test did not pass.")
+            raise GenieTgnError("Quicktest '{}' failed".format(quicktest))
 
 
     @BaseConnection.locked
     @isconnected
-    def generate_quicktest_report(self, quicktest):
+    def generate_quicktest_report(self, quicktest, save_location):
         '''Generate QuickTest PDF report and return the location'''
 
-        log.info(banner("Generating report for Quicktest {}...".format(quicktest)))
+        log.info(banner("Generating PDF report for Quicktest {}...".\
+                        format(quicktest)))
 
         # Get QuickTest object
         qt_obj = self.find_quicktest_object(quicktest=quicktest)
 
+        # Set the folder name of where we want the PDF report to be saved under resultPath
+        try:
+            self.ixNet.setAttribute('::ixNet::OBJ-/quickTest/globals', '-outputRootPath', save_location)
+            self.ixNet.commit()
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to set PDF report directory to {}".\
+                                format(save_location))
+
         # Generate the PDF report
         try:
-            self.ixNet.execute('generateReport', qt_obj)
+            import pdb ; pdb.set_trace()
+            self.ixNet.execute('generateReport', '::ixNet::OBJ-/quickTest/globals')
+            self.ixNet.commit()
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Unable to generate PDF report for Quicktest"
@@ -3036,25 +3130,17 @@ class IxiaNative(TrafficGen):
             log.info("Successfully generated PDF report for Quicktest '{}'".\
                      format(quicktest))
 
+        # Get QuickTest report results path
+        return self.get_quicktest_results_attribute(quicktest=quicktest,
+                                                    attribute='resultPath')
+
 
     @BaseConnection.locked
     @isconnected
     def export_quicktest_report(self, src_file, dest_file):
         '''Export QuickTest PDF report to given destination'''
 
-        log.info(banner("Exporting Quicktest '{}' results file...".\
-                        format(quicktest)))
-
-        # Get QuickTest object
-        qt_obj = self.find_quicktest_object(quicktest=quicktest)
-
-        # Get QuickTest report results path
-        try:
-            result_path = self.ixNet.getAttribute(qt_obj + '/results', '-resultPath')
-        except Exception as e:
-            log.error(e)
-            raise GenieTgnError("Unable to get results path for QuickTest "
-                                "'{}' report".format(quicktest))
+        log.info(banner("Exporting Quicktest PDF report"))
 
         # Exporting the QuickTest PDF file
         try:
@@ -3063,7 +3149,7 @@ class IxiaNative(TrafficGen):
                                self.ixNet.writeTo(dest_file, '-overwrite'))
         except Exception as e:
             log.error(e)
-            raise GenieTgnError("Unable to copy '{s}' to '{d}'".\
-                                                format(s=src_file, d=dest_file))
+            raise GenieTgnError("Unable to export Quicktest PDF report from"
+                                " '{s}' to '{d}'".format(s=src_file, d=dest_file))
 
 
