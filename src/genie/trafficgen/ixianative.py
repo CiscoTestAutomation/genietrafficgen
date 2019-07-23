@@ -2310,7 +2310,7 @@ class IxiaNative(TrafficGen):
         if flow_group:
             # Set the line rate for given flow group of this traffic item
             log.info(banner("Setting flow group '{f}' of traffic stream '{t}' "
-                            "line rate to '{r}'".format(f=flow_group,
+                            "line rate to '{r}' %".format(f=flow_group,
                                                         t=traffic_stream,
                                                         r=rate)))
 
@@ -2326,7 +2326,7 @@ class IxiaNative(TrafficGen):
             except Exception as e:
                 log.error(e)
                 raise GenieTgnError("Error while changing flow group '{f}' of "
-                                    "traffic stream '{t}' line rate to '{r}'".\
+                                    "traffic stream '{t}' line rate to '{r}' %".\
                                     format(f=flow_group, t=traffic_stream, r=rate))
             else:
                 log.info("Successfully changed flow group '{f}' of traffic "
@@ -2335,7 +2335,7 @@ class IxiaNative(TrafficGen):
                                                                   r=rate))
         else:
             # Set the line rate for the entire traffic stream
-            log.info(banner("Setting traffic stream '{t}' line rate to '{r}'".\
+            log.info(banner("Setting traffic stream '{t}' line rate to '{r}' %".\
                             format(t=traffic_stream, r=rate)))
 
             # Initial state
@@ -2364,11 +2364,11 @@ class IxiaNative(TrafficGen):
                 except Exception as e:
                     log.error(e)
                     raise GenieTgnError("Error while changing traffic stream "
-                                        "'{t}' line rate to '{r}'".\
+                                        "'{t}' line rate to '{r}' %".\
                                         format(t=traffic_stream, r=rate))
                 else:
                     log.info("Successfully changed traffic stream '{t}' line "
-                             "rate to '{r}'".format(t=traffic_stream, r=rate))
+                             "rate to '{r}' %".format(t=traffic_stream, r=rate))
 
             # Generate traffic
             self.generate_traffic_stream(traffic_stream=traffic_stream, wait_time=generate_traffic_time)
@@ -2394,9 +2394,8 @@ class IxiaNative(TrafficGen):
         if flow_group:
             # Set the packet rate for given flow group of this traffic item
             log.info(banner("Setting flow group '{f}' of traffic stream '{t}' "
-                            "packet rate to '{r}'".format(f=flow_group,
-                                                          t=traffic_stream,
-                                                          r=rate)))
+                            "packet rate to '{r}' frames per second".\
+                            format(f=flow_group, t=traffic_stream, r=rate)))
 
             # Get flow group object of the given traffic stream
             flowgroupObj = self.get_flow_group_object(traffic_stream=traffic_stream, flow_group=flow_group)
@@ -2414,13 +2413,12 @@ class IxiaNative(TrafficGen):
                                     format(f=flow_group, t=traffic_stream, r=rate))
             else:
                 log.info("Successfully changed flow group '{f}' of traffic "
-                         "stream '{t}' packet rate to '{r}'".format(f=flow_group,
-                                                                  t=traffic_stream,
-                                                                  r=rate))
+                         "stream '{t}' packet rate to '{r}' frames per second".\
+                         format(f=flow_group, t=traffic_stream, r=rate))
         else:
             # Set the packet rate for the entire traffic stream
-            log.info(banner("Setting traffic stream '{t}' packet rate to '{r}'".\
-                            format(t=traffic_stream, r=rate)))
+            log.info(banner("Setting traffic stream '{t}' packet rate to '{r}'"
+                            " frames per second".format(t=traffic_stream, r=rate)))
 
             # Initial state
             initial_state = self.get_traffic_attribute(attribute='state')
@@ -2448,11 +2446,12 @@ class IxiaNative(TrafficGen):
                 except Exception as e:
                     log.error(e)
                     raise GenieTgnError("Error while changing traffic stream "
-                                        "'{t}' packet rate to '{r}'".\
-                                        format(t=traffic_stream, r=rate))
+                                        "'{t}' packet rate to '{r}' frames per "
+                                        "second".format(t=traffic_stream, r=rate))
                 else:
                     log.info("Successfully changed traffic stream '{t}' packet "
-                             "rate to '{r}'".format(t=traffic_stream, r=rate))
+                             "rate to '{r}' frames per second".\
+                             format(t=traffic_stream, r=rate))
 
             # Generate traffic
             self.generate_traffic_stream(traffic_stream=traffic_stream, wait_time=generate_traffic_time)
