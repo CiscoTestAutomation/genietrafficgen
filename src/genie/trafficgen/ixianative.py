@@ -1839,13 +1839,17 @@ class IxiaNative(TrafficGen):
         # Find traffic stream object from stream name
         ti_obj = self.find_traffic_stream_object(traffic_stream=traffic_stream)
 
+        # Generate traffic
         try:
-            # Generate traffic
             self.ixNet.execute('generate', ti_obj)
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Error while generating traffic for traffic "
                                 "stream '{}'".format(traffic_stream))
+
+        # Unset "GENIE" view
+        self._genie_view = None
+        self._genie_page = None
 
         # Wait for user specified interval
         log.info("Waiting for '{t}' seconds after generating traffic stream"
