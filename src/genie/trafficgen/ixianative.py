@@ -685,7 +685,8 @@ class IxiaNative(TrafficGen):
                 except Exception as e:
                     log.warning("IxNetwork traffic statistics view 'GENIE' is "
                                 "not ready.\nSleeping {} seconds and before "
-                                "checking traffic statistics view 'GENIE'")
+                                "checking traffic statistics view 'GENIE'".\
+                                format(view_create_interval))
                     time.sleep(view_create_interval)
                 else:
                     log.info("Custom IxNetwork traffic statistics view 'GENIE' "
