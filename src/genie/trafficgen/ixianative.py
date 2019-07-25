@@ -3024,7 +3024,7 @@ class IxiaNative(TrafficGen):
 
     @BaseConnection.locked
     @isconnected
-    def execute_quicktest(self, quicktest, apply_wait=60, exec_wait=1800, exec_interval=300):
+    def execute_quicktest(self, quicktest, apply_wait=60, exec_wait=1800, exec_interval=300, save_location="C:\\Users\\"):
         '''Execute specific RFC QuickTest'''
 
         log.info(banner("Prepare execution of Quicktest '{}'...".\
@@ -3058,6 +3058,23 @@ class IxiaNative(TrafficGen):
                  "configuration".format(apply_wait))
         time.sleep(apply_wait)
 
+        # Enable QuickTest report
+        log.info("Enable QuickTest '{}' report generation".format(quicktest))
+        try:
+            self.ixNet.setMultiAttribute('::ixNet::OBJ-/quickTest/globals',
+                                         '-enableGenerateReportAfterRun', 'true',
+                                         '-useDefaultRootPath', 'false',
+                                         '-outputRootPath', save_location,
+                                         '-titlePageComments',
+                                         "QuickTest RFC2544 Test Result")
+            self.ixNet.commit()
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Error while enabling PDF report genaration")
+        else:
+            log.info("Successfully enabled QuickTest '{}' report generation".\
+                     format(quicktest))
+
         # Start QuickTest execution
         log.info("Start execution of QuickTest '{}'".format(quicktest))
         try:
@@ -3083,27 +3100,22 @@ class IxiaNative(TrafficGen):
         timeout = Timeout(max_time=exec_wait, interval=exec_interval)
         while timeout.iterate():
             if self.get_quicktest_results_attribute(quicktest=quicktest, attribute='isRunning') == 'false':
-                log.info("Quicktest '{}' execution completed".format(quicktest))
-                # Print test exeuction duration to user
-                duration = self.get_quicktest_results_attribute(quicktest=quicktest, attribute='duration')
-                start_time = self.get_quicktest_results_attribute(quicktest=quicktest, attribute='startTime')
-                log.info("Quicktest '{q}':\nTest Duration = {d}\nStart Time = {s}".\
-                         format(q=quicktest, d=duration, s=start_time))
                 break
 
-        # Sleep after execution completes
-        time.sleep(60)
-
-        # Final result
-        if self.get_quicktest_results_attribute(quicktest=quicktest, attribute='result') == 'pass':
-            log.info("Quicktest '{}' passed".format(quicktest))
-        else:
-            raise GenieTgnError("Quicktest '{}' failed".format(quicktest))
+        # Print test exeuction duration to user
+        duration = self.get_quicktest_results_attribute(quicktest=quicktest, attribute='duration')
+        start_time = self.get_quicktest_results_attribute(quicktest=quicktest, attribute='startTime')
+        result = self.get_quicktest_results_attribute(quicktest=quicktest, attribute='result')
+        log.info("Quicktest '{}' execution completed:".format(quicktest))
+        log.info("-> Test Duration = {d}\n"
+                 "-> Start Time = {s}\n"
+                 "-> Overall Result = {r}".\
+                 format(q=quicktest, d=duration, s=start_time, r=result))
 
 
     @BaseConnection.locked
     @isconnected
-    def generate_quicktest_report(self, quicktest, save_location):
+    def generate_quicktest_report(self, quicktest, save_location="C:\\Users\\"):
         '''Generate QuickTest PDF report and return the location'''
 
         log.info(banner("Generating PDF report for Quicktest {}...".\
@@ -3120,11 +3132,13 @@ class IxiaNative(TrafficGen):
             log.error(e)
             raise GenieTgnError("Unable to set PDF report directory to {}".\
                                 format(save_location))
+        else:
+            log.info("Successfully set PDF report directory to {}".\
+                     format(save_location))
 
         # Generate the PDF report
         try:
-            import pdb ; pdb.set_trace()
-            self.ixNet.execute('generateReport', '::ixNet::OBJ-/quickTest/globals')
+            self.ixNet.execute('generateReport', qt_obj)
             self.ixNet.commit()
         except Exception as e:
             log.error(e)
