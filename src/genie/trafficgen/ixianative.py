@@ -2338,9 +2338,7 @@ class IxiaNative(TrafficGen):
 
     @BaseConnection.locked
     @isconnected
-    def check_flow_groups_loss(self, max_outage=120, loss_tolerance=15, rate_tolerance=5, 
-                               csv_windows_path="C:\\Users\\", csv_file_name="Flow_Statistics",
-                               copy_dir=runtime.directory, check_iteration=10, check_interval=60):
+    def check_flow_groups_loss(self, max_outage=120, loss_tolerance=15, rate_tolerance=5, csv_windows_path="C:\\Users\\", csv_file_name="Flow_Statistics", copy_dir=runtime.directory):
         '''Checks traffic loss for all flow groups configured on Ixia using
             'Flow Statistics' view data'''
 
@@ -2353,7 +2351,8 @@ class IxiaNative(TrafficGen):
                                         "Rx Frame Rate",
                                         "Frames Delta",
                                         "Loss %",
-                                        "Outage (seconds)"]
+                                        "Outage (seconds)",
+                                        "Overall Result"]
 
         # Save 'Flow Statistics' view CSV snapshot
         csv_file = self.save_flow_statistics_snapshot_csv(csv_windows_path=csv_windows_path,
@@ -2383,57 +2382,54 @@ class IxiaNative(TrafficGen):
             else:
                 outage_seconds = round(float(frames_delta)/float(tx_frame_rate), 3)
 
+            # Do checks to determine overall result
+            result = "PASS"
+
             # Add data to the smaller table to display to user
-            flow_group_table.add_row([flow_group_name, vlan_id, src_dest_port_pair, tx_frame_rate, rx_frame_rate, frames_delta, loss_percentage, outage_seconds])
+            flow_group_table.add_row([flow_group_name,
+                                      vlan_id,
+                                      src_dest_port_pair,
+                                      tx_frame_rate,
+                                      rx_frame_rate,
+                                      frames_delta,
+                                      loss_percentage,
+                                      outage_seconds,
+                                      result])
 
         # Align and print flow groups table in the logs
         flow_group_table.align = "l"
         log.info(flow_group_table)
 
-        # Check all flow groups for tolerances values as neede
-        for i in range(check_iteration):
+        # Verify outage for each flow group
+        outage_check = True
+        for row in flow_group_table:
 
-            log.info("\nAttempt #{}: Checking for traffic outage/loss".format(i+1))
-            outage_check = True
-            verified_streams = []
+            # Remove headers and borders
+            row.header = False ; row.border = False
 
-            # Go through each row
-            for row in flow_group_table:
+            # Get stream, vlan-id and src/dest port pair
+            stream = row.get_string(fields=["Flow Group Traffic Item"]).strip()
+            vlan = row.get_string(fields=["VLAN:VLAN-ID"]).strip()
+            pair = row.get_string(fields=["Source/Dest Port Pair"]).strip()
 
-                # Remove headers and borders
-                row.header = False ; row.border = False
+            if not self.verify_flow_group_outage(traffic_stream=stream,
+                                                 vlan_id=vlan,
+                                                 source_dest_pair=pair,
+                                                 flow_group_table=flow_group_table,
+                                                 max_outage=max_outage,
+                                                 loss_tolerance=loss_tolerance,
+                                                 rate_tolerance=rate_tolerance):
+                # Traffic loss observed for stream
+                outage_check = False
 
-                # Get stream, vlan-id and src/dest port pair
-                stream = row.get_string(fields=["Flow Group Traffic Item"]).strip()
-                vlan = row.get_string(fields=["VLAN:VLAN-ID"]).strip()
-                pair = row.get_string(fields=["Source/Dest Port Pair"]).strip()
-
-                # Verify outage for traffic stream
-                if not self.verify_flow_group_outage(traffic_stream=stream,
-                                                     vlan_id=vlan,
-                                                     source_dest_pair=pair,
-                                                     flow_group_table=flow_group_table,
-                                                     max_outage=max_outage,
-                                                     loss_tolerance=loss_tolerance,
-                                                     rate_tolerance=rate_tolerance):
-                    # Traffic loss observed for stream
-                    outage_check = False
-
-            # Check if iteration required based on results
-            if outage_check:
-                log.info("\nSuccessfully verified traffic outages/loss is within "
-                         "tolerance for given traffic streams")
-                break
-            elif i == check_iteration or i == check_iteration-1:
-                # End of iterations, raise Exception and exit
-                raise GenieTgnError("\nUnexpected traffic outage/loss is "
-                                    "observed for flow groups")
-            else:
-                # Traffic loss observed, sleep and recheck
-                log.error("\nSleeping '{s}' seconds and rechecking flow group "
-                          "streams for traffic outage/loss".\
-                          format(s=check_interval))
-                time.sleep(check_interval)
+        # Check if iteration required based on results
+        if outage_check:
+            log.info("\nSuccessfully verified traffic outages/loss is within "
+                     "tolerance for given traffic streams")
+        else:
+            # End of iterations, raise Exception and exit
+            raise GenieTgnError("\nUnexpected traffic outage/loss is "
+                                "observed for flow groups")
 
         # Return table to caller
         return flow_group_table
@@ -3315,7 +3311,8 @@ class IxiaNative(TrafficGen):
                                          '-useDefaultRootPath', 'false',
                                          '-outputRootPath', save_location,
                                          '-titlePageComments',
-                                         "QuickTest RFC2544 Test Result")
+                                         "QuickTest {} Genie Test Result".\
+                                         format(quicktest))
             self.ixNet.commit()
         except Exception as e:
             log.error(e)
@@ -3364,7 +3361,7 @@ class IxiaNative(TrafficGen):
 
     @BaseConnection.locked
     @isconnected
-    def generate_quicktest_report(self, quicktest, save_location="C:\\Users\\"):
+    def generate_export_quicktest_report(self, quicktest, report_wait=300, report_interval=60, export=True, dest_dir=runtime.directory, dest_file="TestReport.pdf"):
         '''Generate QuickTest PDF report and return the location'''
 
         log.info(banner("Generating PDF report for Quicktest {}...".\
@@ -3373,50 +3370,49 @@ class IxiaNative(TrafficGen):
         # Get QuickTest object
         qt_obj = self.find_quicktest_object(quicktest=quicktest)
 
-        # Set the folder name of where we want the PDF report to be saved under resultPath
-        try:
-            self.ixNet.setAttribute('::ixNet::OBJ-/quickTest/globals', '-outputRootPath', save_location)
-            self.ixNet.commit()
-        except Exception as e:
-            log.error(e)
-            raise GenieTgnError("Unable to set PDF report directory to {}".\
-                                format(save_location))
-        else:
-            log.info("Successfully set PDF report directory to {}".\
-                     format(save_location))
-
         # Generate the PDF report
+        log.info("Start generating PDF report...")
         try:
-            self.ixNet.execute('generateReport', qt_obj)
-            self.ixNet.commit()
+            self.ixNet.execute('generateReport', '/reporter/generate')
         except Exception as e:
             log.error(e)
-            raise GenieTgnError("Unable to generate PDF report for Quicktest"
-                                " '{}'".format(quicktest))
+            raise GenieTgnError("Unable to start generating PDF report for "
+                                "Quicktest '{}'".format(quicktest))
         else:
-            log.info("Successfully generated PDF report for Quicktest '{}'".\
-                     format(quicktest))
+            log.info("Successfully started generating PDF report for "
+                     "Quicktest '{}'".format(quicktest))
+
+        # Poll until report has successfully generated
+        log.info("Poll until Quicktest '{}' PDF report is generated...".\
+                 format(quicktest))
+        timeout = Timeout(max_time=report_wait, interval=report_interval)
+        while timeout.iterate():
+            if self.ixNet.getAttribute(self.ixNet.getRoot() +'/reporter/generate', '-state') == 'done':
+                break
 
         # Get QuickTest report results path
-        return self.get_quicktest_results_attribute(quicktest=quicktest,
-                                                    attribute='resultPath')
+        qt_pdf_path = self.get_quicktest_results_attribute(quicktest=quicktest, attribute='resultPath')
+        # Set filename
+        qt_pdf_file = qt_pdf_path + "\\\\TestReport.pdf"
+        dest_pdf_file = dest_dir + dest_file
+        log.info("Quicktest '{q}' PDF report successfully generated at: {d}".\
+                 format(q=quicktest, d=qt_pdf_file))
 
+        # Export file if enabled by user
+        if export:
+            log.info(banner("Exporting Quicktest '{}' PDF report".format(quicktest)))
 
-    @BaseConnection.locked
-    @isconnected
-    def export_quicktest_report(self, src_file, dest_file):
-        '''Export QuickTest PDF report to given destination'''
-
-        log.info(banner("Exporting Quicktest PDF report"))
-
-        # Exporting the QuickTest PDF file
-        try:
-            self.ixNet.execute('copyFile',
-                               self.ixNet.readFrom(src_file, '-ixNetRelative'),
-                               self.ixNet.writeTo(dest_file, '-overwrite'))
-        except Exception as e:
-            log.error(e)
-            raise GenieTgnError("Unable to export Quicktest PDF report from"
-                                " '{s}' to '{d}'".format(s=src_file, d=dest_file))
-
+            # Exporting the QuickTest PDF file
+            try:
+                self.ixNet.execute('copyFile',
+                                   self.ixNet.readFrom(qt_pdf_file, '-ixNetRelative'),
+                                   self.ixNet.writeTo(dest_pdf_file, '-overwrite'))
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Unable to export Quicktest '{q}' PDF "
+                                    "report to '{d}'".format(q=quicktest,
+                                                             d=dest_pdf_file))
+            else:
+                log.info("Successfully exported Quicktest '{q}' PDF report "
+                         "to '{d}'".format(q=quicktest, d=dest_pdf_file))
 
