@@ -9,13 +9,15 @@ Requirements:
 '''
 
 # Python
-import os
-import logging
-import time
 import re
-import prettytable
+import os
+import csv
+import time
+import logging
+from prettytable import PrettyTable, from_csv
 
 # pyATS
+from ats.easypy import runtime
 from ats.log.utils import banner
 from ats.connections import BaseConnection
 
@@ -52,7 +54,7 @@ class IxiaNative(TrafficGen):
         self.virtual_ports = []
         self._genie_view = None
         self._genie_page = None
-        self._golden_profile = prettytable.PrettyTable()
+        self._golden_profile = PrettyTable()
         # Valid QuickTests (to be expanded as tests have been validated)
         self.valid_quicktests = ['rfc2544frameLoss',
                                  'rfc2544throughput',
@@ -900,7 +902,7 @@ class IxiaNative(TrafficGen):
         '''Returns traffic profile of configured streams on Ixia'''
 
         # Init
-        traffic_table = prettytable.PrettyTable()
+        traffic_table = PrettyTable()
 
         # If Genie view and page has not been created before, create one
         if not self._genie_view or not self._genie_page:
@@ -2262,35 +2264,279 @@ class IxiaNative(TrafficGen):
 
     @BaseConnection.locked
     @isconnected
-    def create_traffic_flow_groups_table(self):
-        '''Creates a table containing data on all the traffic flow groups configured'''
+    def save_flow_statistics_snapshot_csv(self, csv_windows_path="C:\\Users\\", csv_file_name="Flow_Statistics", copy_dir=runtime.directory):
+        ''' Save 'Flow Statistics' snapshot as a CSV '''
 
-        # Init
-        flow_group_table = prettytable.PrettyTable()
+        log.info(banner("Save 'Flow Statistics' snapshot CSV"))
+        copy_dir = copy_dir.rstrip("/")
 
-        # Get 'Flow Statistics' view page object
-        page_obj = self.find_flow_statistics_page_obj()
-
-        # Change page size to some high value so that we get all the stats on one page
-        # self.ixNet.setAttribute('::ixNet::OBJ-/statistics/view:"Flow Statistics"/page', '-pageSize', '2000')
+        # Enable CSV logging
+        log.info("Enable CSV logging on Ixia...")
         try:
-            self.ixNet.setAttribute(page_obj, '-pageSize', '2000')
+            self.ixNet.setAttribute('::ixNet::OBJ-/statistics', '-enableCsvLogging', 'true')
+            self.ixNet.setAttribute('::ixNet::OBJ-/statistics', '-csvFilePath', csv_windows_path)
+            self.ixNet.setAttribute('::ixNet::OBJ-/statistics', '-pollInterval', 1)
+            self.ixNet.commit()
         except Exception as e:
             log.error(e)
-            raise GenieTgnError("Unable to change pageSize to 2000 for 'Flow Statistics' view")
+            raise GenieTgnError("Error while enabling CSV logging on Ixia")
+        else:
+            log.info("Successfully enabled CSV logging on Ixia")
 
-        # Add data to pretty table
-        for item in self.ixNet.getAttribute(page_obj, '-pageValues'):
-            item[0]
+        # Get snapshot options
+        log.info("Get list of all snapshot options...")
+        try:
+            opts = self.ixNet.execute('GetDefaultSnapshotSettings')
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to get options")
+        else:
+            log.info("Successfully retreived options available")
 
-        #self.ixNet.execute('getValue', '::ixNet::OBJ-/statistics/view:"Flow Statistics"', "L3VPN", "Tx Frames")
+        # Configure options settings
+        filePathToChange = 'Snapshot.View.Csv.Location: ' + csv_windows_path
+        opts[1] = filePathToChange
+        generatingModeToChange= 'Snapshot.View.Csv.GeneratingMode: "kOverwriteCSVFile"'
+        opts[2] = generatingModeToChange
+        fileNameToAppend = 'Snapshot.View.Csv.Name: ' + csv_file_name
+        opts.append(fileNameToAppend)
+
+        # Save snapshot to location provided
+        log.info("Save CSV snapshot of 'Flow Statistics' view to '{path}\\{file}.csv'...".\
+                 format(path=csv_windows_path, file=csv_file_name))
+        try:
+            self.ixNet.execute('TakeViewCSVSnapshot', ["Flow Statistics"], opts)
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to take CSV snapshot of 'Flow Statistics' view")
+        else:
+            log.info("Successfully saved CSV snapshot of 'Flow Statistics' view to:")
+            log.info("{path}\\{file}".format(path=csv_windows_path, file=csv_file_name))
+
+        # Set local and copy file paths
+        self.windows_flow_stats_csv = csv_windows_path + '\\' + csv_file_name + '.csv'
+        self.flow_stats_csv = copy_dir + '/' + csv_file_name + '.csv'
+        #writePath = copy_dir + csv_file_name + '.csv'
+
+        # Copy file to directory specified by user
+        log.info("Copy 'Flow Statistics' CSV to '{}'".format(self.flow_stats_csv))
+        try:
+            self.ixNet.execute('copyFile',
+                               self.ixNet.readFrom(self.windows_flow_stats_csv, '-ixNetRelative'),
+                               self.ixNet.writeTo(self.flow_stats_csv, '-overwrite'))
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to copy 'Flow Statistics' CSV snapshot "
+                                "to '{}'".format(self.flow_stats_csv))
+        else:
+            log.info("Successfully copied 'Flow Statistics' CSV snapshot "
+                     "to '{}'".format(self.flow_stats_csv))
+
+        # Return to caller
+        return self.flow_stats_csv
+
+
+    @BaseConnection.locked
+    @isconnected
+    def check_flow_groups_loss(self, max_outage=120, loss_tolerance=15, rate_tolerance=5, 
+                               csv_windows_path="C:\\Users\\", csv_file_name="Flow_Statistics",
+                               copy_dir=runtime.directory, check_iteration=10, check_interval=60):
+        '''Checks traffic loss for all flow groups configured on Ixia using
+            'Flow Statistics' view data'''
+
+        # Init
+        flow_group_table = PrettyTable()
+        flow_group_table.field_names = ["Flow Group Traffic Item",
+                                        "VLAN:VLAN-ID",
+                                        "Source/Dest Port Pair",
+                                        "Tx Frame Rate",
+                                        "Rx Frame Rate",
+                                        "Frames Delta",
+                                        "Loss %",
+                                        "Outage (seconds)"]
+
+        # Save 'Flow Statistics' view CSV snapshot
+        csv_file = self.save_flow_statistics_snapshot_csv(csv_windows_path=csv_windows_path,
+                                                          csv_file_name=csv_file_name,
+                                                          copy_dir=copy_dir)
+        # Convert CSV file into PrettyTable
+        all_flow_group_data = from_csv(open(csv_file))
+
+        # Create a table with only the values we need
+        for row in all_flow_group_data:
+
+            # Strip headers and borders
+            row.header = False ; row.border = False
+
+            # Get all the data for this row
+            flow_group_name = row.get_string(fields=["Traffic Item"]).strip()
+            vlan_id = row.get_string(fields=["VLAN:VLAN-ID"]).strip()
+            src_dest_port_pair = row.get_string(fields=["Source/Dest Port Pair"]).strip()
+            tx_frame_rate = row.get_string(fields=["Tx Frame Rate"]).strip()
+            rx_frame_rate = row.get_string(fields=["Rx Frame Rate"]).strip()
+            frames_delta = row.get_string(fields=["Frames Delta"]).strip()
+            loss_percentage = row.get_string(fields=["Loss %"]).strip()
+
+            # Calculate the outage
+            if tx_frame_rate == '0.000' or tx_frame_rate == '0':
+                outage_seconds = 0.0
+            else:
+                outage_seconds = round(float(frames_delta)/float(tx_frame_rate), 3)
+
+            # Add data to the smaller table to display to user
+            flow_group_table.add_row([flow_group_name, vlan_id, src_dest_port_pair, tx_frame_rate, rx_frame_rate, frames_delta, loss_percentage, outage_seconds])
 
         # Align and print flow groups table in the logs
         flow_group_table.align = "l"
         log.info(flow_group_table)
 
-        # Return profile table to caller
-        return flow_group_table
+        # Check all flow groups for tolerances values as neede
+        for i in range(check_iteration):
+
+            log.info("\nAttempt #{}: Checking for traffic outage/loss".format(i+1))
+            outage_check = True
+            verified_streams = []
+
+            # Go through each row
+            for row in flow_group_table:
+
+                # Remove headers and borders
+                row.header = False ; row.border = False
+
+                # Get stream, vlan-id and src/dest port pair
+                stream = row.get_string(fields=["Flow Group Traffic Item"]).strip()
+                vlan = row.get_string(fields=["VLAN:VLAN-ID"]).strip()
+                pair = row.get_string(fields=["Source/Dest Port Pair"]).strip()
+
+                # Verify outage for traffic stream
+                if not self.verify_flow_group_outage(traffic_stream=stream,
+                                                     vlan_id=vlan,
+                                                     source_dest_pair=pair,
+                                                     flow_group_table=flow_group_table,
+                                                     max_outage=max_outage,
+                                                     loss_tolerance=loss_tolerance,
+                                                     rate_tolerance=rate_tolerance):
+                    # Traffic loss observed for stream
+                    outage_check = False
+
+            # Check if iteration required based on results
+            if outage_check:
+                log.info("\nSuccessfully verified traffic outages/loss is within "
+                         "tolerance for given traffic streams")
+                break
+            elif i == check_iteration or i == check_iteration-1:
+                # End of iterations, raise Exception and exit
+                raise GenieTgnError("\nUnexpected traffic outage/loss is "
+                                    "observed for flow groups")
+            else:
+                # Traffic loss observed, sleep and recheck
+                log.error("\nSleeping '{s}' seconds and rechecking flow group "
+                          "streams for traffic outage/loss".\
+                          format(s=check_interval))
+                time.sleep(check_interval)
+
+
+    @BaseConnection.locked
+    @isconnected
+    def verify_flow_group_outage(self, traffic_stream, vlan_id, source_dest_pair, flow_group_table, max_outage=120, loss_tolerance=15, rate_tolerance=5):
+        '''For each flow group configured on Ixia:
+            * 1- Verify traffic outage (in seconds) is less than tolerance threshold
+            * 2- Verify current loss % is less than tolerance threshold
+            * 3- Verify difference between Tx Rate & Rx Rate is less than tolerance threshold
+        '''
+
+        log.info(banner("Checking flow group: '{t} | {vlan} | {pair}'".\
+                        format(t=traffic_stream, vlan=vlan_id, pair=source_dest_pair)))
+
+        # Init
+        outage_check = False
+        loss_check = False
+        rate_check = False
+
+        # Loop over all flow groups in configuration
+        for row in flow_group_table:
+
+            # Remove headers and borders
+            row.header = False ; row.border = False
+
+            # Get stream name and source dest/port pair
+            current_stream = row.get_string(fields=["Flow Group Traffic Item"]).strip()
+            current_vlan_id = row.get_string(fields=["VLAN:VLAN-ID"]).strip()
+            current_srcdest_pair = row.get_string(fields=["Source/Dest Port Pair"]).strip()
+
+            # Get row in table associated with unique flow group
+            if traffic_stream != current_stream or current_vlan_id != vlan_id or\
+               current_srcdest_pair != source_dest_pair:
+                continue
+
+            # 1- Verify traffic Outage (in seconds) is less than tolerance threshold
+            log.info("1. Verify traffic outage (in seconds) is less than "
+                     "tolerance threshold of '{}' seconds".format(max_outage))
+            outage = row.get_string(fields=["Outage (seconds)"]).strip()
+            if float(outage) <= float(max_outage):
+                log.info("* Traffic outage of '{o}' seconds is within "
+                         "expected maximum outage threshold of '{s}' seconds".\
+                         format(o=outage, s=max_outage))
+                outage_check = True
+            else:
+                log.error("* Traffic outage of '{o}' seconds is *NOT* within "
+                          "expected maximum outage threshold of '{s}' seconds".\
+                          format(o=outage, s=max_outage))
+
+            # 2- Verify current loss % is less than tolerance threshold
+            log.info("2. Verify current loss % is less than tolerance "
+                     "threshold of '{}' %".format(loss_tolerance))
+            if row.get_string(fields=["Loss %"]).strip() != '':
+                loss_percentage = row.get_string(fields=["Loss %"]).strip()
+            else:
+                loss_percentage = 0
+
+            # Check traffic loss
+            if float(loss_percentage) <= float(loss_tolerance):
+                log.info("* Current traffic loss of {l}% is within"
+                         " maximum expected loss tolerance of {t}%".\
+                         format(t=loss_tolerance, l=loss_percentage))
+                loss_check = True
+            else:
+                log.error("* Current traffic loss of {l}% is *NOT* within"
+                          " maximum expected loss tolerance of {t}%".\
+                          format(t=loss_tolerance, l=loss_percentage))
+
+            # 3- Verify difference between Tx Rate & Rx Rate is less than tolerance threshold
+            log.info("3. Verify difference between Tx Rate & Rx Rate is less "
+                     "than tolerance threshold of '{}' pps".format(rate_tolerance))
+            tx_rate = row.get_string(fields=["Tx Frame Rate"]).strip()
+            rx_rate = row.get_string(fields=["Rx Frame Rate"]).strip()
+            if abs(float(tx_rate) - float(rx_rate)) <= float(rate_tolerance):
+                log.info("* Difference between Tx Rate '{t}' and Rx Rate"
+                         " '{r}' is within expected maximum rate loss"
+                         " threshold of '{m}' packets per second".\
+                         format(t=tx_rate, r=rx_rate, m=rate_tolerance))
+                rate_check = True
+            else:
+                log.error("* Difference between Tx Rate '{t}' and Rx Rate"
+                          " '{r}' is *NOT* within expected maximum rate loss"
+                          " threshold of '{m}' packets per second".\
+                          format(t=tx_rate, r=rx_rate, m=rate_tolerance))
+
+            # Checks completed, avoid checking other streams with duplicate names
+            break
+
+        # If all streams had:
+        #   1- No traffic outage beyond threshold
+        #   2- No current loss beyond threshold
+        #   3- No frames rate loss
+        if outage_check and loss_check and rate_check:
+            log.info("Flow group '{t} | {v} | {p}': traffic outage, loss% and "
+                     "Tx/Rx Rate difference within maximum expected threshold".\
+                     format(t=traffic_stream, v=vlan_id, p=source_dest_pair))
+            return True
+        else:
+            log.error("Flow group {t} | {v} | {p}': traffic outage, loss% and "
+                      "Tx/Rx Rate difference *NOT* within maximum expected threshold".\
+                      format(t=traffic_stream, v=vlan_id, p=source_dest_pair))
+            return False
+
 
 
     #--------------------------------------------------------------------------#
