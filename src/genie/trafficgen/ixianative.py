@@ -2435,6 +2435,9 @@ class IxiaNative(TrafficGen):
                           format(s=check_interval))
                 time.sleep(check_interval)
 
+        # Return table to caller
+        return flow_group_table
+
 
     @BaseConnection.locked
     @isconnected
