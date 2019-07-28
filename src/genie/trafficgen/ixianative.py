@@ -2495,7 +2495,7 @@ class IxiaNative(TrafficGen):
 
     @BaseConnection.locked
     @isconnected
-    def set_line_rate(self, traffic_stream, rate, flow_group='', stop_traffic_time=15, generate_traffic_time=15, apply_traffic_time=15, start_traffic_time=15):
+    def set_line_rate(self, traffic_stream, rate, flow_group='', stop_traffic_time=15, generate_traffic_time=15, apply_traffic_time=15, start_traffic=True, start_traffic_time=15):
         '''Set the line rate for given traffic stream or given flow group of a traffic stream'''
 
         # Verify rate value provided is <=100 as line rate is a percentage
@@ -2578,15 +2578,16 @@ class IxiaNative(TrafficGen):
             self.apply_traffic(wait_time=apply_traffic_time)
 
             # Start traffic
-            if initial_state == 'started':
-                self.start_traffic(wait_time=start_traffic_time)
-            else:
-                self.start_traffic_stream(traffic_stream=traffic_stream, wait_time=start_traffic_time)
+            if start_traffic:
+                if initial_state == 'started':
+                    self.start_traffic(wait_time=start_traffic_time)
+                else:
+                    self.start_traffic_stream(traffic_stream=traffic_stream, wait_time=start_traffic_time)
 
 
     @BaseConnection.locked
     @isconnected
-    def set_packet_rate(self, traffic_stream, rate, flow_group='', stop_traffic_time=15, generate_traffic_time=15, apply_traffic_time=15, start_traffic_time=15):
+    def set_packet_rate(self, traffic_stream, rate, flow_group='', stop_traffic_time=15, generate_traffic_time=15, apply_traffic_time=15, start_traffic=True, start_traffic_time=15):
         '''Set the packet rate for given traffic stream or given flow group of a traffic stream'''
 
         # Get traffic item object from stream name
@@ -2661,15 +2662,16 @@ class IxiaNative(TrafficGen):
             self.apply_traffic(wait_time=apply_traffic_time)
 
             # Start traffic
-            if initial_state == 'started':
-                self.start_traffic(wait_time=start_traffic_time)
-            else:
-                self.start_traffic_stream(traffic_stream=traffic_stream, wait_time=start_traffic_time)
+            if start_traffic:
+                if initial_state == 'started':
+                    self.start_traffic(wait_time=start_traffic_time)
+                else:
+                    self.start_traffic_stream(traffic_stream=traffic_stream, wait_time=start_traffic_time)
 
 
     @BaseConnection.locked
     @isconnected
-    def set_layer2_bit_rate(self, traffic_stream, rate, rate_unit, flow_group='', stop_traffic_time=15, generate_traffic_time=15, apply_traffic_time=15, start_traffic_time=15):
+    def set_layer2_bit_rate(self, traffic_stream, rate, rate_unit, flow_group='', stop_traffic_time=15, generate_traffic_time=15, apply_traffic_time=15, start_traffic=True, start_traffic_time=15):
         '''Set the Layer2 bit rate for given traffic stream or given flow group
            within the traffic stream'''
 
@@ -2772,15 +2774,16 @@ class IxiaNative(TrafficGen):
             self.apply_traffic(wait_time=apply_traffic_time)
 
             # Start traffic
-            if initial_state == 'started':
-                self.start_traffic(wait_time=start_traffic_time)
-            else:
-                self.start_traffic_stream(traffic_stream=traffic_stream, wait_time=start_traffic_time)
+            if start_traffic:
+                if initial_state == 'started':
+                    self.start_traffic(wait_time=start_traffic_time)
+                else:
+                    self.start_traffic_stream(traffic_stream=traffic_stream, wait_time=start_traffic_time)
 
 
     @BaseConnection.locked
     @isconnected
-    def set_packet_size_fixed(self, traffic_stream, packet_size, stop_traffic_time=15, generate_traffic_time=15, apply_traffic_time=15, start_traffic_time=15):
+    def set_packet_size_fixed(self, traffic_stream, packet_size, stop_traffic_time=15, generate_traffic_time=15, apply_traffic_time=15, start_traffic=True, start_traffic_time=15):
         '''Set the packet size for given traffic stream'''
 
         # Get traffic item object from stream name
@@ -2828,10 +2831,11 @@ class IxiaNative(TrafficGen):
         self.apply_traffic(wait_time=apply_traffic_time)
 
         # Start traffic
-        if initial_state == 'started':
-            self.start_traffic(wait_time=start_traffic_time)
-        else:
-            self.start_traffic_stream(traffic_stream=traffic_stream, wait_time=start_traffic_time)
+        if start_traffic:
+            if initial_state == 'started':
+                self.start_traffic(wait_time=start_traffic_time)
+            else:
+                self.start_traffic_stream(traffic_stream=traffic_stream, wait_time=start_traffic_time)
 
 
     @BaseConnection.locked
