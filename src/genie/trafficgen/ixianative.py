@@ -14,6 +14,7 @@ import os
 import csv
 import time
 import logging
+from shutil import copyfile
 from prettytable import PrettyTable, from_csv
 
 # pyATS
@@ -3392,9 +3393,10 @@ class IxiaNative(TrafficGen):
 
         # Get QuickTest report results path
         qt_pdf_path = self.get_quicktest_results_attribute(quicktest=quicktest, attribute='resultPath')
-        # Set filename
+        # Set filenames
         qt_pdf_file = qt_pdf_path + "\\\\TestReport.pdf"
-        dest_pdf_file = dest_dir + dest_file
+        dest_pdf_file = dest_dir + "/" + dest_file
+        temp_file = "/tmp/" + dest_file
         log.info("Quicktest '{q}' PDF report successfully generated at: {d}".\
                  format(q=quicktest, d=qt_pdf_file))
 
@@ -3402,17 +3404,27 @@ class IxiaNative(TrafficGen):
         if export:
             log.info(banner("Exporting Quicktest '{}' PDF report".format(quicktest)))
 
-            # Exporting the QuickTest PDF file
+            # Exporting the QuickTest PDF file to /tmp on running server
             try:
                 self.ixNet.execute('copyFile',
                                    self.ixNet.readFrom(qt_pdf_file, '-ixNetRelative'),
-                                   self.ixNet.writeTo(dest_pdf_file, '-overwrite'))
+                                   self.ixNet.writeTo(temp_file, '-overwrite'))
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Unable to export Quicktest '{q}' PDF report".\
+                                    format(q=quicktest))
+
+            # Now copy from /tmp to runtime.directory
+            try:
+                copyfile(temp_file, dest_pdf_file)
             except Exception as e:
                 log.error(e)
                 raise GenieTgnError("Unable to export Quicktest '{q}' PDF "
                                     "report to '{d}'".format(q=quicktest,
                                                              d=dest_pdf_file))
             else:
-                log.info("Successfully exported Quicktest '{q}' PDF report "
-                         "to '{d}'".format(q=quicktest, d=dest_pdf_file))
+                log.info("Successfully exported Quicktest '{q}' PDF report to "
+                         "'{d}'".format(q=quicktest, d=dest_pdf_file))
+
+
 
