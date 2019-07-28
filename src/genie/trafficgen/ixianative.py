@@ -2265,11 +2265,20 @@ class IxiaNative(TrafficGen):
 
     @BaseConnection.locked
     @isconnected
-    def save_flow_statistics_snapshot_csv(self, csv_windows_path="C:\\Users\\", csv_file_name="Flow_Statistics", copy_dir=runtime.directory):
+    def save_flow_statistics_snapshot_csv(self, csv_windows_path="C:\\Users\\", csv_file_name="Flow_Statistics"):
         ''' Save 'Flow Statistics' snapshot as a CSV '''
 
         log.info(banner("Save 'Flow Statistics' snapshot CSV"))
-        copy_dir = copy_dir.rstrip("/")
+
+        # Get 'Flow Statistics' view page object
+        page_obj = self.find_flow_statistics_page_obj()
+
+        # Change page size to some high value so that we get all the stats on one page
+        try:
+            self.ixNet.setAttribute(page_obj, '-pageSize', '2000')
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to change pageSize to 2000 for 'Flow Statistics' view")
 
         # Enable CSV logging
         log.info("Enable CSV logging on Ixia...")
@@ -2316,10 +2325,9 @@ class IxiaNative(TrafficGen):
 
         # Set local and copy file paths
         self.windows_flow_stats_csv = csv_windows_path + '\\' + csv_file_name + '.csv'
-        self.flow_stats_csv = copy_dir + '/' + csv_file_name + '.csv'
-        #writePath = copy_dir + csv_file_name + '.csv'
+        self.flow_stats_csv = "/tmp/" + csv_file_name + '.csv'
 
-        # Copy file to directory specified by user
+        # Copy file to /tmp/
         log.info("Copy 'Flow Statistics' CSV to '{}'".format(self.flow_stats_csv))
         try:
             self.ixNet.execute('copyFile',
@@ -2339,7 +2347,7 @@ class IxiaNative(TrafficGen):
 
     @BaseConnection.locked
     @isconnected
-    def check_flow_groups_loss(self, max_outage=120, loss_tolerance=15, rate_tolerance=5, csv_windows_path="C:\\Users\\", csv_file_name="Flow_Statistics", copy_dir=runtime.directory):
+    def check_flow_groups_loss(self, max_outage=120, loss_tolerance=15, rate_tolerance=5, csv_windows_path="C:\\Users\\", csv_file_name="Flow_Statistics", verbose=False):
         '''Checks traffic loss for all flow groups configured on Ixia using
             'Flow Statistics' view data'''
 
@@ -2357,16 +2365,18 @@ class IxiaNative(TrafficGen):
 
         # Save 'Flow Statistics' view CSV snapshot
         csv_file = self.save_flow_statistics_snapshot_csv(csv_windows_path=csv_windows_path,
-                                                          csv_file_name=csv_file_name,
-                                                          copy_dir=copy_dir)
+                                                          csv_file_name=csv_file_name)
         # Convert CSV file into PrettyTable
         all_flow_group_data = from_csv(open(csv_file))
 
         # Create a table with only the values we need
         for row in all_flow_group_data:
 
-            # Strip headers and borders
+            # Strip headers and borders and init
             row.header = False ; row.border = False
+            outage_check = False
+            loss_check = False
+            rate_check = False
 
             # Get all the data for this row
             flow_group_name = row.get_string(fields=["Traffic Item"]).strip()
@@ -2377,14 +2387,72 @@ class IxiaNative(TrafficGen):
             frames_delta = row.get_string(fields=["Frames Delta"]).strip()
             loss_percentage = row.get_string(fields=["Loss %"]).strip()
 
+            # Check row for loss/outage within tolerance
+            if verbose:
+                log.info(banner("Checking flow group: '{t} | {vlan} | {pair}'".\
+                                format(t=flow_group_name, vlan=vlan_id, pair=src_dest_port_pair)))
+
+            # 1- Verify current loss % is less than tolerance threshold
+            # Get loss % value
+            if row.get_string(fields=["Loss %"]).strip() != '':
+                loss_percentage = row.get_string(fields=["Loss %"]).strip()
+            else:
+                loss_percentage = 0
+            # Check traffic loss
+            if float(loss_percentage) <= float(loss_tolerance):
+                if verbose:
+                    log.info("* Current traffic loss of {l}% is within"
+                             " maximum expected loss tolerance of {t}%".\
+                             format(t=loss_tolerance, l=loss_percentage))
+                loss_check = True
+            else:
+                if verbose:
+                    log.error("* Current traffic loss of {l}% is *NOT* within"
+                              " maximum expected loss tolerance of {t}%".\
+                              format(t=loss_tolerance, l=loss_percentage))
+
+            # 2- Verify difference between Tx Rate & Rx Rate is less than tolerance threshold
+            # Get Tx and Rx Frame Rates
+            tx_rate = row.get_string(fields=["Tx Frame Rate"]).strip()
+            rx_rate = row.get_string(fields=["Rx Frame Rate"]).strip()
+            if abs(float(tx_rate) - float(rx_rate)) <= float(rate_tolerance):
+                if verbose:
+                    log.info("* Difference between Tx Rate '{t}' and Rx Rate"
+                             " '{r}' is within expected maximum rate loss"
+                             " threshold of '{m}' packets per second".\
+                            format(t=tx_rate, r=rx_rate, m=rate_tolerance))
+                rate_check = True
+            else:
+                if verbose:
+                    log.error("* Difference between Tx Rate '{t}' and Rx Rate"
+                              " '{r}' is *NOT* within expected maximum rate loss"
+                              " threshold of '{m}' packets per second".\
+                            format(t=tx_rate, r=rx_rate, m=rate_tolerance))
+
+            # 3- Verify traffic Outage (in seconds) is less than tolerance threshold
             # Calculate the outage
             if tx_frame_rate == '0.000' or tx_frame_rate == '0':
                 outage_seconds = 0.0
             else:
                 outage_seconds = round(float(frames_delta)/float(tx_frame_rate), 3)
+            # Check outage
+            if float(outage_seconds) <= float(max_outage):
+                if verbose:
+                    log.info("* Traffic outage of '{o}' seconds is within "
+                             "expected maximum outage threshold of '{s}' seconds".\
+                             format(o=outage_seconds, s=max_outage))
+                outage_check = True
+            else:
+                if verbose:
+                    log.error("* Traffic outage of '{o}' seconds is *NOT* within "
+                              "expected maximum outage threshold of '{s}' seconds".\
+                              format(o=outage, s=max_outage))
 
             # Do checks to determine overall result
-            result = "PASS"
+            if loss_check and rate_check and outage_check:
+                overall_result = "PASS"
+            else:
+                overall_result = "FAIL"
 
             # Add data to the smaller table to display to user
             flow_group_table.add_row([flow_group_name,
@@ -2395,148 +2463,30 @@ class IxiaNative(TrafficGen):
                                       frames_delta,
                                       loss_percentage,
                                       outage_seconds,
-                                      result])
+                                      overall_result])
 
         # Align and print flow groups table in the logs
         flow_group_table.align = "l"
         log.info(flow_group_table)
 
-        # Verify outage for each flow group
-        outage_check = True
-        for row in flow_group_table:
-
-            # Remove headers and borders
-            row.header = False ; row.border = False
-
-            # Get stream, vlan-id and src/dest port pair
-            stream = row.get_string(fields=["Flow Group Traffic Item"]).strip()
-            vlan = row.get_string(fields=["VLAN:VLAN-ID"]).strip()
-            pair = row.get_string(fields=["Source/Dest Port Pair"]).strip()
-
-            if not self.verify_flow_group_outage(traffic_stream=stream,
-                                                 vlan_id=vlan,
-                                                 source_dest_pair=pair,
-                                                 flow_group_table=flow_group_table,
-                                                 max_outage=max_outage,
-                                                 loss_tolerance=loss_tolerance,
-                                                 rate_tolerance=rate_tolerance):
-                # Traffic loss observed for stream
-                outage_check = False
+        # Delete CSV snapshot file
+        try:
+            os.remove(csv_file)
+        except Exception as e:
+            log.error("Unable to remove CSV snapshot file '{}'".format(csv_file))
+        else:
+            log.info("Deleted CSV snapshot file '{}'".format(csv_file))
 
         # Check if iteration required based on results
-        if outage_check:
+        if overall_result:
             log.info("\nSuccessfully verified traffic outages/loss is within "
-                     "tolerance for given traffic streams")
+                     "tolerance for all flow groups")
         else:
-            # End of iterations, raise Exception and exit
-            raise GenieTgnError("\nUnexpected traffic outage/loss is "
-                                "observed for flow groups")
+            raise GenieTgnError("\nUnexpected traffic outage/loss is observed "
+                                "for flow groups")
 
         # Return table to caller
         return flow_group_table
-
-
-    @BaseConnection.locked
-    @isconnected
-    def verify_flow_group_outage(self, traffic_stream, vlan_id, source_dest_pair, flow_group_table, max_outage=120, loss_tolerance=15, rate_tolerance=5):
-        '''For each flow group configured on Ixia:
-            * 1- Verify traffic outage (in seconds) is less than tolerance threshold
-            * 2- Verify current loss % is less than tolerance threshold
-            * 3- Verify difference between Tx Rate & Rx Rate is less than tolerance threshold
-        '''
-
-        log.info(banner("Checking flow group: '{t} | {vlan} | {pair}'".\
-                        format(t=traffic_stream, vlan=vlan_id, pair=source_dest_pair)))
-
-        # Init
-        outage_check = False
-        loss_check = False
-        rate_check = False
-
-        # Loop over all flow groups in configuration
-        for row in flow_group_table:
-
-            # Remove headers and borders
-            row.header = False ; row.border = False
-
-            # Get stream name and source dest/port pair
-            current_stream = row.get_string(fields=["Flow Group Traffic Item"]).strip()
-            current_vlan_id = row.get_string(fields=["VLAN:VLAN-ID"]).strip()
-            current_srcdest_pair = row.get_string(fields=["Source/Dest Port Pair"]).strip()
-
-            # Get row in table associated with unique flow group
-            if traffic_stream != current_stream or current_vlan_id != vlan_id or\
-               current_srcdest_pair != source_dest_pair:
-                continue
-
-            # 1- Verify traffic Outage (in seconds) is less than tolerance threshold
-            log.info("1. Verify traffic outage (in seconds) is less than "
-                     "tolerance threshold of '{}' seconds".format(max_outage))
-            outage = row.get_string(fields=["Outage (seconds)"]).strip()
-            if float(outage) <= float(max_outage):
-                log.info("* Traffic outage of '{o}' seconds is within "
-                         "expected maximum outage threshold of '{s}' seconds".\
-                         format(o=outage, s=max_outage))
-                outage_check = True
-            else:
-                log.error("* Traffic outage of '{o}' seconds is *NOT* within "
-                          "expected maximum outage threshold of '{s}' seconds".\
-                          format(o=outage, s=max_outage))
-
-            # 2- Verify current loss % is less than tolerance threshold
-            log.info("2. Verify current loss % is less than tolerance "
-                     "threshold of '{}' %".format(loss_tolerance))
-            if row.get_string(fields=["Loss %"]).strip() != '':
-                loss_percentage = row.get_string(fields=["Loss %"]).strip()
-            else:
-                loss_percentage = 0
-
-            # Check traffic loss
-            if float(loss_percentage) <= float(loss_tolerance):
-                log.info("* Current traffic loss of {l}% is within"
-                         " maximum expected loss tolerance of {t}%".\
-                         format(t=loss_tolerance, l=loss_percentage))
-                loss_check = True
-            else:
-                log.error("* Current traffic loss of {l}% is *NOT* within"
-                          " maximum expected loss tolerance of {t}%".\
-                          format(t=loss_tolerance, l=loss_percentage))
-
-            # 3- Verify difference between Tx Rate & Rx Rate is less than tolerance threshold
-            log.info("3. Verify difference between Tx Rate & Rx Rate is less "
-                     "than tolerance threshold of '{}' pps".format(rate_tolerance))
-            tx_rate = row.get_string(fields=["Tx Frame Rate"]).strip()
-            rx_rate = row.get_string(fields=["Rx Frame Rate"]).strip()
-            if abs(float(tx_rate) - float(rx_rate)) <= float(rate_tolerance):
-                log.info("* Difference between Tx Rate '{t}' and Rx Rate"
-                         " '{r}' is within expected maximum rate loss"
-                         " threshold of '{m}' packets per second".\
-                         format(t=tx_rate, r=rx_rate, m=rate_tolerance))
-                rate_check = True
-            else:
-                log.error("* Difference between Tx Rate '{t}' and Rx Rate"
-                          " '{r}' is *NOT* within expected maximum rate loss"
-                          " threshold of '{m}' packets per second".\
-                          format(t=tx_rate, r=rx_rate, m=rate_tolerance))
-
-            # Checks completed, avoid checking other streams with duplicate names
-            break
-
-        # If all streams had:
-        #   1- No traffic outage beyond threshold
-        #   2- No current loss beyond threshold
-        #   3- No frames rate loss
-        if outage_check and loss_check and rate_check:
-            log.info("Flow group '{t} | {v} | {p}': traffic outage, loss% and "
-                     "Tx/Rx Rate difference within maximum expected threshold".\
-                     format(t=traffic_stream, v=vlan_id, p=source_dest_pair))
-            return True
-        else:
-            log.error("Flow group {t} | {v} | {p}': traffic outage, loss% and "
-                      "Tx/Rx Rate difference *NOT* within maximum expected threshold".\
-                      format(t=traffic_stream, v=vlan_id, p=source_dest_pair))
-            return False
-
 
 
     #--------------------------------------------------------------------------#
