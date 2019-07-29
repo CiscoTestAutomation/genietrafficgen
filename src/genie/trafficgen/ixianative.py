@@ -707,27 +707,26 @@ class IxiaNative(TrafficGen):
         '''Check traffic loss for each traffic stream configured on Ixia
             using statistics/data from 'Traffic Item Statistics' view'''
 
-        # Verified streams to avoid duplicates
-        verified_streams = []
-
         for i in range(check_iteration):
 
             log.info("\nAttempt #{}: Checking for traffic outage/loss".format(i+1))
-            outage_check = True
+            overall_result = {}
 
             # Get and display 'GENIE' traffic statistics table containing outage/loss values
             traffic_table = self.create_traffic_streams_table()
-            traffic_table_streams = self.get_traffic_items_from_genie_view(traffic_table=traffic_table)
 
             # Check all streams for traffic outage/loss
-            for stream in traffic_table_streams:
+            for row in traffic_table:
+
+                # Strip headers and borders
+                row.header = False ; row.border = False
+
+                # Get data
+                stream = row.get_string(fields=["Traffic Item"]).strip()
+                src_dest_pair = row.get_string(fields=["Source/Dest Port Pair"]).strip()
 
                 # Skip other streams if list of stream provided
                 if traffic_streams and stream not in traffic_streams:
-                    continue
-
-                # Skip if duplicate (previously verified uni-direction stream with same name)
-                if stream in verified_streams:
                     continue
 
                 # Skip checks if traffic stream is not of type l2l3
@@ -755,38 +754,73 @@ class IxiaNative(TrafficGen):
                     loss=loss_tolerance
                     rate=rate_tolerance
 
-                # Get source/dest port pair's associated with this traffic stream
-                source_dest_pairs = []
-                for row in traffic_table:
-                    row.header = False ; row.border = False
-                    if stream == row.get_string(fields=["Traffic Item"]).strip():
-                        source_dest_pairs.append(row.get_string(fields=["Source/Dest Port Pair"]).strip())
+                # --------------
+                # BEGIN CHECKING
+                # --------------
+                log.info(banner("Checking traffic stream: '{s} | {t}'".\
+                                format(s=src_dest_pair, t=stream)))
 
-                if not source_dest_pairs:
-                    raise GenieTgnError("Unable to find source/dest port pairs "
-                                        "associated with this traffic stream "
-                                        "'{}'".format(stream))
+                # 1- Verify traffic Outage (in seconds) is less than tolerance threshold
+                log.info("1. Verify traffic outage (in seconds) is less than "
+                         "tolerance threshold of '{}' seconds".format(max_outage))
+                outage = row.get_string(fields=["Outage (seconds)"]).strip()
+                if float(outage) <= float(max_outage):
+                    log.info("* Traffic outage of '{o}' seconds is within "
+                             "expected maximum outage threshold of '{s}' seconds".\
+                             format(o=outage, s=max_outage))
+                    outage_check = True
+                else:
+                    outage_check = False
+                    log.error("* Traffic outage of '{o}' seconds is *NOT* within "
+                              "expected maximum outage threshold of '{s}' seconds".\
+                              format(o=outage, s=max_outage))
 
-                if len(source_dest_pairs) > 2:
-                    raise GenieTgnError("Configuration mismatch - more than 2 "
-                                        "source/dest port pairs found for "
-                                        "traffic stream '{}'".format(stream))
+                # 2- Verify current loss % is less than tolerance threshold
+                log.info("2. Verify current loss % is less than tolerance "
+                         "threshold of '{}' %".format(loss_tolerance))
+                if row.get_string(fields=["Loss %"]).strip() != '':
+                    loss_percentage = row.get_string(fields=["Loss %"]).strip()
+                else:
+                    loss_percentage = 0
+                if float(loss_percentage) <= float(loss_tolerance):
+                    log.info("* Current traffic loss of {l}% is within"
+                             " maximum expected loss tolerance of {t}%".\
+                             format(t=loss_tolerance, l=loss_percentage))
+                    loss_check = True
+                else:
+                    loss_check = False
+                    log.error("* Current traffic loss of {l}% is *NOT* within"
+                              " maximum expected loss tolerance of {t}%".\
+                              format(t=loss_tolerance, l=loss_percentage))
 
-                for pair in source_dest_pairs:
-                    # Verify outage for traffic stream
-                    if not self.verify_traffic_stream_outage(traffic_stream=stream,
-                                                             source_dest_pair=pair,
-                                                             traffic_table=traffic_table,
-                                                             max_outage=outage,
-                                                             loss_tolerance=loss,
-                                                             rate_tolerance=rate):
-                        # Traffic loss observed for stream
-                        outage_check = False
-                    # Add to list
-                    verified_streams.append(stream)
+                # 3- Verify difference between Tx Rate & Rx Rate is less than tolerance threshold
+                log.info("3. Verify difference between Tx Rate & Rx Rate is less "
+                         "than tolerance threshold of '{}' pps".format(rate_tolerance))
+                tx_rate = row.get_string(fields=["Tx Frame Rate"]).strip()
+                rx_rate = row.get_string(fields=["Rx Frame Rate"]).strip()
+                if abs(float(tx_rate) - float(rx_rate)) <= float(rate_tolerance):
+                    log.info("* Difference between Tx Rate '{t}' and Rx Rate"
+                             " '{r}' is within expected maximum rate loss"
+                             " threshold of '{m}' packets per second".\
+                             format(t=tx_rate, r=rx_rate, m=rate_tolerance))
+                    rate_check = True
+                else:
+                    rate_check = False
+                    log.error("* Difference between Tx Rate '{t}' and Rx Rate"
+                              " '{r}' is *NOT* within expected maximum rate loss"
+                              " threshold of '{m}' packets per second".\
+                              format(t=tx_rate, r=rx_rate, m=rate_tolerance))
+
+                # Set overall result
+                if outage_check and loss_check and rate_check:
+                    continue
+                else:
+                    overall_result.setdefault('streams', {})['{s} | {t}'.\
+                                   format(s=src_dest_pair, t=stream)] =\
+                                   "FAIL"
 
             # Check if iteration required based on results
-            if outage_check:
+            if 'streams' not in overall_result:
                 log.info("\nSuccessfully verified traffic outages/loss is within "
                          "tolerance for given traffic streams")
                 break
@@ -795,106 +829,12 @@ class IxiaNative(TrafficGen):
                 raise GenieTgnError("\nUnexpected traffic outage/loss is observed")
             else:
                 # Traffic loss observed, sleep and recheck
-                log.error("\nSleeping '{s}' seconds and rechecking traffic "
-                          "streams for traffic outage/loss".\
-                          format(s=check_interval))
+                log.error("\nTraffic loss/outage observed for streams:")
+                for item in overall_result['streams']:
+                    log.error("* {}".format(item))
+                log.error("Sleeping '{s}' seconds and rechecking streams for "
+                          "traffic outage/loss".format(s=check_interval))
                 time.sleep(check_interval)
-
-
-    @BaseConnection.locked
-    @isconnected
-    def verify_traffic_stream_outage(self, traffic_stream, source_dest_pair, traffic_table, max_outage=120, loss_tolerance=15, rate_tolerance=5):
-        '''For each traffic stream configured on Ixia:
-            * 1- Verify traffic outage (in seconds) is less than tolerance threshold
-            * 2- Verify current loss % is less than tolerance threshold
-            * 3- Verify difference between Tx Rate & Rx Rate is less than tolerance threshold
-        '''
-
-        log.info(banner("Checking traffic stream: '{s} | {t}'".format(s=source_dest_pair, t=traffic_stream)))
-
-        # Init
-        outage_check = False
-        loss_check = False
-        rate_check = False
-
-        # Loop over all traffic items in configuration
-        for row in traffic_table:
-
-            # Get row in table associated with traffic stream
-            row.header = False ; row.border = False
-            # Get stream name and source dest/port pair
-            current_stream = row.get_string(fields=["Traffic Item"]).strip()
-            current_srcdest_pair = row.get_string(fields=["Source/Dest Port Pair"]).strip()
-            if traffic_stream != current_stream or current_srcdest_pair != source_dest_pair:
-                continue
-
-            # 1- Verify traffic Outage (in seconds) is less than tolerance threshold
-            log.info("1. Verify traffic outage (in seconds) is less than "
-                     "tolerance threshold of '{}' seconds".format(max_outage))
-            outage = row.get_string(fields=["Outage (seconds)"]).strip()
-            if float(outage) <= float(max_outage):
-                log.info("* Traffic outage of '{o}' seconds is within "
-                         "expected maximum outage threshold of '{s}' seconds".\
-                         format(o=outage, s=max_outage))
-                outage_check = True
-            else:
-                log.error("* Traffic outage of '{o}' seconds is *NOT* within "
-                          "expected maximum outage threshold of '{s}' seconds".\
-                          format(o=outage, s=max_outage))
-
-            # 2- Verify current loss % is less than tolerance threshold
-            log.info("2. Verify current loss % is less than tolerance "
-                     "threshold of '{}' %".format(loss_tolerance))
-            if row.get_string(fields=["Loss %"]).strip() != '':
-                loss_percentage = row.get_string(fields=["Loss %"]).strip()
-            else:
-                loss_percentage = 0
-
-            # Check traffic loss
-            if float(loss_percentage) <= float(loss_tolerance):
-                log.info("* Current traffic loss of {l}% is within"
-                         " maximum expected loss tolerance of {t}%".\
-                         format(t=loss_tolerance, l=loss_percentage))
-                loss_check = True
-            else:
-                log.error("* Current traffic loss of {l}% is *NOT* within"
-                          " maximum expected loss tolerance of {t}%".\
-                          format(t=loss_tolerance, l=loss_percentage))
-
-            # 3- Verify difference between Tx Rate & Rx Rate is less than tolerance threshold
-            log.info("3. Verify difference between Tx Rate & Rx Rate is less "
-                     "than tolerance threshold of '{}' pps".format(rate_tolerance))
-            tx_rate = row.get_string(fields=["Tx Frame Rate"]).strip()
-            rx_rate = row.get_string(fields=["Rx Frame Rate"]).strip()
-            if abs(float(tx_rate) - float(rx_rate)) <= float(rate_tolerance):
-                log.info("* Difference between Tx Rate '{t}' and Rx Rate"
-                         " '{r}' is within expected maximum rate loss"
-                         " threshold of '{m}' packets per second".\
-                         format(t=tx_rate, r=rx_rate, m=rate_tolerance))
-                rate_check = True
-            else:
-                log.error("* Difference between Tx Rate '{t}' and Rx Rate"
-                          " '{r}' is *NOT* within expected maximum rate loss"
-                          " threshold of '{m}' packets per second".\
-                          format(t=tx_rate, r=rx_rate, m=rate_tolerance))
-
-            # Checks completed, avoid checking other streams with duplicate names
-            break
-
-        # If all streams had:
-        #   1- No traffic outage beyond threshold
-        #   2- No current loss beyond threshold
-        #   3- No frames rate loss
-        if outage_check and loss_check and rate_check:
-            log.info("Traffic stream '{}': traffic outage, loss% and Tx/Rx Rate"
-                     " difference within maximum expected threshold".\
-                     format(traffic_stream))
-            return True
-        else:
-            log.error("Traffic stream '{}': traffic outage, loss% and Tx/Rx Rate"
-                      " difference *NOT* within maximum expected threshold".\
-                      format(traffic_stream))
-            return False
 
 
     @BaseConnection.locked
@@ -988,13 +928,13 @@ class IxiaNative(TrafficGen):
         log.info(banner("Comparing traffic profiles"))
 
         # Check profile1
-        if not isinstance(profile1, prettytable.PrettyTable) or not profile1.field_names:
+        if not isinstance(profile1, PrettyTable) or not profile1.field_names:
             raise GenieTgnError("Profile1 is not in expected format or missing data")
         else:
             log.info("Profile1 is in expected format with data")
 
         # Check profile2
-        if not isinstance(profile2, prettytable.PrettyTable) or not profile2.field_names:
+        if not isinstance(profile2, PrettyTable) or not profile2.field_names:
             raise GenieTgnError("Profile2 is not in expected format or missing data")
         else:
             log.info("Profile2 is in expected format with data")
