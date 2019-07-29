@@ -56,6 +56,7 @@ class IxiaNative(TrafficGen):
         self._genie_view = None
         self._genie_page = None
         self._golden_profile = PrettyTable()
+        self._flow_statistics_table = PrettyTable()
         # Valid QuickTests (to be expanded as tests have been validated)
         self.valid_quicktests = ['rfc2544frameLoss',
                                  'rfc2544throughput',
@@ -2287,7 +2288,7 @@ class IxiaNative(TrafficGen):
 
     @BaseConnection.locked
     @isconnected
-    def check_flow_groups_loss(self, max_outage=120, loss_tolerance=15, rate_tolerance=5, csv_windows_path="C:\\Users\\", csv_file_name="Flow_Statistics", verbose=False):
+    def check_flow_groups_loss(self, traffic_streams=[], max_outage=120, loss_tolerance=15, rate_tolerance=5, csv_windows_path="C:\\Users\\", csv_file_name="Flow_Statistics", verbose=False):
         '''Checks traffic loss for all flow groups configured on Ixia using
             'Flow Statistics' view data'''
 
@@ -2326,6 +2327,10 @@ class IxiaNative(TrafficGen):
             rx_frame_rate = row.get_string(fields=["Rx Frame Rate"]).strip()
             frames_delta = row.get_string(fields=["Frames Delta"]).strip()
             loss_percentage = row.get_string(fields=["Loss %"]).strip()
+
+            # Skip other streams if list of stream provided
+            if traffic_streams and flow_group_name not in traffic_streams:
+                continue
 
             # Check row for loss/outage within tolerance
             if verbose:
@@ -2408,6 +2413,7 @@ class IxiaNative(TrafficGen):
         # Align and print flow groups table in the logs
         flow_group_table.align = "l"
         log.info(flow_group_table)
+        self._flow_statistics_table = flow_group_table
 
         # Delete CSV snapshot file
         try:
@@ -2427,6 +2433,14 @@ class IxiaNative(TrafficGen):
 
         # Return table to caller
         return flow_group_table
+
+
+    @BaseConnection.locked
+    @isconnected
+    def get_flow_statistics_table(self):
+        '''Returns the last Flow Statistics table created'''
+
+        return self._flow_statistics_table
 
 
     #--------------------------------------------------------------------------#
@@ -3087,7 +3101,7 @@ class IxiaNative(TrafficGen):
     @BaseConnection.locked
     @isconnected
     def get_quicktest_results_attribute(self, quicktest, attribute):
-        '''Returns the value of specified quicktest results attribute '''
+        '''Returns the value of the specified Quicktest results object attribute.'''
 
         # Verify valid attribute provided
         try:
