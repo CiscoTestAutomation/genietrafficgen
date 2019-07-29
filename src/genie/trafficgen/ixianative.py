@@ -3101,7 +3101,7 @@ class IxiaNative(TrafficGen):
     @BaseConnection.locked
     @isconnected
     def get_quicktest_results_attribute(self, quicktest, attribute):
-        '''Returns the value of specified quicktest results attribute '''
+        '''Returns the value of the specified Quicktest results object attribute.'''
 
         # Verify valid attribute provided
         try:
