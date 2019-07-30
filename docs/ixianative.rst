@@ -990,8 +990,7 @@ User's can specify arguments to control the ``Genie`` harness subsections via:
     .. code-block:: python
 
         gRun(config_datafile=os.path.join(test_path, 'config_datafile.yaml'),
-             tgn_load_configuration=False,
-             tgn_start_protocols=True,
+             tgn_disable_start_protocols=True,
              tgn_traffic_loss_tolerance=15.0)
 
 
@@ -1000,17 +999,17 @@ User's can specify arguments to control the ``Genie`` harness subsections via:
     .. code-block:: bash
 
         easypy job.py --testbed-file <testbed yaml> \
-                      --tgn-load-configuration True \
-                      --tgn-start-protocols False \
-                      --tgn-traffic-loss-tolerance 20.0
+                      --tgn-disable-start-protocols True \
+                      --tgn-traffic-loss-tolerance 15.0
 
 .. note::
     Please note that when specifying traffic generator arguments in the job
-    file, the user must use argument names with underscores(_). 
-    Example: "tgn_start_traffic"
+    file to gRun, the user must use argument names with underscores(_).
+    Example: "tgn_disable_start_traffic"
+
     When specifying traffic generator arguments via command line, the user must
     use argument names with hyphens (-). 
-    Example: "tgn-start-traffic"
+    Example: "tgn-disable-start-traffic"
 
 
 The table below is a list of arguments that can be configured by the user to control
@@ -1027,17 +1026,27 @@ traffic generator subsections in ``Genie`` harness.
     |                                  | to, from the existing ixia_port_list  |
     |                                  | Default: []                           |
     |----------------------------------+---------------------------------------|
-    | tgn-load-configuration           | Enable/disable loading static config  |
+    | tgn-disable-load-configuration   | Ddisable loading static configuration |
     |                                  | file on Ixia in 'initialize_traffic'  |
-    |                                  | Default: True                         |
+    |                                  | Default: False                        |
     |----------------------------------+---------------------------------------|
     | tgn-load-configuration-time      | Time to wait after loading config     |
     |                                  | on Ixia during 'initialize_traffic'   |
     |                                  | Default: 60 (seconds)                 |
     |----------------------------------+---------------------------------------|
-    | tgn-start-protocols              | Enable/disable starting protocols on  |
-    |                                  | Ixia during 'initialize_traffic'      |
-    |                                  | Default: True                         |
+    | tgn-disable-assign-ports         | Disable assigning physical ports to   |
+    |                                  | virtual Ixia ports in                 |
+    |                                  | 'initialize_traffic'                  |
+    |                                  | Default: False                        |
+    |----------------------------------+---------------------------------------|
+    | tgn-assign-ports-time            | Time to wait after assigning physical |
+    |                                  | ports to virtual ports on Ixia in     |
+    |                                  | 'initialize_traffic'                  |
+    |                                  | Default: 30 (seconds)                 |
+    |----------------------------------+---------------------------------------|
+    | tgn-disable-start-protocols      | Ddisable starting protocols on Ixia   |
+    |                                  | in 'initialize_traffic'               |
+    |                                  | Default: False                        |
     |----------------------------------+---------------------------------------|
     | tgn-protocols-convergence-time   | Time to wait for all traffic streams  |
     |                                  | converge to steady state in           |
@@ -1048,33 +1057,33 @@ traffic generator subsections in ``Genie`` harness.
     |                                  | on Ixia during 'stop_traffic'         |
     |                                  | Default: 30 (seconds)                 |
     |----------------------------------+---------------------------------------|
-    | tgn-apply-traffic                | Enable/disable applying L2/L3 traffic |
-    |                                  | on Ixia in 'initialize_traffic'       |
-    |                                  | Default: True                         |
+    | tgn-disable-apply-traffic        | Disable applying L2/L3 traffic on     |
+    |                                  | Ixia in 'initialize_traffic'          |
+    |                                  | Default: False                        |
     |----------------------------------+---------------------------------------|
     | tgn-apply-traffic-time           | Time to wait after applying L2/L3     |
     |                                  | traffic in 'initialize_traffic'       |
     |                                  | Default: 60 (seconds)                 |
     |----------------------------------+---------------------------------------|
-    | tgn-send-arp                     | Enable/disable send ARP to interfaces |
-    |                                  | from Ixia in 'initialize_traffic'     |
-    |                                  | Default: True                         |
+    | tgn-disable-send-arp             | Disable send ARP to interfaces from   |
+    |                                  | Ixia in 'initialize_traffic'          |
+    |                                  | Default: False                        |
     |----------------------------------+---------------------------------------|
     | tgn-arp-wait-time                | Time to wait after sending ARP from   |
     |                                  | Ixia in 'initialize_traffic'          |
     |                                  | Default: 60 (seconds)                 |
     |----------------------------------+---------------------------------------|
-    | tgn-send-ns                      | Enable/disable send NS to interfaces  |
-    |                                  | on Ixia in 'initialize_traffic'       |
-    |                                  | Default: True                         |
+    | tgn-disable-send-ns              | Disable send NS to interfaces on Ixia |
+    |                                  | in 'initialize_traffic'               |
+    |                                  | Default: False                        |
     |----------------------------------+---------------------------------------|
     | tgn-ns-wait-time                 | Time to wait after sending NS packet  |
     |                                  | from Ixia in 'initialize_traffic'     |
     |                                  | Default: 60 (seconds)                 |
     |----------------------------------+---------------------------------------|
-    | tgn-start-traffic                | Enable/disable starting L2/L3 traffic |
-    |                                  | on Ixia in 'initialize_traffic'       |
-    |                                  | Default: True                         |
+    | tgn-disable-start-traffic        | Disable starting L2/L3 traffic on     |
+    |                                  | Ixia in 'initialize_traffic'          |
+    |                                  | Default: False                        |
     |----------------------------------+---------------------------------------|
     | tgn-steady-state-convergence-time| Time to wait for traffic streams to   |
     |                                  | converge to steady state after start  |
@@ -1085,31 +1094,21 @@ traffic generator subsections in ``Genie`` harness.
     |                                  | streams in 'stop_traffic'             |
     |                                  | Default: 15 (seconds)                 |
     |----------------------------------+---------------------------------------|
-    | tgn-clear-statistics             | Enable/disable clearing protocol and  |
+    | tgn-disable-clear-statistics     | Disable clearing of all protocol and  |
     |                                  | traffic statistics on Ixia in         |
     |                                  | 'initialize_traffic'                  |
-    |                                  | Default: True                         |
+    |                                  | Default: False                        |
     |----------------------------------+---------------------------------------|
     | tgn-clear-stats-time             | Time to wait after clearing protocol  |
     |                                  | and traffic statistics on Ixia in     |
     |                                  | 'initialize_traffic'                  |
     |                                  | Default: 60 (seconds)                 |
     |----------------------------------+---------------------------------------|
-    | tgn-view-create-interval         | Time to wait between re-checking if   |
-    |                                  | custom traffic items view "GENIE" is  |
-    |                                  | ready in 'profile_traffic'            |
-    |                                  | Default: 30 (seconds)                 |
-    |----------------------------------+---------------------------------------|
-    | tgn-view-create-iteration        | Number of attempts to re-check if the |
-    |                                  | custom traffic items view "GENIE" is  |
-    |                                  | ready in 'profile_traffic'            |
-    |                                  | Default: 10 attempts                  |
-    |----------------------------------+---------------------------------------|
-    | tgn-check-traffic-loss           | Enable/disable checking of frames loss|
+    | tgn-disable-check-traffic-loss   | Disable checking of frames loss       |
     |                                  | and traffic loss for all configured   |
     |                                  | traffic streams after starting L2/L3  |
     |                                  | traffic on Ixia in'initialize_traffic'|
-    |                                  | Default: True                         |
+    |                                  | Default: False                        |
     |----------------------------------+---------------------------------------|
     | tgn-traffic-outage-tolerance     | Maximum traffic outage expected after |
     |                                  | starting traffic on Ixia in           |
@@ -1152,17 +1151,39 @@ traffic generator subsections in ``Genie`` harness.
     |                                  | traffic loss in 'initialize_traffic'  |
     |                                  | Default: 10 attempts                  |
     |----------------------------------+---------------------------------------|
-    | tgn_profile_clear_stats          | Enable/disable clearing of traffic    |
-    |                                  | statistics before creating a table or |
-    |                                  | profile of traffic statistics for the |
-    |                                  | current run executing.                |
-    |                                  | Default: True                         |
-    |----------------------------------+---------------------------------------|
     | tgn-golden-profile               | Full path to the text file containing |
     |                                  | previously verified and saved traffic |
     |                                  | profile to compare it against in      |
     |                                  | 'profile_traffic'                     |
     |                                  | Default: None                         |
+    |----------------------------------+---------------------------------------|
+    | tgn-disable-profile-clear-stats  | Disable clearing of traffic statistics|
+    |                                  | before creating a table or profile of |
+    |                                  | traffic statistics for the currently  |
+    |                                  | executing job in 'profile_traffic'    |
+    |                                  | Default: False                        |
+    |----------------------------------+---------------------------------------|
+    | tgn-view-create-interval         | Time to wait between re-checking if   |
+    |                                  | custom traffic items view "GENIE" is  |
+    |                                  | ready in 'profile_traffic'            |
+    |                                  | Default: 30 (seconds)                 |
+    |----------------------------------+---------------------------------------|
+    | tgn-view-create-iteration        | Number of attempts to re-check if the |
+    |                                  | custom traffic items view "GENIE" is  |
+    |                                  | ready in 'profile_traffic'            |
+    |                                  | Default: 10 attempts                  |
+    |----------------------------------+---------------------------------------|
+    | tgn-disable-tracking-filter      | Disable adding tracking filter        |
+    |                                  | "Traffic Items" to traffic stream     |
+    |                                  | configuration while building "GENIE"  |
+    |                                  | custom view in 'profile_traffic'      |
+    |                                  | Default: False                        |
+    |----------------------------------+---------------------------------------|
+    | tgn-disable-port-pair-filter     | Disable adding tracking filter        |
+    |                                  | "Source/Dest Port Pair" to traffic    |
+    |                                  | streamconfiguration while building    |
+    |                                  | "GENIE" view in 'profile_traffic'     |
+    |                                  | Default: False                        |
     |----------------------------------+---------------------------------------|
     |tgn-profile-traffic-loss-tolerance| Maximum acceptable difference between |
     |                                  | two Genie traffic profile snapshots   |
@@ -1179,6 +1200,28 @@ traffic generator subsections in ``Genie`` harness.
     +==========================================================================+
 
 
+.. note::
+    Please note the following arguments are now deprecated and replaced as shown below
+    Default values can be found in the table above
+
+    +------------------------------------------------------------------+
+    | Genie Harness Traffic Deprecated Arguments                       |
+    +==================================================================+
+    | Old Argument                  | New Argument                     |
+    |-------------------------------+----------------------------------|
+    | tgn-load-configuration        | tgn-disable-load-configuration   |
+    | tgn-start-protocols           | tgn-disable-start-protocols      |
+    | tgn-apply-traffic             | tgn-disable-apply-traffic        |
+    | tgn-send-arp                  | tgn-disable-send-arp             |
+    | tgn-send-ns                   | tgn-disable-send-ns              |
+    | tgn-start-traffic             | tgn-disable-start-traffic        |
+    | tgn-clear-statistics          | tgn-disable-clear-statistics     |
+    | tgn-check-traffic-loss        | tgn-disable-check-traffic-loss   |
+    | tgn-profile-clear-stats       | tgn-disable-profile-clear-stats  |
+    | tgn-view-enable-tracking      | tgn-disable-tracking-filter      |
+    | tgn-view-enable-port-pair     | tgn-disable-port-pair-filter     |
+    +==================================================================+
+
 common_setup: initialize_traffic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -1190,13 +1233,14 @@ It performs the following steps in order:
 
     1. Connect to Ixia
     2. Load static configuration onto Ixia
-    3. Start all protocols
-    4. Apply L2/L3 traffic configuration
-    5. Send ARP, NS packet to all interfaces from Ixia
-    6. Start L2/L3 traffic
-    7. Clear traffic statistics after streams have converged to steady state
-    8. Create custom traffic statistics view on Ixia named "Genie"
-    9. Check traffic loss % and frames loss across all configured traffic streams
+    3. Assign physical ports to Ixia virtual ports
+    4. Start all protocols
+    5. Apply L2/L3 traffic configuration
+    6. Send ARP, NS packet to all interfaces from Ixia
+    7. Start L2/L3 traffic
+    8. Clear traffic statistics after streams have converged to steady state
+    9. Create custom traffic statistics view on Ixia named "Genie"
+    10. Check traffic loss % and frames loss across all configured traffic streams
 
 
 Step1: Connect to Ixia
@@ -1220,7 +1264,7 @@ below:
 Step2: Load static configuration onto Ixia
 """"""""""""""""""""""""""""""""""""""""""
 
-This section can be controlled by enabling/disabling argument: `tgn-load-configuration`.
+This section can be controlled by enabling/disabling argument: `tgn-disable-load-configuration`.
 
 ``Genie`` can load a static configuration file onto the Ixia `device` that has
 been specified in the `configuration_datafile` as shown below:
@@ -1235,11 +1279,16 @@ been specified in the `configuration_datafile` as shown below:
 It waits for `tgn-load-configuration-time` seconds for traffic to be loaded onto
 Ixia.
 
+Following loading configuration, ``Genie`` harness will proceed to assign physical
+Ixia ports specified in the testbed YAML to virtual Ixia ports. This step can be 
+disabled by setting argument `tgn-disable-assign-ports`. 
+It waits for `tgn-assign-ports-time` seconds for all ports to be up (green).
+
 
 Step3: Start all protocols
 """"""""""""""""""""""""""
 
-This section can be controlled by enabling/disabling argument: `tgn-start-protocols`.
+This section can be controlled by enabling/disabling argument: `tgn-disable-start-protocols`.
 
 If this flag is enabled, ``Genie`` harness will start all protocols on the Ixia
 device and wait for `tgn-protocols-convergence-time` seconds for all traffic
@@ -1249,7 +1298,7 @@ streams to converge to steady state.
 Step4: Apply L2/L3 traffic
 """"""""""""""""""""""""""
 
-This section can be controlled by enabling/disabling argument: `tgn-apply-traffic`.
+This section can be controlled by enabling/disabling argument: `tgn-disable-apply-traffic`.
 
 If this flag is enabled, ``Genie`` harness will apply L2/L3 traffic on the Ixia
 device and wait for `tgn-apply-traffic-time` seconds after applying traffic.
@@ -1259,8 +1308,8 @@ Step5: Send ARP, NS from Ixia
 """""""""""""""""""""""""""""
 
 This section can be controlled by enabling/disabling arguments:
-    * `tgn-send-arp` - send ARP to all interfaces from Ixia
-    * `tgn-send-ns` - send NS to all interfaces from Ixia
+    * `tgn-disable-send-arp` - send ARP to all interfaces from Ixia
+    * `tgn-disable-send-ns` - send NS to all interfaces from Ixia
 
 If these flags are enabled, ``Genie`` harness will send ARP and NS to all
 interfaces from Ixia. It will wait for `tgn-arp-wait-time` seconds after sending
@@ -1271,7 +1320,7 @@ sending NS packets to all interfaces from Ixia.
 Step6: Start L2/L3 traffic
 """""""""""""""""""""""""""
 
-This section can be controlled by enabling/disabling argument: `tgn-start-traffic`.
+This section can be controlled by enabling/disabling argument: `tgn-disable-start-traffic`.
 
 If this flag is enabled, ``Genie`` harness will start L2/L3 traffic on the Ixia
 device and wait for `tgn-steady-state-convergence-time` seconds after starting
@@ -1281,7 +1330,7 @@ traffic for all traffic streams to converge to steady state.
 Step7: Clear traffic statistics
 """""""""""""""""""""""""""""""
 
-This section can be controlled by enabling/disabling argument: `tgn-clear-statistics`.
+This section can be controlled by enabling/disabling argument: `tgn-disable-clear-statistics`.
 
 If this flag is enabled, ``Genie`` harness will clear all protocol, traffic
 statistics on the Ixia device and wait for `tgn-clear-stats-time` seconds after
@@ -1300,7 +1349,7 @@ times, while waiting for `tgn-view-create-interval` seconds between each iterati
 Step9: Check for traffic loss
 """""""""""""""""""""""""""""
 
-This section can be controlled by enabling/disabling argument: `tgn-check-traffic-loss`.
+This section can be controlled by enabling/disabling argument: `tgn-disable-check-traffic-loss`.
 
 If this flag is enabled, ``Genie`` harness will verify that all configured
 traffic streams have traffic outage, traffic loss and frames rate loss within the
