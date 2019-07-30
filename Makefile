@@ -1,17 +1,11 @@
 ################################################################################
-#                                                                              #
-#                      Cisco Systems Proprietary Software                      #
-#        Not to be distributed without consent from Test Technology            #
-#                               Cisco Systems, Inc.                            #
-#                                                                              #
-################################################################################
-#                        genie.trafficgen Internal Makefile
+#                        genie.trafficgen Makefile
 #
 # Author:
-#   asg-genie-dev@cisco.com
+#   pyats-support-ext@cisco.com
 #
 # Support:
-#   asg-genie-support@cisco.com
+#   pyats-support-ext@cisco.com
 #
 # Version:
 #   v3.0
@@ -73,16 +67,10 @@ devnet: package
 	@echo ""
 
 install_build_deps:
-	@echo "--------------------------------------------------------------------"
-	@echo "Installing cisco-distutils"
-	@pip install --index-url=http://pyats-pypi.cisco.com/simple \
-	             --trusted-host=pyats-pypi.cisco.com \
-	             cisco-distutils
+	@echo "no action"
 
 uninstall_build_deps:
-	@echo "--------------------------------------------------------------------"
-	@echo "Uninstalling pyats-distutils"
-	@pip uninstall cisco-distutils
+	@echo "no action"
 
 docs:
 	@echo ""
