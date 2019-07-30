@@ -2311,6 +2311,7 @@ class IxiaNative(TrafficGen):
         all_flow_group_data = from_csv(open(csv_file))
 
         # Create a table with only the values we need
+        result_failed = False
         for row in all_flow_group_data:
 
             # Strip headers and borders and init
@@ -2349,6 +2350,7 @@ class IxiaNative(TrafficGen):
                 loss_check = True
             else:
                 loss_check = False
+                result_failed = True
                 if verbose:
                     log.error("* Current traffic loss of {l}% is *NOT* within"
                               " maximum expected loss tolerance of {t}%".\
@@ -2367,6 +2369,7 @@ class IxiaNative(TrafficGen):
                 rate_check = True
             else:
                 rate_check = False
+                result_failed = True
                 if verbose:
                     log.error("* Difference between Tx Rate '{t}' and Rx Rate"
                               " '{r}' is *NOT* within expected maximum rate loss"
@@ -2388,6 +2391,7 @@ class IxiaNative(TrafficGen):
                 outage_check = True
             else:
                 outage_check = False
+                result_failed = True
                 if verbose:
                     log.error("* Traffic outage of '{o}' seconds is *NOT* within "
                               "expected maximum outage threshold of '{s}' seconds".\
@@ -2424,7 +2428,7 @@ class IxiaNative(TrafficGen):
             log.info("Deleted CSV snapshot file '{}'".format(csv_file))
 
         # Check if iteration required based on results
-        if overall_result == "PASS":
+        if not result_failed:
             log.info("\nSuccessfully verified traffic outages/loss is within "
                      "tolerance for all flow groups")
         else:
