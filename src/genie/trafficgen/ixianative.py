@@ -883,9 +883,49 @@ class IxiaNative(TrafficGen):
             except AssertionError as e:
                 raise GenieTgnError("Column '{}' is missing from custom created 'GENIE' view".format(item))
 
+        # Increase page size for "GENIE" view to max size
         try:
-            # Add rows with data
-            for item in self.ixNet.getAttribute(self._genie_page, '-rowValues'):
+            self.ixNet.setAttribute(self._genie_page, '-pageSize', 2048)
+            self.ixNet.commit()
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to set 'GENIE' view page size to max value")
+
+        # Get total number of pages
+        try:
+            total_pages = int(self.ixNet.getAttribute(self._genie_page, '-totalPages'))
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to get count of all pages in 'GENIE' view")
+        else:
+            log.info("Total number of pages in 'GENIE' view is '{}'".\
+                     format(total_pages))
+
+        # Loop over all pages and add values
+        for i in range(1, total_pages+1):
+
+            # Set current page to i
+            try:
+                self.ixNet.setAttribute(self._genie_page, '-currentPage', i)
+                self.ixNet.commit()
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Unable to proceed to 'GENIE' view page '{}'".\
+                                    format(i))
+            else:
+                log.info("Reading data from 'GENIE' view page {i}/{t}".\
+                         format(i=i, t=total_pages))
+
+            # Get row data from current page
+            try:
+                all_rows = self.ixNet.getAttribute(self._genie_page, '-rowValues')
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Unable to get row data from 'GENIE' "
+                                    "view page '{}'".format(i))
+
+            # Populate table with row data from current page
+            for item in all_rows:
                 # Get row value data
                 row_item = item[0]
                 # Arrange data to fit into table as required in final format:
@@ -904,9 +944,6 @@ class IxiaNative(TrafficGen):
                 row_item.append(str(outage_seconds))
                 # Add data to traffic_table
                 traffic_table.add_row(row_item)
-        except Exception as e:
-            log.error(e)
-            raise GenieTgnError("Unable to get data from custom view 'GENIE'")
 
         # Align and print profile table in the logs
         traffic_table.align = "l"
