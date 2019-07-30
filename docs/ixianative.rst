@@ -1201,8 +1201,10 @@ traffic generator subsections in ``Genie`` harness.
 
 
 .. note::
-    Please note the following arguments are now deprecated and replaced as shown below
-    Default values can be found in the table above
+    Please note the following arguments are now deprecated and replaced as shown
+    below. Default values can be found in the table above
+
+.. code-block:: text
 
     +------------------------------------------------------------------+
     | Genie Harness Traffic Deprecated Arguments                       |
