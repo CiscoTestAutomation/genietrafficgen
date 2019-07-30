@@ -6,85 +6,67 @@ See:
     https://packaging.python.org/en/latest/distributing.html
 '''
 
+import re
 import os
-from ciscodistutils import setup, find_packages, is_devnet_build
-from ciscodistutils.tools import (read,
-                                  version_info,
-                                  generate_cython_modules)
 
-_INTERNAL_SUPPORT = 'asg-genie-support@cisco.com'
-_EXTERNAL_SUPPORT = 'pyats-support-ext@cisco.com'
+from setuptools import setup, find_packages
 
-_INTERNAL_LICENSE = 'Cisco Systems, Inc. Cisco Confidential',
-_EXTERNAL_LICENSE = 'Apache 2.0'
+def read(*paths):
+    '''read and return txt content of file'''
+    with open(os.path.join(os.path.dirname(__file__), *paths)) as fp:
+        return fp.read()
 
-_INTERNAL_URL = 'http://wwwin-pyats.cisco.com/cisco-shared/genietrafficgen/html/'
-_EXTERNAL_URL = 'https://developer.cisco.com/site/pyats/'
-
-
-# pyats support mailer
-SUPPORT = _EXTERNAL_SUPPORT if is_devnet_build() else _INTERNAL_SUPPORT
-
-# license statement
-LICENSE = _EXTERNAL_LICENSE if is_devnet_build() else _INTERNAL_LICENSE
-
-# project url
-URL = _EXTERNAL_URL if is_devnet_build() else _INTERNAL_URL
-
-# get version information
-version, version_range = version_info('src', 'genie', 'trafficgen', '__init__.py')
+def find_version(*paths):
+    '''reads a file and returns the defined __version__ value'''
+    version_match = re.search(r"^__version__ ?= ?['\"]([^'\"]*)['\"]",
+                              read(*paths), re.M)
+    if version_match:
+        return version_match.group(1)
+    raise RuntimeError("Unable to find version string.")
 
 install_requires=['setuptools', 'wheel', 'genie', 'ixnetwork']
-
-if is_devnet_build():
-    install_requires.insert(0, 'pyats')
-
-def find_examples(*paths):
-    '''finds all example files'''
-    files = []
-
-    for (dirpath, dirnames, filenames) in os.walk(os.path.join(*paths)):
-        files.append((dirpath, [os.path.join(dirpath, f) for f in filenames]))
-
-    return files
 
 # launch setup
 setup(
     name = 'genie.trafficgen',
-    version = version,
+    version = find_version('src', 'genie', 'trafficgen', '__init__.py'),
 
     # descriptions
     description = 'Genie Library for traffic generator connection support',
     long_description = read('DESCRIPTION.rst'),
 
     # the project's main homepage.
-    url = URL,
+    url = 'https://developer.cisco.com/pyats',
 
     # author details
     author = 'Cisco Systems Inc.',
-    author_email = SUPPORT,
+    author_email = 'pyats-support-ext@cisco.com',
 
     # project licensing
-    license = LICENSE,
+    license = 'Apache 2.0',
 
     # see https://pypi.python.org/pypi?%3Aaction=list_classifiers
     classifiers = [
-        'Development Status :: 5 - Production/Stable',
-        'Environment :: Console',
-        'Intended Audience :: Developers',
-        'Intended Audience :: Telecommunications Industry',
-        'Intended Audience :: Information Technology',
-        'License :: OSI Approved :: Apache Software License',
-        'Operating System :: POSIX :: Linux',
-        'Programming Language :: Python :: 3.4',
-        'Programming Language :: Python :: 3 :: Only',
-        'Programming Language :: Python :: Implementation :: CPython',
-        'Topic :: Software Development :: Testing',
-        'Topic :: Software Development :: Build Tools',
-        'Topic :: Software Development :: Libraries',
-        'Topic :: Software Development :: Libraries :: Python Modules',
+    'Development Status :: 6 - Mature',
+    'Development Status :: 5 - Production/Stable',
+    'Environment :: Console',
+    'Intended Audience :: Developers',
+    'Intended Audience :: Telecommunications Industry',
+    'Intended Audience :: Information Technology',
+    'Intended Audience :: System Administrators',
+    'License :: OSI Approved :: Apache Software License',
+    'Operating System :: MacOS',
+    'Operating System :: POSIX :: Linux',
+    'Programming Language :: Python :: 3.7',
+    'Programming Language :: Python :: 3.6',
+    'Programming Language :: Python :: 3.5',
+    'Programming Language :: Python :: 3 :: Only',
+    'Programming Language :: Python :: Implementation :: CPython',
+    'Topic :: Software Development :: Testing',
+    'Topic :: Software Development :: Build Tools',
+    'Topic :: Software Development :: Libraries',
+    'Topic :: Software Development :: Libraries :: Python Modules',
     ],
-
 
     # project keywords
     keywords = 'genie traffic pyats cisco',
@@ -103,9 +85,6 @@ setup(
     # additional package data files that goes into the package itself
     package_data = {},
 
-    # custom argument specifying the list of cythonized modules
-    cisco_cythonized_modules = generate_cython_modules('src/'),
-
     # console entry point
     entry_points = {
         'pyats.utils.__legacy_imports__':
@@ -121,7 +100,6 @@ setup(
         'dev': ['coverage',
                 'restview',
                 'Sphinx',
-                'sphinxcontrib-napoleon',
                 'sphinx-rtd-theme',
                 'sphinxcontrib-mockautodoc'],
     },
@@ -134,7 +112,7 @@ setup(
     # format:
     #   [('target', ['list', 'of', 'files'])]
     # where target is sys.prefix/<target>
-    data_files = find_examples('examples'),
+    data_files = [],
 
     # non zip-safe (never tested it)
     zip_safe = False,

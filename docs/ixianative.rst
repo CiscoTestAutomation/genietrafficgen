@@ -134,84 +134,126 @@ an Ixia traffic generator device:
     |---------------------------------+------------------------------------------------|
     | connect                         | Connect to Ixia traffic generator device.      |
     |                                 | Arguments:                                     |
-    |                                 |   * [O] alias - In testbed YAML.               |
-    |                                 |   * [O] via - In mapping datafile.             |
+    |                                 |     * [O] alias - In testbed YAML.             |
+    |                                 |     * [O] via - In mapping datafile.           |
+    |---------------------------------+------------------------------------------------|
+    | disconnect                      | Disconnect from Ixia traffic generator device. |
+    |                                 | Arguments:                                     |
+    |                                 |     None                                       |
     |---------------------------------+------------------------------------------------|
     | load_configuration              | Loads the configuration onto Ixia device.      |
     |                                 | Arguments:                                     |
-    |                                 |   * [M] configuration - static configuration   |
-    |                                 |         file for Ixia.                         |
-    |                                 |   * [O] wait_time - time to wait after loading |
-    |                                 |         configuration file.                    |
-    |                                 |         Default: 60 (seconds)                  |
+    |                                 |     * [M] configuration - static configuration |
+    |                                 |           file for Ixia.                       |
+    |                                 |     * [O] wait_time - time to wait after       |
+    |                                 |           loading configuration file.          |
+    |                                 |           Default: 60 (seconds)                |
     |---------------------------------+------------------------------------------------|
     | start_all_protocols             | Starts all protocols on Ixia device.           |
     |                                 | Arguments:                                     |
-    |                                 |   * [O] wait_time - time to wait after starting|
-    |                                 |         all protocols on Ixia.                 |
-    |                                 |         Default: 60 (seconds)                  |
+    |                                 |     * [O] wait_time - time to wait after       |
+    |                                 |           starting all protocols on Ixia.      |
+    |                                 |           Default: 60 (seconds)                |
     |---------------------------------+------------------------------------------------|
     | stop_all_protocols              | Stops all protocols on Ixia device.            |
     |                                 | Arguments:                                     |
-    |                                 |   * [O] wait_time - time to wait after stopping|
-    |                                 |         all protocols on Ixia.                 |
-    |                                 |         Default: 60 (seconds)                  |
+    |                                 |     * [O] wait_time - time to wait after       |
+    |                                 |           stopping all protocols on Ixia.      |
+    |                                 |           Default: 60 (seconds)                |
     |---------------------------------+------------------------------------------------|
     | apply_traffic                   | Apply L2/L3 traffic on Ixia device.            |
     |                                 | Arguments:                                     |
-    |                                 |   * [O] wait_time - time to wait after applying|
-    |                                 |         L2/L3 traffic on Ixia.                 |
-    |                                 |         Default: 60 (seconds)                  |
+    |                                 |     * [O] wait_time - time to wait after       |
+    |                                 |           applying L2/L3 traffic on Ixia.      |
+    |                                 |           Default: 60 (seconds)                |
     |---------------------------------+------------------------------------------------|
     | send_arp                        | Send ARP to all interfaces from Ixia device.   |
     |                                 | Arguments:                                     |
-    |                                 |   * [O] wait_time - time to wait after sending |
-    |                                 |         ARP to all interfaces (in seconds).    |
-    |                                 |         Default: 10 (seconds)                  |
+    |                                 |     * [O] wait_time - time to wait after       |
+    |                                 |           sending ARP to all interfaces.       |
+    |                                 |           Default: 10 (seconds)                |
     |---------------------------------+------------------------------------------------|
     | send_ns                         | Send NS to all interfaces from Ixia device.    |
     |                                 | Arguments:                                     |
-    |                                 |   * [O] wait_time - time to wait after sending |
-    |                                 |         NS packet to all interfaces from Ixia. |
-    |                                 |         Default: 10 (seconds)                  |
+    |                                 |     * [O] wait_time - time to wait after       |
+    |                                 |           sending NS packet to all interfaces  |
+    |                                 |           from Ixia.                           |
+    |                                 |           Default: 10 (seconds)                |
     |---------------------------------+------------------------------------------------|
     | start_traffic                   | Starts L2/L3 traffic on Ixia device.           |
     |                                 | Arguments:                                     |
-    |                                 |   * [O] wait_time - time to wait after starting|
-    |                                 |         L2/L3 traffic on Ixia.                 |
-    |                                 |         Default: 60 (seconds)                  |
+    |                                 |     * [O] wait_time - time to wait after       |
+    |                                 |           starting L2/L3 traffic on Ixia.      |
+    |                                 |           Default: 60 (seconds)                |
     |---------------------------------+------------------------------------------------|
     | stop_traffic                    | Stops L2/L3 traffic on Ixia device.            |
     |                                 | Arguments:                                     |
-    |                                 |   * [O] wait_time - time to wait after stopping|
-    |                                 |         L2/L3 traffic on Ixia.                 |
-    |                                 |         Default: 60 (seconds)                  |
+    |                                 |     * [O] wait_time - time to wait after       |
+    |                                 |           stopping L2/L3 traffic on Ixia.      |
+    |                                 |           Default: 60 (seconds)                |
     |---------------------------------+------------------------------------------------|
     | clear_statistics                | Clears L2/L3 traffic statistics on Ixia device.|
     |                                 | Arguments:                                     |
-    |                                 |   * [O] wait_time - time to wait after clearing|
-    |                                 |         protocol and traffic statistics on Ixia|
-    |                                 |         Default: 10 (seconds)                  |
+    |                                 |     * [O] wait_time - time to wait after       |
+    |                                 |           clearing protocol and traffic        |
+    |                                 |           statistics on Ixia.                  |
+    |                                 |           Default: 10 (seconds)                |
+    |---------------------------------+------------------------------------------------|
+    | create_genie_statistics_view    | Creates a custom statistics view on IxNetwork  |
+    |                                 | named "GENIE" with the required data fields    |
+    |                                 | needed for processors.                         |
+    |                                 | Arguments:                                     |
+    |                                 |     * [O] view_create_interval - time to wait  |
+    |                                 |           after creating custom view before    |
+    |                                 |           rechecking if it is populated and    |
+    |                                 |           visible.                             |
+    |                                 |           Default: 30 (seconds)                |
+    |                                 |     * [O] view_create_iteration - max number of|
+    |                                 |           iterations while checking if custom  |
+    |                                 |           view is populated and visible.       |
+    |                                 |           Default: 10.                         |
+    |                                 |     * [O] enable_tracking - flag to control the|
+    |                                 |           enabling of filter "Flow tracking"   |
+    |                                 |           per traffic stream.                  |
+    |                                 |           Default: True.                       |
+    |                                 |     * [O] enable_port_pair - flag to control   |
+    |                                 |           the enabling of filter               |
+    |                                 |           "Src/Dest Port Pair" per traffic     |
+    |                                 |           stream.                              |
+    |                                 |           Default: True.                       |
     |---------------------------------+------------------------------------------------|
     | check_traffic_loss              | Checks all traffic streams for traffic loss.   |
+    |                                 | For each traffic stream configured on Ixia:    |
+    |                                 |   1. Verify traffic outage (in seconds) is less|
+    |                                 |      than tolerance threshold value.           |
+    |                                 |   2. Verify current loss % is less than        |
+    |                                 |      tolerance threshold value.                |
+    |                                 |   3. Verify difference between Tx Rate & Rx    |
+    |                                 |      Rate is less than tolerance threshold.    |
     |                                 | Arguments:                                     |
-    |                                 |   * [O] max_outage - maximum outage expected   |
-    |                                 |         in packets/frames per second.          |
-    |                                 |         Default: 120 (seconds)                 |
-    |                                 |   * [O] loss_tolerance - maximum traffic loss  |
-    |                                 |         expected in percentage %.              |
-    |                                 |         Default: 10%.                          |
-    |                                 |   * [O] rate_tolerance - maximum difference    |
-    |                                 |         Tx Rate and Rx Rate expected.          |
-    |                                 |         Default: 5 (packets per second)        |
-    |                                 |   * [O] check_interval - wait time between     |
-    |                                 |         traffic loss checks on Ixia.           |
-    |                                 |         Default: 30 (seconds)                  |
-    |                                 |   * [O] check_iteration - max iterations for   |
-    |                                 |         traffic loss checks.                   |
-    |                                 |         Default: 10.                           |
-    |                                 |   * [O] traffic_stream - specific traffic item |
-    |                                 |         /stream to check traffic loss for.     |
+    |                                 |     * [O] traffic_streams - list of specific   |
+    |                                 |           traffic stream names to check traffic|
+    |                                 |           loss for.                            |
+    |                                 |     * [O] max_outage - maximum outage expected |
+    |                                 |           in packets/frames per second.        |
+    |                                 |           Default: 120 (seconds)               |
+    |                                 |     * [O] loss_tolerance - maximum traffic loss|
+    |                                 |           expected in percentage %.            |
+    |                                 |           Default: 15%.                        |
+    |                                 |     * [O] rate_tolerance - maximum difference  |
+    |                                 |           Tx Rate and Rx Rate expected.        |
+    |                                 |           Default: 5 (packets per second)      |
+    |                                 |     * [O] check_interval - wait time between   |
+    |                                 |           traffic loss checks on Ixia.         |
+    |                                 |           Default: 30 (seconds)                |
+    |                                 |     * [O] check_iteration - max iterations for |
+    |                                 |           traffic loss checks.                 |
+    |                                 |           Default: 10.                         |
+    |                                 |     * [O] outage_dict - user provided Python   |
+    |                                 |           dictionary containing traffic stream |
+    |                                 |           specific max_outage, loss_tolerance  |
+    |                                 |           and rate_tolerance values for checks.|
+    |                                 |           Default: {}                          |
     |---------------------------------+------------------------------------------------|
     | create_traffic_streams_table    | Creates and returns a table containing traffic |
     |                                 | statistics for all traffic items/streams that  |
@@ -237,25 +279,59 @@ an Ixia traffic generator device:
     |                                 |           for checking if custom traffic items |
     |                                 |           view is ready. Default: 10.          |
     |---------------------------------+------------------------------------------------|
-    | compare_traffic_profile         | Compare two traffic generator traffic profile  |
-    |                                 | statistics tables in Python PrettyTable format.|
+    | compare_traffic_profile         | Compares values between two Ixia traffic table |
+    |                                 | statistics created from custom IxNetwork view  |
     |                                 | Arguments:                                     |
-    |                                 |     * [M] profile1 - traffic table to compare  |
-    |                                 |     * [M] profile2 - traffic table to compare  |
+    |                                 |     * [M] profile1 - 1st Ixia traffic profile  |
+    |                                 |     * [M] profile2 - 2nd Ixia traffic profile  |
     |                                 |     * [O] loss_tolerance - maximum expected    |
     |                                 |           difference between loss % statistics |
-    |                                 |           between both traffic tables.         |
+    |                                 |           between both Ixia traffic profiles.  |
     |                                 |           Default: 5%                          |
     |                                 |     * [O] rate_tolerance - maximum expected    |
     |                                 |           difference of Tx Rate & Rx Rate      |
-    |                                 |           between both traffic tables.         |
+    |                                 |           between both Ixia traffic profiles.  |
     |                                 |           Default: 2 (packets per second)      |
+    |----------------------------------------------------------------------------------|
+    |                               Traffic                                            |
+    |---------------------------------+------------------------------------------------|
+    | get_traffic_attribute           | Returns the value of the specified traffic     |
+    |                                 | configuration attribute.                       |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] attribute - traffic configuration    |
+    |                                 |           attribute to retrieve value of.      |
+    |                                 |           Sample attributes are:               |
+    |                                 |           - 'state'                            |
+    |                                 |           - 'isApplicationTrafficRunning'      |
+    |                                 |           - 'isTrafficRunning'                 |
+    |---------------------------------+------------------------------------------------|
+    |get_traffic_items_from_genie_view| Returns list of all traffic items from within  |
+    |                                 | the custome created IxNetwork view "GENIE"     |
+    |                                 | Arguments:                                     |
+    |                                 |     None                                       |
+    |---------------------------------+------------------------------------------------|
+    | enable_flow_tracking_filter     | Enable specific flow tracking filter for all   |
+    |                                 | the configured traffic streams.                |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] tracking_filter - name of the Ixia   |
+    |                                 |           tracking filter to enable for the    |
+    |                                 |           configured traffic streams.          |
     |---------------------------------+------------------------------------------------|
     | get_golden_profile              | Returns the "golden" traffic profile in Python |
     |                                 | PrettyTable format. If not set, returns empty  |
     |                                 | table.                                         |
     |---------------------------------+------------------------------------------------|
-    | set_ixia_virtual_ports          | Set virtual Ixia ports for this configuration  |
+    |                             Virtual Ports                                        |
+    |---------------------------------+------------------------------------------------|
+    | assign_ixia_ports               | Assign physical Ixia ports from the loaded     |
+    |                                 | configuration to corresponding virtual ports.  |
+    |                                 | Arguments:                                     |
+    |                                 |     * [O] wait_time - Time to wait after       |
+    |                                 |           assigning physical Ixia ports to the |
+    |                                 |           corresponding virtual ports.         |
+    |---------------------------------+------------------------------------------------|
+    | set_ixia_virtual_ports          | Set virtual Ixia ports to the IxiaNative object|
+    |                                 | for the given configuration.                   |
     |                                 | Arguments:                                     |
     |                                 |     None                                       |
     |---------------------------------+------------------------------------------------|
@@ -269,36 +345,15 @@ an Ixia traffic generator device:
     |                                 |     * [M] vport - virtual Ixia port for config |
     |                                 |     * [M] attribute - attribute of the virtual |
     |                                 |           to return to the caller.             |
-    |---------------------------------+------------------------------------------------|
-    | get_traffic_streams             | Get list of all traffic streams configured on  |
-    |                                 | Ixia device from "Traffic Item Statisics" view |
-    |                                 | Arguments:                                     |
-    |                                 |     None                                       |
-    |---------------------------------+------------------------------------------------|
-    | get_traffic_stream_data         | Get specific data field for specific traffic   |
-    |                                 | stream from "Traffic Item Statistics" view.    |
-    |                                 | Arguments:                                     |
-    |                                 |     * [M] traffic_stream - the traffic item    |
-    |                                 |           or stream to extract statistic from  |
-    |                                 |     * [M] traffic_data_field - traffic,        |
-    |                                 |           statistic field (ex: Tx Frame Rate)  |
-    |                                 |           to get of the traffic item.          |
-    |---------------------------------+------------------------------------------------|
-    | set_traffic_stream_data         | Set specific configuration for a traffic stream|
-    |                                 | Arguments:                                     |
-    |                                 |     * [M] traffic_stream - the traffic item or |
-    |                                 |           stream to configure with value.      |
-    |                                 |     * [M] config_field - traffic field to      |
-    |                                 |           configure for the given stream.      |
-    |                                 |     * [M] config_value - value to configure the|
-    |                                 |           traffic_stream config_field to.      |
+    |----------------------------------------------------------------------------------|
+    |                              Packet Capture (PCAP)                               |
     |---------------------------------+------------------------------------------------|
     | get_ixia_virtual_port_capture   | Get virtual port object for given port to use  |
     |                                 | in enabling packet capture.                    |
     |                                 | Arguments:                                     |
     |                                 |     * [M] port_name - port on which packet     |
     |                                 |           capture will be enabled.             |
-    |---------------------------------+------------------------------------------------|
+    |----------------------------------------------------------------------------------|
     | enable_data_packet_capture      | Enable data packet capture on ports specified. |
     |                                 | Arguments:                                     |
     |                                 |     * [M] ports - list of ports to enable data |
@@ -368,7 +423,34 @@ an Ixia traffic generator device:
     |                                 |     * [M] dest_file - location to copy the     |
     |                                 |           packet capture file outside the      |
     |                                 |           IxNetwork API server.                |
+    |----------------------------------------------------------------------------------|
+    |                              Traffic Item (Stream)                               |
+    |----------------------------------------------------------------------------------|
+    | get_traffic_stream_names        | Returns a list of all traffic stream names     |
+    |                                 | present in current Ixia configuration.         |
+    |                                 | Arguments:                                     |
+    |                                 |     None                                       |
+    |----------------------------------------------------------------------------------|
+    | get_traffic_stream_objects      | Returns a list of all traffic stream IxNetwork |
+    |                                 | objects present in current Ixia configuration. |
+    |                                 | Arguments:                                     |
+    |                                 |     None                                       |
+    |----------------------------------------------------------------------------------|
+    | find_traffic_stream_object      | Returns the corresponding traffic stream object|
+    |                                 | for the given traffic stream name.             |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic_stream - traffic stream name |
+    |                                 |           to find the corresponding ::ixNet::  |
+    |                                 |           traffic stream object.               |
     |---------------------------------+------------------------------------------------|
+    | get_traffic_stream_attribute    | Returns the specified attribute of the given   |
+    |                                 | traffic stream.                                |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic_stream - traffic stream name |
+    |                                 |           for which to get specified attribute.|
+    |                                 |     * [M] attribute - attribute to return of   |
+    |                                 |           given traffic stream.                |
+    |----------------------------------------------------------------------------------|
     | start_traffic_stream            | Start specific traffic item/stream name on Ixia|
     |                                 | Arguments:                                     |
     |                                 |     * [M] traffic_stream - traffic stream/item |
@@ -387,48 +469,183 @@ an Ixia traffic generator device:
     |                                 |           Rate is 0 pps.                       |
     |                                 |           Default: 15 (seconds)                |
     |---------------------------------+------------------------------------------------|
-    | get_traffc_stream_object        | Finds IxNetwork traffic item object from given |
-    |                                 | traffic stream name.                           |
-    |                                 | Arguments:                                     |
-    |                                 |     * [M] traffic_stream - configured traffic  |
-    |                                 |           stream name to get IxNetwork object. |
-    |---------------------------------+------------------------------------------------|
-    | get_traffic_stream_name         | Returns the configured traffic stream name for |
-    |                                 | the given IxNetwork traffic item object.       |
-    |                                 | Arguments:                                     |
-    |                                 |     * [M] traffic_item - IxNetwork traffic item|
-    |                                 |           object for which to get configured   |
-    |                                 |           traffic stream name.                 |
-    |---------------------------------+------------------------------------------------|
-    | get_flow_groups                 | Returns a list of all flow groups for a given  |
-    |                                 | traffic stream on Ixia.                        |
-    |                                 | Arguments:                                     |
-    |                                 |     * [M] traffic_stream - traffic stream of   |
-    |                                 |           which to get all the flow groups.    |
-    |---------------------------------+------------------------------------------------|
-    | get_flow_group_object           | Finds IxNetwork flow group object from given   |
-    |                                 | flow group name.                               |
-    |                                 | Arguments:                                     |
-    |                                 |     * [M] flow_group - configured flow group   |
-    |                                 |           name to get the IxNetwork object.    |
-    |---------------------------------+------------------------------------------------|
-    | get_flow_group_name             | Returns the configured flow group name for the |
-    |                                 | given IxNetwork flow group object.             |
-    |                                 | Arguments:                                     |
-    |                                 |     * [M] flow_group - IxNetwork flow group    |
-    |                                 |           object for which to get the          |
-    |                                 |           configured traffic stream name.      |
-    |---------------------------------+------------------------------------------------|
-    | generate_traffic_stream         | Generates L2/L3 traffic for specific traffic   |
-    |                                 | item/stream on Ixia.                           |
+    | generate_traffic_stream         | Generates L2/L3 traffic for specified traffic  |
+    |                                 | stream on Ixia.                                |
     |                                 | Arguments:                                     |
     |                                 |     * [M] traffic_stream - traffic stream to   |
-    |                                 |           generate L2/L3 traffic for.          |
+    |                                 |           generate traffic for after config has|
+    |                                 |           changed on Ixia.                     |
     |                                 |     * [O] wait_time - time to wait after       |
     |                                 |           generating L2/L3 traffic for the     |
     |                                 |           given traffic stream.                |
     |                                 |           Default: 15 (seconds)                |
+    |----------------------------------------------------------------------------------|
+    |                             Traffic Item Statistics                              |
+    |----------------------------------------------------------------------------------|
+    |get_traffic_items_statistics_data| Get value of specified Traffic Items Statistics|
+    |                                 | IxNetwork column data for the given traffic    |
+    |                                 | stream.                                        |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic_stream - name of the traffic |
+    |                                 |            stream to get data for.             |
+    |                                 |     * [M] traffic_data_field - column name from|
+    |                                 |           "Traffic Item Statistics" IxNetwork  |
+    |                                 |           view to get the data of.             |
+    |----------------------------------------------------------------------------------|
+    |                              Flow Groups                                         |
+    |----------------------------------------------------------------------------------|
+    | get_flow_group_names            | 'Returns a list of names of all the flow groups|
+    |                                 | present for the given traffic stream in current|
+    |                                 | configuration.                                 |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic_stream  - flow group parent  |
+    |                                 |           traffic stream name.                 |
     |---------------------------------+------------------------------------------------|
+    | get_flow_group_objects          | Returns a list of flow group objects for the   |
+    |                                 | given traffic stream present in current        |
+    |                                 | configuration.                                 |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic_stream  - flow group parent  |
+    |                                 |           traffic stream name.                 |
+    |---------------------------------+------------------------------------------------|
+    | find_flow_group_object          | Finds the corresponding flow group object when |
+    |                                 | for the given the flow group name and traffic  |
+    |                                 | stream name.                                   |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic_stream  - flow group parent  |
+    |                                 |           traffic stream name.                 |
+    |                                 |     * [M] flow_group - flow group name to find |
+    |                                 |           the corresponding ::ixNet:: object.  |
+    |---------------------------------+------------------------------------------------|
+    | start_flow_group                | Start traffic on given flow group of traffic   |
+    |                                 | stream on Ixia.                                |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic_stream  - flow group parent  |
+    |                                 |           traffic stream name.                 |
+    |                                 |     * [M] flow_group - flow group to start     |
+    |                                 |           traffic on.                          |
+    |                                 |     * [O] wait_time - time to wait after       |
+    |                                 |           starting traffic on flow group.      |
+    |                                 |           Default: 15 (seconds)                |
+    |---------------------------------+------------------------------------------------|
+    | stop_flow_group                 | Stop traffic on given flow group of traffic    |
+    |                                 | stream on Ixia.                                |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic_stream  - flow group parent  |
+    |                                 |           traffic stream name.                 |
+    |                                 |     * [M] flow_group - flow group to start     |
+    |                                 |           traffic on.                          |
+    |                                 |     * [O] wait_time - time to wait after       |
+    |                                 |           stopping traffic on flow group.      |
+    |                                 |           Default: 15 (seconds)                |
+    |----------------------------------------------------------------------------------|
+    |                               Quick Flow Groups                                  |
+    |----------------------------------------------------------------------------------|
+    | get_quick_flow_group_names      | Returns a list of names of all the Quick Flow  |
+    |                                 | Groups present in current configuration.       |
+    |                                 | Arguments:                                     |
+    |                                 |     None                                       |
+    |---------------------------------+------------------------------------------------|
+    | get_quick_flow_group_objects    | Returns a list of all the Quick Flow Group     |
+    |                                 | IxNetwork objects in current configuration.    |
+    |                                 | Arguments:                                     |
+    |                                 |     None                                       |
+    |---------------------------------+------------------------------------------------|
+    | find_quick_flow_group_object    | Finds the Quick Flow Group object when given   |
+    |                                 | the Quick Flow Group name.                     |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] quick_flow_group - quick flow qroup  |
+    |                                 |           name to find the corresponding       |
+    |                                 |           ::ixNet:: object.                    |
+    |---------------------------------+------------------------------------------------|
+    | get_quick_flow_group_attribute  | Returns the specified attribute for the given  |
+    |                                 | Quick Flow Group.                              |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] quick_flow_group - quick flow group  |
+    |                                 |           name to get attributes of.           |
+    |                                 |     * [M] attribute - attribute of the quick   |
+    |                                 |           flow group to retrieve.              |
+    |---------------------------------+------------------------------------------------|
+    | start_quick_flow_group          | Start traffic for given Quick Flow Group on    |
+    |                                 | on Ixia.                                       |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] quick_flow_group - quick flow group  |
+    |                                 |           to start traffic on.                 |
+    |                                 |     * [O] wait_time - time to wait after       |
+    |                                 |           starting traffic on quick flow group.|
+    |                                 |           Default: 15 (seconds)                |
+    |---------------------------------+------------------------------------------------|
+    | stop_quick_flow_group           | Stop traffic for given Quick Flow Group on     |
+    |                                 | on Ixia.                                       |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] quick_flow_group - quick flow group  |
+    |                                 |           to stop traffic on.                  |
+    |                                 |     * [O] wait_time - time to wait after       |
+    |                                 |           stopping traffic on quick flow group.|
+    |                                 |           Default: 15 (seconds)                |
+    |----------------------------------------------------------------------------------|
+    |                       Flow Statistics Data                                       |
+    |----------------------------------------------------------------------------------|
+    | get_flow_statistics_data        | Get value of given field for the given traffic |
+    |                                 | stream from the  "Flow Statistics" tab/view.   |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic stream - traffic stream to   |
+    |                                 |           get the data of.                     |
+    |                                 |     * [M] flow_data_filed - field/column under |
+    |                                 |           "Flow Statistics" view to get the    |
+    |                                 |           value of.                            |
+    |---------------------------------+------------------------------------------------|
+    | find_flow_statistics_page_obj   | Find "Flow Statistics" tab/view page object    |
+    |                                 | Arguments:                                     |
+    |                                 |     None                                       |
+    |---------------------------------+------------------------------------------------|
+    |save_flow_statistics_snapshot_csv| Save the data from all the rows/pages of Ixia  |
+    |                                 | "Flow Statistics" view/tab as CSV snapshot file|
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] csv_windows_path - location to save  |
+    |                                 |           the CSV snapshot generated on Ixia   |
+    |                                 |           windows API server.                  |
+    |                                 |     * [M] csv_file_name - name of the CSV      |
+    |                                 |           snapshot file to save data into.     |
+    |---------------------------------+------------------------------------------------|
+    | check_flow_groups_loss          | Checks traffic loss for all flow groups that   |
+    |                                 | are configured on Ixia using data from the     |
+    |                                 | 'Flow Statistics' tab/view.                    |
+    |                                 | For each flow group configured on Ixia:        |
+    |                                 |   1. Verify traffic outage (in seconds) is less|
+    |                                 |      than tolerance threshold value.           |
+    |                                 |   2. Verify current loss % is less than        |
+    |                                 |      tolerance threshold value.                |
+    |                                 |   3. Verify difference between Tx Rate & Rx    |
+    |                                 |      Rate is less than tolerance threshold.    |
+    |                                 | Arguments:                                     |
+    |                                 |     * [O] traffic_streams - list of specific   |
+    |                                 |           traffic stream names to check traffic|
+    |                                 |           loss for.                            |
+    |                                 |     * [O] max_outage - maximum outage expected |
+    |                                 |           in packets/frames per second.        |
+    |                                 |           Default: 120 (seconds)               |
+    |                                 |     * [O] loss_tolerance - maximum traffic loss|
+    |                                 |           expected in percentage %.            |
+    |                                 |           Default: 15%.                        |
+    |                                 |     * [O] rate_tolerance - maximum difference  |
+    |                                 |           Tx Rate and Rx Rate expected.        |
+    |                                 |           Default: 5 (packets per second)      |
+    |                                 |     * [O] csv_windows_path - location to save  |
+    |                                 |           the CSV snapshot generated on Ixia   |
+    |                                 |           windows API server.                  |
+    |                                 |     * [O] csv_file_name - name of the CSV      |
+    |                                 |           snapshot file to save data into.     |
+    |                                 |     * [O] verbose - enable/disable printing of |
+    |                                 |           outage verified for each flow group  |
+    |---------------------------------+------------------------------------------------|
+    | get_flow_statistics_table       | Returns the last "Flow Statistics" table that  |
+    |                                 | was created using CSV snapshot data.           |
+    |                                 | Arguments:                                     |
+    |                                 |     None                                       |
+    |----------------------------------------------------------------------------------|
+    |                       Line / Packet / Layer2-bit Rate                            |
+    |----------------------------------------------------------------------------------|
     | set_line_rate                   | Set the line rate for given traffic stream or  |
     |                                 | given flow group of a traffic stream on Ixia.  |
     |                                 | Arguments:                                     |
@@ -436,7 +653,7 @@ an Ixia traffic generator device:
     |                                 |           to modify the line rate.             |
     |                                 |     * [M] rate - New value to set/configure the|
     |                                 |           line rate to.                        |
-    |                                 |     * [O] flow_group - flow group under given  |
+    |                                 |     * [O] flow_group - flow group of given     |
     |                                 |           traffic stream to set line rate for. |
     |                                 |           Default: Empty                       |
     |                                 |     * [O] stop_traffic_time - time to wait     |
@@ -451,6 +668,10 @@ an Ixia traffic generator device:
     |                                 |           after applying traffic for setting   |
     |                                 |           line rate for given traffic stream.  |
     |                                 |           Default: 15 (seconds)                |
+    |                                 |     * [O] start_traffic - enable/disable       |
+    |                                 |           starting traffic on Ixia after       |
+    |                                 |           setting the line rate.               |
+    |                                 |           Default: True                        |
     |                                 |     * [O] start_traffic_time - time to wait    |
     |                                 |           after starting traffic for setting   |
     |                                 |           line rate for given traffic stream.  |
@@ -463,7 +684,7 @@ an Ixia traffic generator device:
     |                                 |           to modify the packet rate.           |
     |                                 |     * [M] rate - New value to set/configure the|
     |                                 |           packet rate to.                      |
-    |                                 |     * [O] flow_group - flow group under given  |
+    |                                 |     * [O] flow_group - flow group of given     |
     |                                 |           traffic stream to set packet rate for|
     |                                 |           Default: Empty                       |
     |                                 |     * [O] stop_traffic_time - time to wait     |
@@ -478,6 +699,10 @@ an Ixia traffic generator device:
     |                                 |           after applying traffic for setting   |
     |                                 |           packet rate for given traffic stream.|
     |                                 |           Default: 15 (seconds)                |
+    |                                 |     * [O] start_traffic - enable/disable       |
+    |                                 |           starting traffic on Ixia after       |
+    |                                 |           setting the line rate.               |
+    |                                 |           Default: True                        |
     |                                 |     * [O] start_traffic_time - time to wait    |
     |                                 |           after starting traffic for setting   |
     |                                 |           packet rate for given traffic stream.|
@@ -499,7 +724,7 @@ an Ixia traffic generator device:
     |                                 |                          - Bps                 |
     |                                 |                          - KBps                |
     |                                 |                          - MBps                |
-    |                                 |     * [O] flow_group - flow group under given  |
+    |                                 |     * [O] flow_group - flow group of given     |
     |                                 |           traffic stream to set layer2 bit rate|
     |                                 |           Default: Empty                       |
     |                                 |     * [O] stop_traffic_time - time to wait     |
@@ -517,11 +742,162 @@ an Ixia traffic generator device:
     |                                 |           layer2 bit rate for given traffic    |
     |                                 |           stream.                              |
     |                                 |           Default: 15 (seconds)                |
+    |                                 |     * [O] start_traffic - enable/disable       |
+    |                                 |           starting traffic on Ixia after       |
+    |                                 |           setting the line rate.               |
+    |                                 |           Default: True                        |
     |                                 |     * [O] start_traffic_time - time to wait    |
     |                                 |           after starting traffic for setting   |
     |                                 |           layer2 bit rate for given traffic    |
     |                                 |           stream.                              |
     |                                 |           Default: 15 (seconds)                |
+    |---------------------------------+------------------------------------------------|
+    | set_packet_size_fixed           | Set the packet size for given traffic stream   |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic_stream - traffic stream name |
+    |                                 |           to modify the packet size.           |
+    |                                 |     * [M] packet_size - New value to set/config|
+    |                                 |           the packet size to.                  |
+    |                                 |     * [O] stop_traffic_time - time to wait     |
+    |                                 |           after stopping traffic for setting   |
+    |                                 |           layer2 bit rate for given traffic    |
+    |                                 |           stream.                              |
+    |                                 |           Default: 15 (seconds)                |
+    |                                 |     * [O] generate_traffic_time - time to wait |
+    |                                 |           after generating traffic for setting |
+    |                                 |           layer2 bit rate for given traffic    |
+    |                                 |           stream.                              |
+    |                                 |           Default: 15 (seconds)                |
+    |                                 |     * [O] apply_traffic_time - time to wait    |
+    |                                 |           after applying traffic for setting   |
+    |                                 |           layer2 bit rate for given traffic    |
+    |                                 |           stream.                              |
+    |                                 |           Default: 15 (seconds)                |
+    |                                 |     * [O] start_traffic - enable/disable       |
+    |                                 |           starting traffic on Ixia after       |
+    |                                 |           setting the line rate.               |
+    |                                 |           Default: True                        |
+    |                                 |     * [O] start_traffic_time - time to wait    |
+    |                                 |           after starting traffic for setting   |
+    |                                 |           layer2 bit rate for given traffic    |
+    |                                 |           stream.                              |
+    |                                 |           Default: 15 (seconds)                |
+    |---------------------------------+------------------------------------------------|
+    | get_line_rate                   | Returns the currently configured line rate for |
+    |                                 | the traffic stream or flow group provided.     |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic_stream - traffic stream name |
+    |                                 |           to get the line rate of.             |
+    |                                 |     * [O] flow_group - flow group of given     |
+    |                                 |           traffic stream to get line rate of.  |
+    |                                 |           Default: Empty                       |
+    |---------------------------------+------------------------------------------------|
+    | get_packet_rate                 | Returns the currently configured packet rate   |
+    |                                 | for the traffic stream or flow group provided. |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic_stream - traffic stream name |
+    |                                 |           to get the packet rate of.           |
+    |                                 |     * [O] flow_group - flow group of given     |
+    |                                 |           traffic stream to get packet rate of.|
+    |                                 |           Default: Empty                       |
+    |---------------------------------+------------------------------------------------|
+    | get_layer2_bit_rate             | Returns the currently configured layer2 bit    |
+    |                                 | rate for the traffic stream or flow group      |
+    |                                 | provided.                                      |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic_stream - traffic stream name |
+    |                                 |           to get the layer2 bit rate of.       |
+    |                                 |     * [O] flow_group - flow group of given     |
+    |                                 |           traffic stream to get layer2 bit rate|
+    |                                 |           Default: Empty                       |
+    |---------------------------------+------------------------------------------------|
+    | get_packet_size                 | Returns the currently configured packet size   |
+    |                                 | for the traffic stream provided.               |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic_stream - traffic stream name |
+    |                                 |           to get the packet size of.           |
+    |----------------------------------------------------------------------------------|
+    |                              QuickTest                                           |
+    |----------------------------------------------------------------------------------|
+    | find_quicktest_object           | Finds and returns the QuickTest object for the |
+    |                                 | specified Quicktest using the name.            |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] quicktest - Quicktest name to find   |
+    |                                 |           the corresponding ::ixNet:: object   |
+    |                                 |           Valid QuickTest name options:        |
+    |                                 |             - rfc2544frameLoss                 |
+    |                                 |             - rfc2544throughput                |
+    |                                 |             - rfc2544back2back                 |
+    |---------------------------------+------------------------------------------------|
+    | get_quicktest_results_attribute | Returns the value of the specified Quicktest   |
+    |                                 | results object attribute.                      |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] quicktest - Quicktest name to find   |
+    |                                 |           the corresponding ::ixNet:: object   |
+    |                                 |     * [M] attribute - Quicktest results        |
+    |                                 |           attribute to retrieve value of.      |
+    |                                 |           Valid attributes are:                |
+    |                                 |           - 'isRunning'                        |
+    |                                 |           - 'status'                           |
+    |                                 |           - 'progress'                         |
+    |                                 |           - 'result'                           |
+    |                                 |           - 'resultPath'                       |
+    |                                 |           - 'startTime'                        |
+    |                                 |           - 'duration'                         |
+    |---------------------------------+------------------------------------------------|
+    | load_quicktest_configuration    | Load QuickTest configuration file on Ixia.     |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] configuration - Absolute path to the |
+    |                                 |           QuickTest configuration file to load |
+    |                                 |           on Ixia.                             |
+    |                                 |     * [O] wait_time - time to wait after       |
+    |                                 |           loading Quicktest configuration on   |
+    |                                 |           Ixia.                                |
+    |                                 |           Default: 30 (seconds)                |
+    |---------------------------------+------------------------------------------------|
+    | execute_quicktest               | Execute specific RFC QuickTest after loading   |
+    |                                 | configuration file for it.                     |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] quicktest - Quicktest name to find   |
+    |                                 |           the corresponding ::ixNet:: object   |
+    |                                 |     * [O] apply_wait - time to wait after      |
+    |                                 |           applying quicktest configuration file|
+    |                                 |           Default: 60 (seconds)                |
+    |                                 |     * [O] exec_wait - maximum time during which|
+    |                                 |           Quicktest should have completed its  |
+    |                                 |           execution.                           |
+    |                                 |           Default: 1800 (seconds)              |
+    |                                 |     * [O] exec_interval - time to wait while   |
+    |                                 |           polling to check if Quicktest        |
+    |                                 |           execution has completed.             |
+    |                                 |           Default: 300 (seconds)               |
+    |                                 |     * [O] save_location - default location to  |
+    |                                 |           Quicktest PDF report to on Ixia      |
+    |                                 |           windows API server.                  |
+    |                                 |           Default: C:\\Users\\                 |
+    |---------------------------------+------------------------------------------------|
+    |generate_export_quicktest_report | Generate QuickTest PDF report and export the   |
+    |                                 | file to directory and filename specified.      |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] quicktest - Quicktest name to find   |
+    |                                 |           the corresponding ::ixNet:: object   |
+    |                                 |     * [O] report_wait - max time to wait for   |
+    |                                 |           PDF report generation to complete.   |
+    |                                 |           Default: 300 (seconds)               |
+    |                                 |     * [O] report_interval - time to wait while |
+    |                                 |           polling to check if PDF report has   |
+    |                                 |           been generated.                      |
+    |                                 |           Default: 60 (seconds)                |
+    |                                 |     * [O] export - enable/disable exporting the|
+    |                                 |           PDF results report generated after   |
+    |                                 |           executing Quicktest.                 |
+    |                                 |           Default: True                        |
+    |                                 |     * [O] dest_dir - directory to copy the PDF |
+    |                                 |           results report to.                   |
+    |                                 |           Default: Genie Harness runtime dir   |
+    |                                 |     * [O] dest_file - filename to copy the PDF |
+    |                                 |           results report as.                   |
+    |                                 |           Default: TestReport.pdf              |
     +==================================================================================+
 
 The methods listed above can be executed directly on an Ixia traffic generator

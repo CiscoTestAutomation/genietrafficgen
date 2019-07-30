@@ -1,5 +1,5 @@
 June 2019
-========
+=========
 
 June 24th
 ---------
@@ -30,7 +30,6 @@ Features:
 * Configure layer2 bit rate per traffic stream
 * Configure line rate per flow group
 * Configure line rate per traffic stream
-* Bugfix pull multi-page stats for custom "GENIE" view
 * Check traffic loss per flow group
 * Start/stop traffic per flow group
 * Start/stop traffic per Quick Flow Group
