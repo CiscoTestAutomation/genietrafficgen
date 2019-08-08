@@ -4,7 +4,7 @@ Ixia Native
 ===========
 
 ``Genie`` can connect to Ixia traffic generator devices that are running
-IxNetwork API server versions 7.40 or higher. Refer to the user guide below for
+IxNetwork API server versions 7.50 or higher. Refer to the user guide below for
 detailed information on using ``Genie`` to control Ixia using the public PyPI
 Package IxNetwork.
 
@@ -13,8 +13,8 @@ System Requirements
 -------------------
 
 1. Ixia chassis with ports and active Ixia licenses
-2. IxNetwork API server version 7.40 or higher (running standalone or within Ixia chassis)
-3. Installed :ixnetwork_pypi:`ixnetwork<http>` PyPI package (version 8.50.1501.9+)
+2. IxNetwork API server version 7.50 or higher (running standalone or within Ixia chassis)
+3. Installed :ixnetwork_pypi:`ixnetwork<http>` PyPI package (version 8.50.1501.9 or higher)
 
 Ixia Libraries
 ^^^^^^^^^^^^^^

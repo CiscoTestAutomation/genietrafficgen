@@ -4,8 +4,8 @@ ixnetwork Python package to interact with Ixia device:
 https://pypi.org/project/ixnetwork/
 
 Requirements:
-    * IxOS/IxVM 7.40 or higher
-    * IxNetork EA version 7.40 or higher
+    * IxOS/IxVM 7.50 or higher
+    * IxNetork EA version 7.50 or higher
 '''
 
 # Python
@@ -57,6 +57,7 @@ class IxiaNative(TrafficGen):
         self._genie_page = None
         self._golden_profile = PrettyTable()
         self._flow_statistics_table = PrettyTable()
+        self._traffic_statistics_table = PrettyTable()
         # Valid QuickTests (to be expanded as tests have been validated)
         self.valid_quicktests = ['rfc2544frameLoss',
                                  'rfc2544throughput',
@@ -440,11 +441,13 @@ class IxiaNative(TrafficGen):
 
         # Check if traffic is in 'started' state
         log.info("Checking if traffic is in 'started' state...")
+        current_state = self.get_traffic_attribute(attribute='state')
         try:
-            assert self.get_traffic_attribute(attribute='state') == 'started'
+            assert current_state == 'started'
         except AssertionError as e:
             log.error(e)
-            raise GenieTgnError("Traffic is not in 'started' state")
+            raise GenieTgnError("Traffic is not in 'started' state - traffic "
+                                "state is '{}'".format(current_state))
         else:
             log.info("Traffic is in 'started' state")
 
@@ -488,11 +491,13 @@ class IxiaNative(TrafficGen):
 
         # Check if traffic is in 'stopped' state
         log.info("Checking if traffic is in 'stopped' state...")
+        current_state = self.get_traffic_attribute(attribute='state')
         try:
-            assert self.get_traffic_attribute(attribute='state') == 'stopped'
+            assert current_state == 'stopped'
         except AssertionError as e:
             log.error(e)
-            raise GenieTgnError("Traffic is not in 'stopped' state")
+            raise GenieTgnError("Traffic is not in 'stopped' state - traffic "
+                                "state is '{}'".format(current_state))
         else:
             log.info("Traffic is in 'stopped' state")
 
@@ -747,13 +752,13 @@ class IxiaNative(TrafficGen):
                 # Determine outage values for this traffic stream
                 if outage_dict and 'traffic_streams' in outage_dict and \
                     stream in outage_dict['traffic_streams']:
-                    outage=outage_dict['traffic_streams'][stream]['max_outage']
-                    loss=outage_dict['traffic_streams'][stream]['loss_tolerance']
-                    rate=outage_dict['traffic_streams'][stream]['rate_tolerance']
+                    given_max_outage=outage_dict['traffic_streams'][stream]['max_outage']
+                    given_loss_tolerance=outage_dict['traffic_streams'][stream]['loss_tolerance']
+                    given_rate_tolerance=outage_dict['traffic_streams'][stream]['rate_tolerance']
                 else:
-                    outage=max_outage
-                    loss=loss_tolerance
-                    rate=rate_tolerance
+                    given_max_outage=max_outage
+                    given_loss_tolerance=loss_tolerance
+                    given_rate_tolerance=rate_tolerance
 
                 # --------------
                 # BEGIN CHECKING
@@ -763,54 +768,54 @@ class IxiaNative(TrafficGen):
 
                 # 1- Verify traffic Outage (in seconds) is less than tolerance threshold
                 log.info("1. Verify traffic outage (in seconds) is less than "
-                         "tolerance threshold of '{}' seconds".format(max_outage))
-                outage = row.get_string(fields=["Outage (seconds)"]).strip()
-                if float(outage) <= float(max_outage):
-                    log.info("* Traffic outage of '{o}' seconds is within "
-                             "expected maximum outage threshold of '{s}' seconds".\
-                             format(o=outage, s=max_outage))
+                         "tolerance threshold of '{}' seconds".format(given_max_outage))
+                current_outage = row.get_string(fields=["Outage (seconds)"]).strip()
+                if float(current_outage) <= float(given_max_outage):
+                    log.info("* Traffic outage of '{c}' seconds is within "
+                             "expected maximum outage threshold of '{g}' seconds".\
+                             format(c=current_outage, g=given_max_outage))
                     outage_check = True
                 else:
                     outage_check = False
-                    log.error("* Traffic outage of '{o}' seconds is *NOT* within "
-                              "expected maximum outage threshold of '{s}' seconds".\
-                              format(o=outage, s=max_outage))
+                    log.error("* Traffic outage of '{c}' seconds is *NOT* within "
+                              "expected maximum outage threshold of '{g}' seconds".\
+                              format(c=current_outage, g=given_max_outage))
 
                 # 2- Verify current loss % is less than tolerance threshold
                 log.info("2. Verify current loss % is less than tolerance "
-                         "threshold of '{}' %".format(loss_tolerance))
+                         "threshold of '{}' %".format(given_loss_tolerance))
                 if row.get_string(fields=["Loss %"]).strip() != '':
-                    loss_percentage = row.get_string(fields=["Loss %"]).strip()
+                    current_loss_percentage = row.get_string(fields=["Loss %"]).strip()
                 else:
-                    loss_percentage = 0
-                if float(loss_percentage) <= float(loss_tolerance):
+                    current_loss_percentage = 0
+                if float(current_loss_percentage) <= float(given_loss_tolerance):
                     log.info("* Current traffic loss of {l}% is within"
-                             " maximum expected loss tolerance of {t}%".\
-                             format(t=loss_tolerance, l=loss_percentage))
+                             " maximum expected loss tolerance of {g}%".\
+                             format(l=current_loss_percentage, g=given_loss_tolerance))
                     loss_check = True
                 else:
                     loss_check = False
                     log.error("* Current traffic loss of {l}% is *NOT* within"
-                              " maximum expected loss tolerance of {t}%".\
-                              format(t=loss_tolerance, l=loss_percentage))
+                              " maximum expected loss tolerance of {g}%".\
+                              format(l=current_loss_percentage, g=given_loss_tolerance))
 
                 # 3- Verify difference between Tx Rate & Rx Rate is less than tolerance threshold
                 log.info("3. Verify difference between Tx Rate & Rx Rate is less "
-                         "than tolerance threshold of '{}' pps".format(rate_tolerance))
+                         "than tolerance threshold of '{}' pps".format(given_rate_tolerance))
                 tx_rate = row.get_string(fields=["Tx Frame Rate"]).strip()
                 rx_rate = row.get_string(fields=["Rx Frame Rate"]).strip()
-                if abs(float(tx_rate) - float(rx_rate)) <= float(rate_tolerance):
+                if abs(float(tx_rate) - float(rx_rate)) <= float(given_rate_tolerance):
                     log.info("* Difference between Tx Rate '{t}' and Rx Rate"
                              " '{r}' is within expected maximum rate loss"
-                             " threshold of '{m}' packets per second".\
-                             format(t=tx_rate, r=rx_rate, m=rate_tolerance))
+                             " threshold of '{g}' packets per second".\
+                             format(t=tx_rate, r=rx_rate, g=given_rate_tolerance))
                     rate_check = True
                 else:
                     rate_check = False
                     log.error("* Difference between Tx Rate '{t}' and Rx Rate"
                               " '{r}' is *NOT* within expected maximum rate loss"
-                              " threshold of '{m}' packets per second".\
-                              format(t=tx_rate, r=rx_rate, m=rate_tolerance))
+                              " threshold of '{g}' packets per second".\
+                              format(t=tx_rate, r=rx_rate, g=given_rate_tolerance))
 
                 # Set overall result
                 if outage_check and loss_check and rate_check:
@@ -827,7 +832,7 @@ class IxiaNative(TrafficGen):
                 break
             elif i == check_iteration or i == check_iteration-1:
                 # End of iterations, raise Exception and exit
-                raise GenieTgnError("\nUnexpected traffic outage/loss is observed")
+                raise GenieTgnError("Unexpected traffic outage/loss is observed")
             else:
                 # Traffic loss observed, sleep and recheck
                 log.error("\nTraffic loss/outage observed for streams:")
@@ -885,11 +890,17 @@ class IxiaNative(TrafficGen):
 
         # Increase page size for "GENIE" view to max size
         try:
-            self.ixNet.setAttribute(self._genie_page, '-pageSize', 2048)
+            build_number = self.ixNet.getAttribute('/globals', '-buildNumber')
+            if '7.40' in build_number or '7.50' in build_number:
+                max_pagesize = 200
+            else:
+                max_pagesize = 2048
+            self.ixNet.setAttribute(self._genie_page, '-pageSize', max_pagesize)
             self.ixNet.commit()
         except Exception as e:
             log.error(e)
-            raise GenieTgnError("Unable to set 'GENIE' view page size to max value")
+            raise GenieTgnError("Unable to set 'GENIE' view page size to max "
+                                "value of {}".format(max_pagesize))
 
         # Get total number of pages
         try:
@@ -1081,6 +1092,115 @@ class IxiaNative(TrafficGen):
             raise GenieTgnError("Comparison failed for traffic items between profiles")
         else:
             log.info("Comparison passed for all traffic items between profiles")
+
+
+    #--------------------------------------------------------------------------#
+    #                               Utils                                      #
+    #--------------------------------------------------------------------------#
+
+    @BaseConnection.locked
+    @isconnected
+    def save_statistics_snapshot_csv(self, view_name, csv_windows_path="C:\\Users\\", csv_file_name="Ixia_Statistics"):
+        ''' Save 'Flow Statistics' or 'Traffic Item Statistics' snapshot as a CSV '''
+
+        # Print message that this does not work for Ixia version <= 8.40
+        try:
+            build_number = self.ixNet.getAttribute('/globals', '-buildNumber')
+        except Exception as e:
+            raise GenieTgnError("Unable to get IxNetwork version number")
+        if '7.40' in build_number or '7.50' in build_number or '8.10' in build_number:
+            raise GenieTgnError("CSV snapshot functionality not supported on "
+                                "current Ixia version - {}".format(build_number))
+
+        # Check valid view name provided
+        try:
+            assert view_name in ['Flow Statistics', 'Traffic Item Statistics']
+        except AssertionError as e:
+            log.error(e)
+            raise GenieTgnError("Invalid view '{}' provided for CSV data dumping".\
+                                format(view_name))
+
+        log.info(banner("Save '{}' snapshot CSV".format(view_name)))
+
+        # Get 'Flow Statistics' view page object
+        if view_name == 'Flow Statistics':
+            page_obj = self.find_flow_statistics_page_obj()
+        elif view_name == 'Traffic Item Statistics':
+            page_obj = self.find_traffic_item_statistics_page_obj()
+
+        # Change page size to some high value so that we get all the stats on one page
+        max_pagesize = 2048
+        try:
+            self.ixNet.setAttribute(page_obj, '-pageSize', max_pagesize)
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to change pageSize to {p} for '{v}' "
+                                "view".format(p=max_pagesize, v=view_name))
+
+        # Enable CSV logging
+        log.info("Enable CSV logging on Ixia...")
+        try:
+            self.ixNet.setAttribute('::ixNet::OBJ-/statistics', '-enableCsvLogging', 'true')
+            self.ixNet.setAttribute('::ixNet::OBJ-/statistics', '-csvFilePath', csv_windows_path)
+            self.ixNet.setAttribute('::ixNet::OBJ-/statistics', '-pollInterval', 1)
+            self.ixNet.commit()
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Error while enabling CSV logging on Ixia")
+        else:
+            log.info("Successfully enabled CSV logging on Ixia")
+
+        # Get snapshot options
+        log.info("Get list of all snapshot options...")
+        try:
+            opts = self.ixNet.execute('GetDefaultSnapshotSettings')
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to get CSV snapshot options")
+        else:
+            log.info("Successfully retreived options available")
+
+        # Configure options settings
+        filePathToChange = 'Snapshot.View.Csv.Location: ' + csv_windows_path
+        opts[1] = filePathToChange
+        generatingModeToChange= 'Snapshot.View.Csv.GeneratingMode: "kOverwriteCSVFile"'
+        opts[2] = generatingModeToChange
+        fileNameToAppend = 'Snapshot.View.Csv.Name: ' + csv_file_name
+        opts.append(fileNameToAppend)
+
+        # Save snapshot to location provided
+        log.info("Save CSV snapshot of '{v}' view to '{path}\\{file}.csv'...".\
+                 format(v=view_name, path=csv_windows_path, file=csv_file_name))
+        try:
+            self.ixNet.execute('TakeViewCSVSnapshot', ["{}".format(view_name)], opts)
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to take CSV snapshot of '{}' view".\
+                                format(view_name))
+        else:
+            log.info("Successfully saved CSV snapshot of '{}' view to:".format(view_name))
+            log.info("{path}\\{file}".format(path=csv_windows_path, file=csv_file_name))
+
+        # Set local and copy file paths
+        windows_stats_csv = csv_windows_path + '\\' + csv_file_name + '.csv'
+        stats_csv_file = "/tmp/" + csv_file_name + '.csv'
+
+        # Copy file to /tmp/
+        log.info("Copy '{v}' CSV to '{f}'".format(v=view_name, f=stats_csv_file))
+        try:
+            self.ixNet.execute('copyFile',
+                               self.ixNet.readFrom(windows_stats_csv, '-ixNetRelative'),
+                               self.ixNet.writeTo(stats_csv_file, '-overwrite'))
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to copy '{v}' CSV snapshot to '{f}'".\
+                                format(v=view_name, f=stats_csv_file))
+        else:
+            log.info("Successfully copied '{v}' CSV snapshot to '{f}'".\
+                     format(v=view_name, f=stats_csv_file))
+
+        # Return to caller
+        return stats_csv_file
 
 
     #--------------------------------------------------------------------------#
@@ -1870,6 +1990,82 @@ class IxiaNative(TrafficGen):
                                 format(data=traffic_data_field, stream=traffic_stream))
 
 
+    @BaseConnection.locked
+    @isconnected
+    def find_traffic_item_statistics_page_obj(self):
+        '''Returns the page object for "Traffic Item Statistics" view'''
+
+        # Get the page object
+        try:
+            return self.ixNet.getList('::ixNet::OBJ-/statistics/view:"Traffic Item Statistics"', 'page')[0]
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Error while finding 'Traffic Item Statistics' view page object")
+
+
+    @BaseConnection.locked
+    @isconnected
+    def get_traffic_item_statistics_table(self, traffic_stats_columns=None):
+        ''' Create table of "Traffic Item Statistics" view'''
+
+        # Init
+        traffic_items_table = PrettyTable()
+
+        # Save 'Traffic Item Statistics' view CSV snapshot
+        csv_file = self.save_statistics_snapshot_csv(view_name="Traffic Item Statistics")
+        # Convert CSV file into PrettyTable
+        all_traffic_item_data = from_csv(open(csv_file))
+
+        # Determine columns we want to print in the table
+        if not traffic_stats_columns:
+            traffic_items_table.field_names = ["Traffic Item",
+                                               "Tx Frames",
+                                               "Rx Frames",
+                                               "Frames Delta",
+                                               "Loss %",
+                                               "Tx Frame Rate",
+                                               "Rx Frame Rate",
+                                                ]
+        else:
+            # Make list
+            if not isinstance(traffic_stats_columns, list):
+                traffic_stats_columns = [traffic_stats_columns]
+            # Add "Traffic Items" default column
+            traffic_stats_columns.insert(0, "Traffic Item")
+            # Set fields
+            traffic_items_table.field_names = traffic_stats_columns
+
+        # Create a table with only the values we need
+        for row in all_traffic_item_data:
+
+            # Strip headers and borders and init
+            row.header = False ; row.border = False
+            table_values = []
+
+            # Get all the data for this row
+            for item in traffic_items_table.field_names:
+                table_values.append(row.get_string(fields=[item]).strip())
+
+            # Add data to the smaller table to display to user
+            traffic_items_table.add_row(table_values)
+
+        # Delete CSV snapshot file
+        try:
+            os.remove(csv_file)
+        except Exception as e:
+            log.error("Unable to remove CSV snapshot file '{}'".format(csv_file))
+        else:
+            log.info("Deleted CSV snapshot file '{}'".format(csv_file))
+
+        # Align and print flow groups table in the logs
+        traffic_items_table.align = "l"
+        log.info(traffic_items_table)
+        self._traffic_statistics_table = traffic_items_table
+
+        # Return to caller
+        return traffic_items_table
+
+
     #--------------------------------------------------------------------------#
     #                            Flow Groups                                   #
     #--------------------------------------------------------------------------#
@@ -2243,88 +2439,6 @@ class IxiaNative(TrafficGen):
 
     @BaseConnection.locked
     @isconnected
-    def save_flow_statistics_snapshot_csv(self, csv_windows_path="C:\\Users\\", csv_file_name="Flow_Statistics"):
-        ''' Save 'Flow Statistics' snapshot as a CSV '''
-
-        log.info(banner("Save 'Flow Statistics' snapshot CSV"))
-
-        # Get 'Flow Statistics' view page object
-        page_obj = self.find_flow_statistics_page_obj()
-
-        # Change page size to some high value so that we get all the stats on one page
-        try:
-            self.ixNet.setAttribute(page_obj, '-pageSize', '2000')
-        except Exception as e:
-            log.error(e)
-            raise GenieTgnError("Unable to change pageSize to 2000 for 'Flow Statistics' view")
-
-        # Enable CSV logging
-        log.info("Enable CSV logging on Ixia...")
-        try:
-            self.ixNet.setAttribute('::ixNet::OBJ-/statistics', '-enableCsvLogging', 'true')
-            self.ixNet.setAttribute('::ixNet::OBJ-/statistics', '-csvFilePath', csv_windows_path)
-            self.ixNet.setAttribute('::ixNet::OBJ-/statistics', '-pollInterval', 1)
-            self.ixNet.commit()
-        except Exception as e:
-            log.error(e)
-            raise GenieTgnError("Error while enabling CSV logging on Ixia")
-        else:
-            log.info("Successfully enabled CSV logging on Ixia")
-
-        # Get snapshot options
-        log.info("Get list of all snapshot options...")
-        try:
-            opts = self.ixNet.execute('GetDefaultSnapshotSettings')
-        except Exception as e:
-            log.error(e)
-            raise GenieTgnError("Unable to get options")
-        else:
-            log.info("Successfully retreived options available")
-
-        # Configure options settings
-        filePathToChange = 'Snapshot.View.Csv.Location: ' + csv_windows_path
-        opts[1] = filePathToChange
-        generatingModeToChange= 'Snapshot.View.Csv.GeneratingMode: "kOverwriteCSVFile"'
-        opts[2] = generatingModeToChange
-        fileNameToAppend = 'Snapshot.View.Csv.Name: ' + csv_file_name
-        opts.append(fileNameToAppend)
-
-        # Save snapshot to location provided
-        log.info("Save CSV snapshot of 'Flow Statistics' view to '{path}\\{file}.csv'...".\
-                 format(path=csv_windows_path, file=csv_file_name))
-        try:
-            self.ixNet.execute('TakeViewCSVSnapshot', ["Flow Statistics"], opts)
-        except Exception as e:
-            log.error(e)
-            raise GenieTgnError("Unable to take CSV snapshot of 'Flow Statistics' view")
-        else:
-            log.info("Successfully saved CSV snapshot of 'Flow Statistics' view to:")
-            log.info("{path}\\{file}".format(path=csv_windows_path, file=csv_file_name))
-
-        # Set local and copy file paths
-        self.windows_flow_stats_csv = csv_windows_path + '\\' + csv_file_name + '.csv'
-        self.flow_stats_csv = "/tmp/" + csv_file_name + '.csv'
-
-        # Copy file to /tmp/
-        log.info("Copy 'Flow Statistics' CSV to '{}'".format(self.flow_stats_csv))
-        try:
-            self.ixNet.execute('copyFile',
-                               self.ixNet.readFrom(self.windows_flow_stats_csv, '-ixNetRelative'),
-                               self.ixNet.writeTo(self.flow_stats_csv, '-overwrite'))
-        except Exception as e:
-            log.error(e)
-            raise GenieTgnError("Unable to copy 'Flow Statistics' CSV snapshot "
-                                "to '{}'".format(self.flow_stats_csv))
-        else:
-            log.info("Successfully copied 'Flow Statistics' CSV snapshot "
-                     "to '{}'".format(self.flow_stats_csv))
-
-        # Return to caller
-        return self.flow_stats_csv
-
-
-    @BaseConnection.locked
-    @isconnected
     def check_flow_groups_loss(self, traffic_streams=[], max_outage=120, loss_tolerance=15, rate_tolerance=5, csv_windows_path="C:\\Users\\", csv_file_name="Flow_Statistics", verbose=False):
         '''Checks traffic loss for all flow groups configured on Ixia using
             'Flow Statistics' view data'''
@@ -2342,8 +2456,9 @@ class IxiaNative(TrafficGen):
                                         "Overall Result"]
 
         # Save 'Flow Statistics' view CSV snapshot
-        csv_file = self.save_flow_statistics_snapshot_csv(csv_windows_path=csv_windows_path,
-                                                          csv_file_name=csv_file_name)
+        csv_file = self.save_statistics_snapshot_csv(view_name="Flow Statistics",
+                                                     csv_windows_path=csv_windows_path,
+                                                     csv_file_name=csv_file_name)
         # Convert CSV file into PrettyTable
         all_flow_group_data = from_csv(open(csv_file))
 
