@@ -13,7 +13,7 @@ concepts associated with traffic generators within ``Genie``.
 
 Genie currently supports the following traffic generator devices:
 
-    1. Ixia - Using IxNetwork 7.40+
+    1. Ixia - Using IxNetwork 7.50+
 
 
 .. toctree::

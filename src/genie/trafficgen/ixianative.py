@@ -2439,7 +2439,11 @@ class IxiaNative(TrafficGen):
 
     @BaseConnection.locked
     @isconnected
-    def check_flow_groups_loss(self, traffic_streams=[], max_outage=120, loss_tolerance=15, rate_tolerance=5, csv_windows_path="C:\\Users\\", csv_file_name="Flow_Statistics", verbose=False):
+    def check_flow_groups_loss(self, traffic_streams=[], max_outage=120,
+                               loss_tolerance=15, rate_tolerance=5,
+                               csv_windows_path="C:\\Users\\",
+                               csv_file_name="Flow_Statistics", verbose=False,
+                               display=True, export_to_filename=""):
         '''Checks traffic loss for all flow groups configured on Ixia using
             'Flow Statistics' view data'''
 
@@ -2568,8 +2572,21 @@ class IxiaNative(TrafficGen):
 
         # Align and print flow groups table in the logs
         flow_group_table.align = "l"
-        log.info(flow_group_table)
+        if display:
+            log.info(flow_group_table)
         self._flow_statistics_table = flow_group_table
+
+        # Export the file if user requested
+        if export_to_filename:
+            try:
+                self.ixNet.execute('copyFile',
+                                   self.ixNet.readFrom(csv_file, '-ixNetRelative'),
+                                   self.ixNet.writeTo(export_to_filename, '-overwrite'))
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Unable to export 'Flow Statistics' CSV "
+                                    "snapshot file to '{}'".\
+                                    format(export_to_filename))
 
         # Delete CSV snapshot file
         try:
@@ -2597,6 +2614,86 @@ class IxiaNative(TrafficGen):
         '''Returns the last Flow Statistics table created'''
 
         return self._flow_statistics_table
+
+
+    @BaseConnection.locked
+    @isconnected
+    def create_flow_statistics_table(self, flow_stats_columns=None, display=True, export_to_filename=""):
+        ''' Create table of "Flow Statistics" view'''
+
+        # Init
+        flow_stats_table = PrettyTable()
+
+        # Save 'Flow Statistics' view CSV snapshot
+        csv_file = self.save_statistics_snapshot_csv(view_name="Flow Statistics")
+        # Convert CSV file into PrettyTable
+        all_flow_stats_data = from_csv(open(csv_file))
+
+        # Determine columns we want to print in the table
+        if not flow_stats_columns:
+            flow_stats_table.field_names = ["Traffic Item",
+                                            "Source/Dest Port Pair",
+                                            "Tx Frames",
+                                            "Rx Frames",
+                                            "Frames Delta",
+                                            "Loss %",
+                                            "Tx Frame Rate",
+                                            "Rx Frame Rate",
+                                            ]
+        else:
+            # Make list
+            if not isinstance(flow_stats_columns, list):
+                flow_stats_columns = [flow_stats_columns]
+            # Add "Traffic Items" default column
+            flow_stats_columns.insert(0, "Traffic Item")
+            # Set fields
+            flow_stats_table.field_names = flow_stats_columns
+
+        # Create a table with only the values we need
+        for row in all_flow_stats_data:
+
+            # Strip headers and borders and init
+            row.header = False ; row.border = False
+            table_values = []
+
+            # Get all the data for this row
+            for item in flow_stats_table.field_names:
+                table_values.append(row.get_string(fields=[item]).strip())
+
+            # Add data to the smaller table to display to user
+            flow_stats_table.add_row(table_values)
+
+        # Delete CSV snapshot file
+        try:
+            os.remove(csv_file)
+        except Exception as e:
+            log.error("Unable to remove CSV snapshot file '{}'".format(csv_file))
+        else:
+            log.info("Deleted CSV snapshot file '{}'".format(csv_file))
+
+        # Align and set class object for the table
+        flow_stats_table.align = "l"
+        self._flow_statistics_table = flow_stats_table
+
+        # Print if user requested
+        if display:
+            log.info(flow_stats_table)
+
+        # Export the file if user requested
+        if export_to_filename:
+            try:
+                self.ixNet.execute('copyFile',
+                                   self.ixNet.readFrom(csv_file, '-ixNetRelative'),
+                                   self.ixNet.writeTo(export_to_filename, '-overwrite'))
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Unable to export 'Flow Statistics' CSV "
+                                    "snapshot file to '{}'".\
+                                    format(export_to_filename))
+
+
+        # Return to caller
+        return flow_stats_table
 
 
     #--------------------------------------------------------------------------#
