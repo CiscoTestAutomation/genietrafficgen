@@ -198,6 +198,16 @@ an Ixia traffic generator device:
     |                                 |           clearing protocol and traffic        |
     |                                 |           statistics on Ixia.                  |
     |                                 |           Default: 10 (seconds)                |
+    |                                 |     * [O] clear_port_stats - flag to control   |
+    |                                 |           execution of the command             |
+    |                                 |           'clearPortsAndTrafficStats' as a part|
+    |                                 |           of clear_statistics().               |
+    |                                 |           Default: True                        |
+    |                                 |     * [O] clear_protocol_stats - flag to       |
+    |                                 |           control execution of the command     |
+    |                                 |           'clearProtocolStats' as a part of    |
+    |                                 |           of clear_statistics().               |
+    |                                 |           Default: True                        |
     |---------------------------------+------------------------------------------------|
     | create_genie_statistics_view    | Creates a custom statistics view on IxNetwork  |
     |                                 | named "GENIE" with the required data fields    |
@@ -293,8 +303,29 @@ an Ixia traffic generator device:
     |                                 |           between both Ixia traffic profiles.  |
     |                                 |           Default: 2 (packets per second)      |
     |----------------------------------------------------------------------------------|
-    |                               Traffic                                            |
+    |                               Utils                                              |
+    |----------------------------------------------------------------------------------|
+    | save_statistics_snapshot_csv    | Save statistics views 'Flow Statistics' or     |
+    |                                 | 'Traffic Item Statistics' snapshot as a CSV    |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] view_name - name of statistic view to|
+    |                                 |           take CSV snapshot of. Can be only    |
+    |                                 |           'Flow Statistics' or the             |
+    |                                 |           'Traffic Item Statistics'            |
+    |                                 |     * [M] csv_windows_path - Location to save  |
+    |                                 |           the CSV snapshot file to on the      |
+    |                                 |           IxNetwork client desktop.            |
+    |                                 |     * [O] csv_file_name - File name to save    |
+    |                                 |           the CSV snapshot file as.            |
+    |                                 |           Default: Ixia_Statistics.csv         |
     |---------------------------------+------------------------------------------------|
+    | get_all_statistics_views        | Returns all the statistics views/tabs that are |
+    |                                 | currently present on IxNetwork client.         |
+    |                                 | Arguments:                                     |
+    |                                 |     None                                       |
+    |----------------------------------------------------------------------------------|
+    |                               Traffic                                            |
+    |----------------------------------------------------------------------------------|
     | get_traffic_attribute           | Returns the value of the specified traffic     |
     |                                 | configuration attribute.                       |
     |                                 | Arguments:                                     |
@@ -320,9 +351,9 @@ an Ixia traffic generator device:
     | get_golden_profile              | Returns the "golden" traffic profile in Python |
     |                                 | PrettyTable format. If not set, returns empty  |
     |                                 | table.                                         |
-    |---------------------------------+------------------------------------------------|
+    |----------------------------------------------------------------------------------|
     |                             Virtual Ports                                        |
-    |---------------------------------+------------------------------------------------|
+    |----------------------------------------------------------------------------------|
     | assign_ixia_ports               | Assign physical Ixia ports from the loaded     |
     |                                 | configuration to corresponding virtual ports.  |
     |                                 | Arguments:                                     |
@@ -345,9 +376,9 @@ an Ixia traffic generator device:
     |                                 |     * [M] vport - virtual Ixia port for config |
     |                                 |     * [M] attribute - attribute of the virtual |
     |                                 |           to return to the caller.             |
-    |----------------------------------------------------------------------------------|
-    |                              Packet Capture (PCAP)                               |
     |---------------------------------+------------------------------------------------|
+    |                              Packet Capture (PCAP)                               |
+    |----------------------------------------------------------------------------------|
     | get_ixia_virtual_port_capture   | Get virtual port object for given port to use  |
     |                                 | in enabling packet capture.                    |
     |                                 | Arguments:                                     |
@@ -1124,6 +1155,12 @@ traffic generator subsections in ``Genie`` harness.
     |                                  | Rx Rate expected after starting       |
     |                                  | traffic in 'initialize_traffic'       |
     |                                  | Default: 5 (packets per second)       |
+    |----------------------------------+---------------------------------------|
+    | tgn_check_traffic_streams        | User provided list of traffic streams |
+    |                                  | to check traffic loss for. All other  |
+    |                                  | traffic stream will be ignored for    |
+    |                                  | performing traffic loss checks.       |
+    |                                  | Default: None (All streams checked)   |
     |----------------------------------+---------------------------------------|
     | tgn-traffic-streams-data         | User provided YAML file containing the|
     |                                  | maximum expected traffic outage, loss |

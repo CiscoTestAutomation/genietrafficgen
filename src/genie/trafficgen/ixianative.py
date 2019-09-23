@@ -504,40 +504,57 @@ class IxiaNative(TrafficGen):
 
     @BaseConnection.locked
     @isconnected
-    def clear_statistics(self, wait_time=10):
+    def clear_statistics(self, wait_time=10, clear_port_stats=True, clear_protocol_stats=True):
         '''Clear all traffic, port, protocol statistics on Ixia'''
 
         log.info(banner("Clearing traffic statistics"))
 
         log.info("Clearing all statistics...")
         try:
-            clear_stats = self.ixNet.execute('clearStats')
+            res_clear_all = self.ixNet.execute('clearStats')
         except Exception as e:
             log.error(e)
-            raise GenieTgnError("Unable to clear traffic statistics") from e
+            raise GenieTgnError("Unable to clear all statistics") from e
         else:
-            log.info("Successfully cleared traffic statistics on device '{}'".\
-                         format(self.device.name))
+            try:
+                assert res_clear_all == _PASS
+            except AssertionError as e:
+                log.error(res_clear_all)
+            else:
+                log.info("Successfully cleared traffic statistics on "
+                         "device '{}'".format(self.device.name))
 
-        log.info("Clearing port statistics...")
-        try:
-            clear_port_stats = self.ixNet.execute('clearPortsAndTrafficStats')
-        except Exception as e:
-            log.error(e)
-            raise GenieTgnError("Unable to clear port statistics") from e
-        else:
-            log.info("Successfully cleared port statistics on device '{}'".\
-                         format(self.device.name))
+        if clear_port_stats:
+            log.info("Clearing port statistics...")
+            try:
+                res_clear_port = self.ixNet.execute('clearPortsAndTrafficStats')
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Unable to clear port statistics") from e
+            else:
+                try:
+                    assert res_clear_port == _PASS
+                except AssertionError as e:
+                    log.error(res_clear_port)
+                else:
+                    log.info("Successfully cleared port statistics on "
+                             "device '{}'".format(self.device.name))
 
-        log.info("Clearing protocol statistics...")
-        try:
-            clear_protocol_stats = self.ixNet.execute('clearProtocolStats')
-        except Exception as e:
-            log.error(e)
-            raise GenieTgnError("Unable to clear protocol statistics") from e
-        else:
-            log.info("Successfully cleared protocol statistics on device '{}'".\
-                         format(self.device.name))
+        if clear_protocol_stats:
+            log.info("Clearing protocol statistics...")
+            try:
+                res_clear_protocol = self.ixNet.execute('clearProtocolStats')
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Unable to clear protocol statistics") from e
+            else:
+                try:
+                    assert res_clear_protocol == _PASS
+                except AssertionError as e:
+                    log.error(res_clear_protocol)
+                else:
+                    log.info("Successfully cleared protocol statistics on "
+                             "device '{}'".format(self.device.name))
 
         # Wait after clearing statistics
         log.info("Waiting for '{}' seconds after clearing statistics".\
@@ -852,7 +869,7 @@ class IxiaNative(TrafficGen):
         traffic_table = PrettyTable()
 
         # If Genie view and page has not been created before, create one
-        if not self._genie_view or not self._genie_page:
+        if 'GENIE' not in self.get_all_statistics_views():
             self.create_genie_statistics_view(view_create_interval=view_create_interval,
                                               view_create_iteration=view_create_iteration)
 
@@ -1122,6 +1139,10 @@ class IxiaNative(TrafficGen):
 
         log.info(banner("Save '{}' snapshot CSV".format(view_name)))
 
+        log.info("\n\nNOTE: Using csv_windows_path='{}' to save snapshot CSV."
+                 "\nPlease provide alternate directory if unreachable\n\n".\
+                 format(csv_windows_path))
+
         # Get 'Flow Statistics' view page object
         if view_name == 'Flow Statistics':
             page_obj = self.find_flow_statistics_page_obj()
@@ -1201,6 +1222,28 @@ class IxiaNative(TrafficGen):
 
         # Return to caller
         return stats_csv_file
+
+
+    @BaseConnection.locked
+    @isconnected
+    def get_all_statistics_views(self):
+        '''Returns all the statistics views/tabs currently present on IxNetwork'''
+
+        all_views = []
+
+        try:
+            # Views from the 613
+            views = self.ixNet.getList('/statistics', 'view')
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to get a list of all statistics views "
+                                "(tabs) present on IxNetwork client")
+        else:
+            for item in views:
+                all_views.append(item.\
+                    replace("::ixNet::OBJ-/statistics/view:", "").\
+                    replace("\"", ""))
+            return all_views
 
 
     #--------------------------------------------------------------------------#
@@ -2537,7 +2580,13 @@ class IxiaNative(TrafficGen):
             if tx_frame_rate == '0.000' or tx_frame_rate == '0':
                 outage_seconds = 0.0
             else:
-                outage_seconds = round(float(frames_delta)/float(tx_frame_rate), 3)
+                try:
+                    fd = float(frames_delta)
+                    tx = float(tx_frame_rate)
+                except ValueError:
+                    outage_seconds = 0.0
+                else:
+                    outage_seconds = round(fd/tx, 3)
             # Check outage
             if float(outage_seconds) <= float(max_outage):
                 if verbose:
