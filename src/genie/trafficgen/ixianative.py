@@ -726,17 +726,31 @@ class IxiaNative(TrafficGen):
 
     @BaseConnection.locked
     @isconnected
-    def check_traffic_loss(self, traffic_streams=[], max_outage=120, loss_tolerance=15, rate_tolerance=5, check_iteration=10, check_interval=60, outage_dict={}):
+    def check_traffic_loss(self, traffic_streams=None, max_outage=120,
+                           loss_tolerance=15, rate_tolerance=5,
+                           check_iteration=10, check_interval=60,
+                           outage_dict=None, clear_stats=False,
+                           clear_stats_time=30, pre_check_wait=''):
         '''Check traffic loss for each traffic stream configured on Ixia
             using statistics/data from 'Traffic Item Statistics' view'''
 
+        if pre_check_wait:
+            log.info("Waiting '{}' seconds before checking traffic streams "
+                     "for loss/outage".format(pre_check_wait))
+            time.sleep(pre_check_wait)
+
         for i in range(check_iteration):
 
-            log.info("\nAttempt #{}: Checking for traffic outage/loss".format(i+1))
+            # Init
             overall_result = {}
 
             # Get and display 'GENIE' traffic statistics table containing outage/loss values
-            traffic_table = self.create_traffic_streams_table()
+            traffic_table = self.create_traffic_streams_table(
+                                    clear_stats=clear_stats,
+                                    clear_stats_time=clear_stats_time)
+
+            # Log iteration attempt to user
+            log.info("\nAttempt #{}: Checking for traffic outage/loss".format(i+1))
 
             # Check all streams for traffic outage/loss
             for row in traffic_table:
@@ -869,7 +883,8 @@ class IxiaNative(TrafficGen):
         traffic_table = PrettyTable()
 
         # If Genie view and page has not been created before, create one
-        if 'GENIE' not in self.get_all_statistics_views():
+        if 'GENIE' not in self.get_all_statistics_views() or \
+            not self._genie_page or not self._genie_view:
             self.create_genie_statistics_view(view_create_interval=view_create_interval,
                                               view_create_iteration=view_create_iteration)
 
@@ -1775,18 +1790,36 @@ class IxiaNative(TrafficGen):
 
     @BaseConnection.locked
     @isconnected
-    def export_packet_capture_file(self, src_file, dest_file):
-        '''Export packet capture file as specified filename to desired location'''
+    def export_packet_capture_file(self, src_file, dest_file='ixia.pcap'):
+        '''Export packet capture file to runtime logs as given filename'''
 
         log.info("Exporting packet capture file...")
+
+        # Copy PCAP file to /tmp/ first
+        temp_file = "/tmp/" + dest_file
         try:
             self.ixNet.execute('copyFile',
                                self.ixNet.readFrom(src_file, '-ixNetRelative'),
-                               self.ixNet.writeTo(dest_file, '-overwrite'))
+                               self.ixNet.writeTo(temp_file, '-overwrite'))
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Unable to copy '{s}' to '{d}'".\
                                                 format(s=src_file, d=dest_file))
+
+        # Now copy from /tmp/ to runtime.directory
+        dest_final_file = runtime.directory + "/" + dest_file
+        try:
+            copyfile(temp_file, dest_final_file)
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to export PCAP capture file to '{}'".\
+                                format(dest_final_file))
+        else:
+            log.info("Successfully exported PCAP capture file to {}".\
+                     format(dest_final_file))
+
+        # Return destination file path to caller
+        return dest_final_file
 
 
     #--------------------------------------------------------------------------#
@@ -1975,30 +2008,37 @@ class IxiaNative(TrafficGen):
 
     @BaseConnection.locked
     @isconnected
-    def generate_traffic_stream(self, traffic_stream, wait_time=15):
-        '''Generate traffic for a given traffic stream'''
+    def generate_traffic_streams(self, traffic_streams, wait_time=15):
+        '''Generate traffic for given traffic streams'''
 
-        log.info(banner("Generating L2/L3 traffic for traffic stream '{}'".\
-                        format(traffic_stream)))
+        # Check if single stream provided
+        if isinstance(traffic_streams, str):
+            traffic_streams = [traffic_streams]
 
-        # Find traffic stream object from stream name
-        ti_obj = self.find_traffic_stream_object(traffic_stream=traffic_stream)
+        # Generate traffic for streams
+        log.info(banner("Generating L2/L3 traffic..."))
+        for ts in traffic_streams:
 
-        # Generate traffic
-        try:
-            self.ixNet.execute('generate', ti_obj)
-        except Exception as e:
-            log.error(e)
-            raise GenieTgnError("Error while generating traffic for traffic "
-                                "stream '{}'".format(traffic_stream))
+            # Find traffic stream object from stream name
+            ti_obj = self.find_traffic_stream_object(traffic_stream=ts)
+
+            # Generate traffic
+            try:
+                self.ixNet.execute('generate', ti_obj)
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Error while generating traffic for "
+                                    "traffic item '{}'".format(ts))
+            else:
+                log.info("-> traffic item '{}'".format(ts))
 
         # Unset "GENIE" view
         self._genie_view = None
         self._genie_page = None
 
         # Wait for user specified interval
-        log.info("Waiting for '{t}' seconds after generating traffic stream"
-                 " '{s}'".format(t=wait_time, s=traffic_stream))
+        log.info("Waiting for '{}' seconds after generating traffic streams".\
+                 format(wait_time))
         time.sleep(wait_time)
 
         # Check if traffic is in 'unapplied' state
@@ -2482,7 +2522,7 @@ class IxiaNative(TrafficGen):
 
     @BaseConnection.locked
     @isconnected
-    def check_flow_groups_loss(self, traffic_streams=[], max_outage=120,
+    def check_flow_groups_loss(self, traffic_streams=None, max_outage=120,
                                loss_tolerance=15, rate_tolerance=5,
                                csv_windows_path="C:\\Users\\",
                                csv_file_name="Flow_Statistics", verbose=False,
@@ -2828,7 +2868,7 @@ class IxiaNative(TrafficGen):
                              "rate to '{r}' %".format(t=traffic_stream, r=rate))
 
             # Generate traffic
-            self.generate_traffic_stream(traffic_stream=traffic_stream, wait_time=generate_traffic_time)
+            self.generate_traffic_streams(traffic_streams=traffic_stream, wait_time=generate_traffic_time)
 
             # Apply traffic
             self.apply_traffic(wait_time=apply_traffic_time)
@@ -2912,7 +2952,7 @@ class IxiaNative(TrafficGen):
                              format(t=traffic_stream, r=rate))
 
             # Generate traffic
-            self.generate_traffic_stream(traffic_stream=traffic_stream, wait_time=generate_traffic_time)
+            self.generate_traffic_streams(traffic_streams=traffic_stream, wait_time=generate_traffic_time)
 
             # Apply traffic
             self.apply_traffic(wait_time=apply_traffic_time)
@@ -3024,7 +3064,7 @@ class IxiaNative(TrafficGen):
                                                             u=rate_unit))
 
             # Generate traffic
-            self.generate_traffic_stream(traffic_stream=traffic_stream, wait_time=generate_traffic_time)
+            self.generate_traffic_streams(traffic_streams=traffic_stream, wait_time=generate_traffic_time)
 
             # Apply traffic
             self.apply_traffic(wait_time=apply_traffic_time)
@@ -3081,7 +3121,7 @@ class IxiaNative(TrafficGen):
                          "size to '{p}'".format(t=traffic_stream, p=packet_size))
 
         # Generate traffic
-        self.generate_traffic_stream(traffic_stream=traffic_stream, wait_time=generate_traffic_time)
+        self.generate_traffic_streams(traffic_streams=traffic_stream, wait_time=generate_traffic_time)
 
         # Apply traffic
         self.apply_traffic(wait_time=apply_traffic_time)

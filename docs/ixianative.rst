@@ -1,9 +1,38 @@
 .. _ixianative:
 
+
+Overview
+========
+
+What is a Traffic Generator?
+----------------------------
+
+A traffic generator is a device that pumps traffic into a network for
+consumption by other devices such as routers and switches.
+
+.. figure:: sampleTgn.png
+    :align: center
+
+Why do we need Traffic Generators?
+----------------------------------
+
+During typical network validation, routers and switches are normally tested using
+traffic generators to simulate 'traffic' flowing through a network. This helps
+users validate router performance metrics in scale and stress scenarios.
+
+The ``genie.trafficgen`` package provides functionality to agnostically interact
+with commercially available traffic generator devices and perform a multitude of
+operations on them. 
+
+The ``genie.trafficgen`` package builds on the functionality provided by third
+party vendor software APIs to create a simplistic user exeprience to automate
+operations on traffic generator devices.
+
+
 Ixia Native
 ===========
 
-``Genie`` can connect to Ixia traffic generator devices that are running
+``genie.trafficgen`` can connect to Ixia traffic generator devices that are running
 IxNetwork API server versions 7.50 or higher. Refer to the user guide below for
 detailed information on using ``Genie`` to control Ixia using the public PyPI
 Package IxNetwork.
@@ -97,25 +126,266 @@ defining an Ixia `device`:
     connection class implementation for their traffic generator device.
 
 
-Connect to Ixia device
-----------------------
+Genie Trafficgen Use Cases
+---------------------------
+
+The following sections provide sample use cases for performing operations on 
+traffic generator devices within your network automation.
+
+Connect to Ixia
+^^^^^^^^^^^^^^^
 
 After specifying the Ixia `device` in the `testbed` YAML file, we can connect to
 the device using the `connect()` method:
 
 .. code-block:: python
 
-    # Load testbed containing Ixia
-    >> from genie.conf import Genie
-    >> testbed = Genie.init('/path/to/testbed_with_tgn.yaml')
+    # Import loader
+    >> from genie.testbed import load
+
+    # Load testbed YAML containing Ixia device
+    >> testbed = load('/path/to/testbed_with_tgn.yaml')
+
+    >>> testbed
+    <Testbed object 'GENIE-TESTBED1' at 0x7fcddcfbe390>
 
     # Specify the Ixia
     >> dev = testbed.devices['IXIA']
 
+    # Device with name 'IXIA' selected from testbed YAML
+    >>> dev
+    <Device IXIA at 0x7fcde02e0ac8>
+
     # Connect to Ixia
     >>> dev.connect(via='tgn')
+    +===========================================+
+    | Ixia Chassis Details                      |
+    +===========================================+
+    | IxNetwork API Server: 172.25.195.91       |
+    |-------------------------------------------|
+    | IxNetwork API Server Platform: Windows    |
+    |-------------------------------------------|
+    | IxNetwork Version: 8.10                   |
+    |-------------------------------------------|
+    | Ixia Chassis: 172.27.101.96               |
+    |-------------------------------------------|
+    | Ixia License Server: 172.27.101.96        |
+    |-------------------------------------------|
+    | Ixnetwork TCL Port: 8012                  |
+    |-------------------------------------------|
+
+    +------------------------------------------------------------------------------+
+    |                              Connecting to IXIA                              |
+    +------------------------------------------------------------------------------+
+    WARNING: IxNetwork Python library version 9.00.1915.16 is not matching the IxNetwork client version 8.10.1046.6
+    Connected to IxNetwork API server on TCL port '8012'
+
+.. note::
+
     If you are trying to connect to a Windows IxNetwork API server on TCL port you can safely ignore this warning.
-    WARNING: IxNetwork Python library version 8.50.1501.9 is not matching the IxNetwork client version 8.10.1046.6
+
+
+Load configuration onto Ixia
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The following code block demonstrates loading a static configuration file onto an Ixia device
+
+.. code-block:: python
+
+    # Load static configuration file
+    >>> dev.load_configuration(configuration='/path/to/config.ixncfg')
+    +-----------------------------------+
+    |        Loading configuration      |
+    +-----------------------------------+
+    +===================================+
+    | Ixia Configuration Information    |
+    +===================================+
+    | Ixia Ports: ['9/6', '9/7']        |
+    |-----------------------------------|
+    | File: /path/to/config.ixncfg      |
+    |-----------------------------------|
+    Loaded configuration file '/path/to/config.ixncfg' onto device 'IXIA'
+    Waiting for '60' seconds after loading configuration...
+    Verify traffic is in 'unapplied' state after loading configuration
+    Traffic in 'unapplied' state after loading configuration onto device 'IXIA'
+
+
+Applying L2/L3 Traffic on Ixia
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The following code block demonstrates how to apply loaded traffic on Ixia
+
+.. code-block:: python
+
+    # Apply traffic
+    >>> dev.apply_traffic()
+    +------------------------------------------------------------------------------+
+    |                            Applying L2/L3 traffic                            |
+    +------------------------------------------------------------------------------+
+    Applied L2/L3 traffic on device 'IXIA'
+    Waiting for '60' seconds after applying L2/L3 traffic...
+    Verify traffic is in 'stopped' state...
+    Traffic is in 'stopped' state after applying traffic as expected
+
+
+Start/Stop Routing Protocols on Ixia
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The following code block demonstrates starting/stopping routing protocols on an Ixia device
+
+.. code-block:: python
+
+        # Start protocols
+        >>> dev.start_all_protocols()
+        +------------------------------------------------------------------------------+
+        |                           Starting routing engine                            |
+        +------------------------------------------------------------------------------+
+        Started protocols on device 'IXIA
+        Waiting for '60' seconds after starting all protocols...
+
+        # Stop protocols
+        >>> dev.stop_all_protocols()
+        +------------------------------------------------------------------------------+
+        |                           Stopping routing engine                            |
+        +------------------------------------------------------------------------------+
+        Stopped protocols on device 'IXIA'
+        Waiting for  '60' seconds after stopping all protocols...
+
+
+Start/Stop Traffic on Ixia
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The following code block demonstrates starting/stopping traffic on an Ixia device
+
+.. code-block:: python
+
+        # Start traffic
+        >>> dev.start_traffic()
+        +------------------------------------------------------------------------------+
+        |                            Starting L2/L3 traffic                            |
+        +------------------------------------------------------------------------------+
+        Started L2/L3 traffic on device 'IXIA'
+        Waiting for '60' seconds after after starting L2/L3 traffic for streams to converge to steady state...
+        Checking if traffic is in 'started' state...
+        Traffic is in 'started' state
+
+        # Stop traffic
+        >>> dev.stop_traffic()
+        +------------------------------------------------------------------------------+
+        |                            Stopping L2/L3 traffic                            |
+        +------------------------------------------------------------------------------+
+        Stopped L2/L3 traffic on device 'IXIA'
+        Waiting for '60' seconds after after stopping L2/L3 traffic...
+        Checking if traffic is in 'stopped' state...
+        Traffic is in 'stopped' state
+
+
+Check for traffic loss on Ixia
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The following code block demonstrates how to check for traffic loss on an Ixia device
+
+.. code-block:: python
+
+    # Check traffic loss for all configured streams
+    >>> dev.check_traffic_loss(check_iteration=1)
+    Total number of pages in 'GENIE' view is '1'
+    Reading data from 'GENIE' view page 1/1
+    +-----------------------+-------------------------------+-----------+-----------+--------------+---------------+---------------+--------+------------------+
+    | Source/Dest Port Pair | Traffic Item                  | Tx Frames | Rx Frames | Frames Delta | Tx Frame Rate | Rx Frame Rate | Loss % | Outage (seconds) |
+    +-----------------------+-------------------------------+-----------+-----------+--------------+---------------+---------------+--------+------------------+
+    | N93_3-N95_1           | ospf                          | 40595     | 0         | 40595        | 50            | 0             | 100    | 811.9            |
+    | N93_3-N95_1           | ospfv3                        | 40595     | 0         | 40595        | 50            | 0             | 100    | 811.9            |
+    | N93_3-N95_1           | bgp v4                        | 40593     | 0         | 40593        | 49.5          | 0             | 100    | 820.061          |
+    +-----------------------+-------------------------------+-----------+-----------+--------------+---------------+---------------+--------+------------------+
+
+    Attempt #1: Checking for traffic outage/loss
+    +------------------------------------------------------------------------------+
+    |                Checking traffic stream: 'N93_3-N95_1 | ospf'                 |
+    +------------------------------------------------------------------------------+
+    1. Verify traffic outage (in seconds) is less than tolerance threshold of '120' seconds
+    * Traffic outage of '811.9' seconds is *NOT* within expected maximum outage threshold of '120' seconds
+    2. Verify current loss % is less than tolerance threshold of '15' %
+    * Current traffic loss of 100% is *NOT* within maximum expected loss tolerance of 15%
+    3. Verify difference between Tx Rate & Rx Rate is less than tolerance threshold of '5' pps
+    * Difference between Tx Rate '50' and Rx Rate '0' is *NOT* within expected maximum rate loss threshold of '5' packets per second
+    +------------------------------------------------------------------------------+
+    |               Checking traffic stream: 'N93_3-N95_1 | ospfv3'                |
+    +------------------------------------------------------------------------------+
+    1. Verify traffic outage (in seconds) is less than tolerance threshold of '120' seconds
+    * Traffic outage of '811.9' seconds is *NOT* within expected maximum outage threshold of '120' seconds
+    2. Verify current loss % is less than tolerance threshold of '15' %
+    * Current traffic loss of 100% is *NOT* within maximum expected loss tolerance of 15%
+    3. Verify difference between Tx Rate & Rx Rate is less than tolerance threshold of '5' pps
+    * Difference between Tx Rate '50' and Rx Rate '0' is *NOT* within expected maximum rate loss threshold of '5' packets per second
+    +------------------------------------------------------------------------------+
+    |               Checking traffic stream: 'N93_3-N95_1 | bgp v4'                |
+    +------------------------------------------------------------------------------+
+    1. Verify traffic outage (in seconds) is less than tolerance threshold of '120' seconds
+    * Traffic outage of '820.061' seconds is *NOT* within expected maximum outage threshold of '120' seconds
+    2. Verify current loss % is less than tolerance threshold of '15' %
+    * Current traffic loss of 100% is *NOT* within maximum expected loss tolerance of 15%
+    3. Verify difference between Tx Rate & Rx Rate is less than tolerance threshold of '5' pps
+    * Difference between Tx Rate '49.5' and Rx Rate '0' is *NOT* within expected maximum rate loss threshold of '5' packets per second
+
+
+Change line rate for given traffic stream
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The following code block demonstrates how to change the line rate for a given traffic stream
+
+.. code-block:: python
+
+    # Set the line rate for traffic stream 'ospf' to be 30%
+    >>> dev.set_line_rate(traffic_stream='ospf', rate=30)
+    +------------------------------------------------------------------------------+
+    |              Setting traffic stream 'ospf' line rate to '30' %               |
+    +------------------------------------------------------------------------------+
+    +------------------------------------------------------------------------------+
+    |                            Stopping L2/L3 traffic                            |
+    +------------------------------------------------------------------------------+
+    Stopped L2/L3 traffic on device 'IXIA'
+    Waiting for '15' seconds after after stopping L2/L3 traffic...
+    Checking if traffic is in 'stopped' state...
+    Traffic is in 'stopped' state
+    Successfully changed traffic stream 'ospf' line rate to '30' %
+    +------------------------------------------------------------------------------+
+    |                         Generating L2/L3 traffic...                          |
+    +------------------------------------------------------------------------------+
+    -> traffic item 'ospf'
+    Waiting for '15' seconds after generating traffic streams
+    Checking if traffic is in 'unapplied' state...
+    Traffic is in 'unapplied' state
+    +------------------------------------------------------------------------------+
+    |                            Applying L2/L3 traffic                            |
+    +------------------------------------------------------------------------------+
+    Applied L2/L3 traffic on device 'IXIA'
+    Waiting for '15' seconds after applying L2/L3 traffic...
+    Verify traffic is in 'stopped' state...
+    Traffic is in 'stopped' state after applying traffic as expected
+    +------------------------------------------------------------------------------+
+    |                            Starting L2/L3 traffic                            |
+    +------------------------------------------------------------------------------+
+    Started L2/L3 traffic on device 'IXIA'
+    Waiting for '15' seconds after after starting L2/L3 traffic for streams to converge to steady state...
+    Checking if traffic is in 'started' state...
+    Traffic is in 'started' state
+
+
+Get packet size for given traffic stream
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The following code block demonstrates how to retreive the packet size for a given traffic stream
+
+.. code-block:: python
+
+    # Get the packet size for traffic stream 'ospf'
+    >>> dev.get_packet_size(traffic_stream='ospf')
+    '100'
+
+    # Get the packet size for traffic stream 'bgp v4'
+    >>> dev.get_packet_size(traffic_stream='bgp v4')
+    '100'
 
 
 Traffic Generator Methods
@@ -244,6 +514,7 @@ an Ixia traffic generator device:
     |                                 |     * [O] traffic_streams - list of specific   |
     |                                 |           traffic stream names to check traffic|
     |                                 |           loss for.                            |
+    |                                 |           Default: None                        |
     |                                 |     * [O] max_outage - maximum outage expected |
     |                                 |           in packets/frames per second.        |
     |                                 |           Default: 120 (seconds)               |
@@ -263,7 +534,18 @@ an Ixia traffic generator device:
     |                                 |           dictionary containing traffic stream |
     |                                 |           specific max_outage, loss_tolerance  |
     |                                 |           and rate_tolerance values for checks.|
-    |                                 |           Default: {}                          |
+    |                                 |           Default: None                        |
+    |                                 |     * [O] clear_stats - flag to enable clearing|
+    |                                 |           of all traffic statistics before     |
+    |                                 |           checking for traffic loss/outage.    |
+    |                                 |           Default: False                       |
+    |                                 |     * [O] clear_stats_time - time to wait after|
+    |                                 |           clearing all traffic statistics if   |
+    |                                 |           enabled by user.                     |
+    |                                 |           Default: 30 (seconds)                |
+    |                                 |     * [O] pre_check_wait - time to wait before |
+    |                                 |           checking for traffic loss/outage.    |
+    |                                 |           Default: None                        |
     |---------------------------------+------------------------------------------------|
     | create_traffic_streams_table    | Creates and returns a table containing traffic |
     |                                 | statistics for all traffic items/streams that  |
@@ -445,15 +727,16 @@ an Ixia traffic generator device:
     |                                 |           API server.                          |
     |                                 |           Default: C:/ on windows server       |
     |---------------------------------+------------------------------------------------|
-    | export_packet_capture_file      | Export packet capture file as specified file   |
-    |                                 | to desired location outside IxNetwork API      |
-    |                                 | server host.                                   |
+    | export_packet_capture_file      | Export packet capture file to runtime logs as  |
+    |                                 | the given filename and return file path of the |
+    |                                 | copied file to caller.                         |
     |                                 | Arguments:                                     |
     |                                 |     * [M] src_file - location of packet capture|
     |                                 |           on host IxNetwork API server.        |
-    |                                 |     * [M] dest_file - location to copy the     |
+    |                                 |     * [O] dest_file - filename to copy the     |
     |                                 |           packet capture file outside the      |
-    |                                 |           IxNetwork API server.                |
+    |                                 |           IxNetwork API server to runtime logs.|
+    |                                 |           Default: 'ixia.pcap'                 |
     |----------------------------------------------------------------------------------|
     |                              Traffic Item (Stream)                               |
     |----------------------------------------------------------------------------------|
@@ -500,12 +783,12 @@ an Ixia traffic generator device:
     |                                 |           Rate is 0 pps.                       |
     |                                 |           Default: 15 (seconds)                |
     |---------------------------------+------------------------------------------------|
-    | generate_traffic_stream         | Generates L2/L3 traffic for specified traffic  |
+    | generate_traffic_streams        | Generates L2/L3 traffic for specified traffic  |
     |                                 | stream on Ixia.                                |
     |                                 | Arguments:                                     |
-    |                                 |     * [M] traffic_stream - traffic stream to   |
-    |                                 |           generate traffic for after config has|
-    |                                 |           changed on Ixia.                     |
+    |                                 |     * [M] traffic_streams - list of traffic    |
+    |                                 |           streams to generate traffic for after|
+    |                                 |           config has changed on Ixia.          |
     |                                 |     * [O] wait_time - time to wait after       |
     |                                 |           generating L2/L3 traffic for the     |
     |                                 |           given traffic stream.                |
@@ -1054,116 +1337,126 @@ traffic generator subsections in ``Genie`` harness.
     | Argument                         | Description                           |
     |----------------------------------+---------------------------------------|
     | tgn-port-list                    | Modify the Ixia ports list to connect |
-    |                                  | to, from the existing ixia_port_list  |
+    | tgn_port_list                    | to, from the existing ixia_port_list  |
     |                                  | Default: []                           |
     |----------------------------------+---------------------------------------|
     | tgn-disable-load-configuration   | Ddisable loading static configuration |
-    |                                  | file on Ixia in 'initialize_traffic'  |
+    | tgn_disable_load_configuration   | file on Ixia in 'initialize_traffic'  |
     |                                  | Default: False                        |
     |----------------------------------+---------------------------------------|
     | tgn-load-configuration-time      | Time to wait after loading config     |
-    |                                  | on Ixia during 'initialize_traffic'   |
+    | tgn_load_configuration_time      | on Ixia during 'initialize_traffic'   |
     |                                  | Default: 60 (seconds)                 |
     |----------------------------------+---------------------------------------|
     | tgn-disable-assign-ports         | Disable assigning physical ports to   |
-    |                                  | virtual Ixia ports in                 |
+    | tgn_disable_assign_ports         | virtual Ixia ports in                 |
     |                                  | 'initialize_traffic'                  |
     |                                  | Default: False                        |
     |----------------------------------+---------------------------------------|
     | tgn-assign-ports-time            | Time to wait after assigning physical |
-    |                                  | ports to virtual ports on Ixia in     |
+    | tgn_assign_ports_time            | ports to virtual ports on Ixia in     |
     |                                  | 'initialize_traffic'                  |
     |                                  | Default: 30 (seconds)                 |
     |----------------------------------+---------------------------------------|
     | tgn-disable-start-protocols      | Ddisable starting protocols on Ixia   |
-    |                                  | in 'initialize_traffic'               |
+    | tgn_disable_start_protocols      | in 'initialize_traffic'               |
     |                                  | Default: False                        |
     |----------------------------------+---------------------------------------|
     | tgn-protocols-convergence-time   | Time to wait for all traffic streams  |
-    |                                  | converge to steady state in           |
+    | tgn_protocols_convergence_time   | converge to steady state in           |
     |                                  | 'initialize_traffic'                  |
     |                                  | Default: 120 (seconds)                |
     |----------------------------------+---------------------------------------|
     | tgn-stop-protocols-time          | Time to wait after stopping protocols |
-    |                                  | on Ixia during 'stop_traffic'         |
+    | tgn_stop_protocols_time          | on Ixia during 'stop_traffic'         |
+    |                                  | Default: 30 (seconds)                 |
+    |----------------------------------+---------------------------------------|
+    | tgn-disable-regenerate-traffic   | Disable regenerating of traffic for   |
+    | tgn_disable_regenerate_traffic   | all configured traffic streams in     |
+    |                                  | 'initialize_traffic'                  |
+    |                                  | Default: True                         |
+    |----------------------------------+---------------------------------------|
+    | tgn-regenerate-traffic-time      | Time to wait after regenerating       |
+    | tgn_regenerate_traffic_time      | traffic for all configured traffic    |
+    |                                  | streams in 'initialize_traffic'       |
     |                                  | Default: 30 (seconds)                 |
     |----------------------------------+---------------------------------------|
     | tgn-disable-apply-traffic        | Disable applying L2/L3 traffic on     |
-    |                                  | Ixia in 'initialize_traffic'          |
+    | tgn_disable_apply_traffic        | Ixia in 'initialize_traffic'          |
     |                                  | Default: False                        |
     |----------------------------------+---------------------------------------|
     | tgn-apply-traffic-time           | Time to wait after applying L2/L3     |
-    |                                  | traffic in 'initialize_traffic'       |
+    | tgn_apply_traffic_time           | traffic in 'initialize_traffic'       |
     |                                  | Default: 60 (seconds)                 |
     |----------------------------------+---------------------------------------|
     | tgn-disable-send-arp             | Disable send ARP to interfaces from   |
-    |                                  | Ixia in 'initialize_traffic'          |
+    | tgn_disable_send_arp             | Ixia in 'initialize_traffic'          |
     |                                  | Default: False                        |
     |----------------------------------+---------------------------------------|
     | tgn-arp-wait-time                | Time to wait after sending ARP from   |
-    |                                  | Ixia in 'initialize_traffic'          |
+    | tgn-arp-wait-time                | Ixia in 'initialize_traffic'          |
     |                                  | Default: 60 (seconds)                 |
     |----------------------------------+---------------------------------------|
     | tgn-disable-send-ns              | Disable send NS to interfaces on Ixia |
-    |                                  | in 'initialize_traffic'               |
+    | tgn-disable-send-ns              | in 'initialize_traffic'               |
     |                                  | Default: False                        |
     |----------------------------------+---------------------------------------|
     | tgn-ns-wait-time                 | Time to wait after sending NS packet  |
-    |                                  | from Ixia in 'initialize_traffic'     |
+    | tgn-ns-wait-time                 | from Ixia in 'initialize_traffic'     |
     |                                  | Default: 60 (seconds)                 |
     |----------------------------------+---------------------------------------|
     | tgn-disable-start-traffic        | Disable starting L2/L3 traffic on     |
-    |                                  | Ixia in 'initialize_traffic'          |
+    | tgn-disable-start-traffic        | Ixia in 'initialize_traffic'          |
     |                                  | Default: False                        |
     |----------------------------------+---------------------------------------|
     | tgn-steady-state-convergence-time| Time to wait for traffic streams to   |
-    |                                  | converge to steady state after start  |
+    | tgn-steady-state-convergence-time| converge to steady state after start  |
     |                                  | traffic in 'initialize_traffic'       |
     |                                  | Default: 15 (seconds)                 |
     |----------------------------------+---------------------------------------|
     | tgn-stop-traffic-time            | Time to wait after stopping traffic   |
-    |                                  | streams in 'stop_traffic'             |
+    | tgn-stop-traffic-time            | streams in 'stop_traffic'             |
     |                                  | Default: 15 (seconds)                 |
     |----------------------------------+---------------------------------------|
     | tgn-disable-clear-statistics     | Disable clearing of all protocol and  |
-    |                                  | traffic statistics on Ixia in         |
+    | tgn-disable-clear-statistics     | traffic statistics on Ixia in         |
     |                                  | 'initialize_traffic'                  |
     |                                  | Default: False                        |
     |----------------------------------+---------------------------------------|
     | tgn-clear-stats-time             | Time to wait after clearing protocol  |
-    |                                  | and traffic statistics on Ixia in     |
+    | tgn_clear_stats_time             | and traffic statistics on Ixia in     |
     |                                  | 'initialize_traffic'                  |
     |                                  | Default: 60 (seconds)                 |
     |----------------------------------+---------------------------------------|
     | tgn-disable-check-traffic-loss   | Disable checking of frames loss       |
-    |                                  | and traffic loss for all configured   |
+    | tgn_disable_check_traffic+_loss  | and traffic loss for all configured   |
     |                                  | traffic streams after starting L2/L3  |
     |                                  | traffic on Ixia in'initialize_traffic'|
     |                                  | Default: False                        |
     |----------------------------------+---------------------------------------|
     | tgn-traffic-outage-tolerance     | Maximum traffic outage expected after |
-    |                                  | starting traffic on Ixia in           |
+    | tgn_traffic_outage_tolerance     | starting traffic on Ixia in           |
     |                                  | 'initialize_traffic'                  |
     |                                  | Default: 120 (seconds)                |
     |----------------------------------+---------------------------------------|
     | tgn-traffic-loss-tolerance       | Maximum traffic loss % accepted after |
-    |                                  | starting traffic on Ixia in           |
+    | tgn_traffic_loss_tolerance       | starting traffic on Ixia in           |
     |                                  | 'initialize_traffic'                  |
     |                                  | Default: 15%                          |
     |----------------------------------+---------------------------------------|
     | tgn-traffic-rate-tolerance       | Maximum difference between Tx Rate and|
-    |                                  | Rx Rate expected after starting       |
+    | tgn_traffic_rate_tolerance       | Rx Rate expected after starting       |
     |                                  | traffic in 'initialize_traffic'       |
     |                                  | Default: 5 (packets per second)       |
     |----------------------------------+---------------------------------------|
-    | tgn_check_traffic_streams        | User provided list of traffic streams |
-    |                                  | to check traffic loss for. All other  |
+    | tgn-check-traffic-streams        | User provided list of traffic streams |
+    | tgn_check_traffic_streams        | to check traffic loss for. All other  |
     |                                  | traffic stream will be ignored for    |
     |                                  | performing traffic loss checks.       |
     |                                  | Default: None (All streams checked)   |
     |----------------------------------+---------------------------------------|
     | tgn-traffic-streams-data         | User provided YAML file containing the|
-    |                                  | maximum expected traffic outage, loss |
+    | tgn_traffic_streams_data         | maximum expected traffic outage, loss |
     |                                  | and frame rate tolerance for each     |
     |                                  | traffic item configured. Genie will   |
     |                                  | check if specific traffic streams have|
@@ -1179,61 +1472,61 @@ traffic generator subsections in ``Genie`` harness.
     |                                  | Default: None                         |
     |----------------------------------+---------------------------------------|
     | tgn-stabilization-interval       | Time to wait between re-checking all  |
-    |                                  | configured traffic streams on Ixia for|
+    | tgn_stabilization_interval       | configured traffic streams on Ixia for|
     |                                  | traffic loss in 'initialize_traffic'  |
     |                                  | Default: 60 (seconds)                 |
     |----------------------------------+---------------------------------------|
     | tgn-stabilization-iteration      | Number of attempts to re-check all the|
-    |                                  | configured traffic streams on Ixia for|
+    | tgn_stabilization_iteration      | configured traffic streams on Ixia for|
     |                                  | traffic loss in 'initialize_traffic'  |
     |                                  | Default: 10 attempts                  |
     |----------------------------------+---------------------------------------|
     | tgn-golden-profile               | Full path to the text file containing |
-    |                                  | previously verified and saved traffic |
+    | tgn_golden_profile               | previously verified and saved traffic |
     |                                  | profile to compare it against in      |
     |                                  | 'profile_traffic'                     |
     |                                  | Default: None                         |
     |----------------------------------+---------------------------------------|
     | tgn-disable-profile-clear-stats  | Disable clearing of traffic statistics|
-    |                                  | before creating a table or profile of |
+    | tgn_disable_profile_clear_stats  | before creating a table or profile of |
     |                                  | traffic statistics for the currently  |
     |                                  | executing job in 'profile_traffic'    |
     |                                  | Default: False                        |
     |----------------------------------+---------------------------------------|
     | tgn-view-create-interval         | Time to wait between re-checking if   |
-    |                                  | custom traffic items view "GENIE" is  |
+    | tgn_view_create_interval         | custom traffic items view "GENIE" is  |
     |                                  | ready in 'profile_traffic'            |
     |                                  | Default: 30 (seconds)                 |
     |----------------------------------+---------------------------------------|
     | tgn-view-create-iteration        | Number of attempts to re-check if the |
-    |                                  | custom traffic items view "GENIE" is  |
+    | tgn_view_create_iteration        | custom traffic items view "GENIE" is  |
     |                                  | ready in 'profile_traffic'            |
     |                                  | Default: 10 attempts                  |
     |----------------------------------+---------------------------------------|
     | tgn-disable-tracking-filter      | Disable adding tracking filter        |
-    |                                  | "Traffic Items" to traffic stream     |
+    | tgn_disable_tracking_filter      | "Traffic Items" to traffic stream     |
     |                                  | configuration while building "GENIE"  |
     |                                  | custom view in 'profile_traffic'      |
     |                                  | Default: False                        |
     |----------------------------------+---------------------------------------|
     | tgn-disable-port-pair-filter     | Disable adding tracking filter        |
-    |                                  | "Source/Dest Port Pair" to traffic    |
+    | tgn_disable_port_pair_filter     | "Source/Dest Port Pair" to traffic    |
     |                                  | streamconfiguration while building    |
     |                                  | "GENIE" view in 'profile_traffic'     |
     |                                  | Default: False                        |
     |----------------------------------+---------------------------------------|
     |tgn-profile-traffic-loss-tolerance| Maximum acceptable difference between |
-    |                                  | two Genie traffic profile snapshots   |
+    |tgn_profile_traffic_loss_tolerance| two Genie traffic profile snapshots   |
     |                                  | for loss % column in 'profile_traffic'|
     |                                  | Default: 2%                           |
     |----------------------------------+---------------------------------------|
     | tgn-profile-rate-loss-tolerance  | Maximum acceptable difference between |
-    |                                  | two Genie traffic profile snapshots   |
+    | tgn_profile_rate_loss_tolerance  | two Genie traffic profile snapshots   |
     |                                  | for Tx/Rx Rate in 'profile_traffic'   |
     |                                  | Default: 2 (packets per second)       |
     |----------------------------------+---------------------------------------|
     | tgn-logfile                      | Logfile to save all Ixia output       |
-    |                                  | Default: 'tgn.log'                    |
+    | tgn_logfile                      | Default: 'tgn.log'                    |
     +==========================================================================+
 
 
@@ -1271,9 +1564,9 @@ traffic, etc into one runnable subsection.
 It performs the following steps in order:
 
     1. Connect to Ixia
-    2. Load static configuration onto Ixia
-    3. Assign physical ports to Ixia virtual ports
+    2. Load static configuration and assign physical ports to Ixia virtual ports
     4. Start all protocols
+    5. Regenerate traffic streams
     5. Apply L2/L3 traffic configuration
     6. Send ARP, NS packet to all interfaces from Ixia
     7. Start L2/L3 traffic
@@ -1300,8 +1593,8 @@ below:
             class: genie.trafficgen.ixianative.IxiaNative
 
 
-Step2: Load static configuration onto Ixia
-""""""""""""""""""""""""""""""""""""""""""
+Step2: Load static configuration and assign physical ports to Ixia virtual ports
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
 This section can be controlled by enabling/disabling argument: `tgn-disable-load-configuration`.
 
@@ -1334,7 +1627,17 @@ device and wait for `tgn-protocols-convergence-time` seconds for all traffic
 streams to converge to steady state.
 
 
-Step4: Apply L2/L3 traffic
+Step4: Regenerate traffic streams
+"""""""""""""""""""""""""""""""""
+
+This section can be controlled by enabling/disabling argument: `tgn-disable-regenerate-traffic`.
+
+If this flag is enabled, ``Genie`` harness will regenerate traffic for all the
+configured traffic items on the traffic generator device and then wait for
+`tgn-regenerate-traffic-time` seconds.
+
+
+Step5: Apply L2/L3 traffic
 """"""""""""""""""""""""""
 
 This section can be controlled by enabling/disabling argument: `tgn-disable-apply-traffic`.
@@ -1343,7 +1646,7 @@ If this flag is enabled, ``Genie`` harness will apply L2/L3 traffic on the Ixia
 device and wait for `tgn-apply-traffic-time` seconds after applying traffic.
 
 
-Step5: Send ARP, NS from Ixia
+Step6: Send ARP, NS from Ixia
 """""""""""""""""""""""""""""
 
 This section can be controlled by enabling/disabling arguments:
@@ -1356,7 +1659,7 @@ ARP to all interfaces from Ixia and wait for `tgn-ns-wait-time` seconds after
 sending NS packets to all interfaces from Ixia.
 
 
-Step6: Start L2/L3 traffic
+Step7: Start L2/L3 traffic
 """""""""""""""""""""""""""
 
 This section can be controlled by enabling/disabling argument: `tgn-disable-start-traffic`.
@@ -1366,7 +1669,7 @@ device and wait for `tgn-steady-state-convergence-time` seconds after starting
 traffic for all traffic streams to converge to steady state.
 
 
-Step7: Clear traffic statistics
+Step8: Clear traffic statistics
 """""""""""""""""""""""""""""""
 
 This section can be controlled by enabling/disabling argument: `tgn-disable-clear-statistics`.
@@ -1376,7 +1679,7 @@ statistics on the Ixia device and wait for `tgn-clear-stats-time` seconds after
 clearing traffic statistics for traffic collection to resume.
 
 
-Step8: Create custom traffic statistics view on Ixia named "Genie"
+Step9: Create custom traffic statistics view on Ixia named "Genie"
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
 ``Genie`` harness will create a custom traffic items view named "GENIE" that
@@ -1385,7 +1688,7 @@ contains specific traffic statistics to be used for calculating traffic outages.
 times, while waiting for `tgn-view-create-interval` seconds between each iteration.
 
 
-Step9: Check for traffic loss
+Step10: Check for traffic loss
 """""""""""""""""""""""""""""
 
 This section can be controlled by enabling/disabling argument: `tgn-disable-check-traffic-loss`.
@@ -1592,20 +1895,6 @@ Disabling Processors
 Sometimes pre/post processors are specified as global processors, thereby
 informing ``Genie`` harness to execute those processors for all triggers.
 
-
-It would be tedious and time-consuming if a user wanted to disable a specific
-global processor for 1 or a handful of triggers but execute them for all other
-triggers. It would require the user to manually add local processors to every
-trigger they want to execute.
-
-Instead, users can simply set a trigger level argument `check_traffic` to
-"False" to disable execution of any global pre/post traffic processors for that
-trigger.
-
-An example of disabling processor 'clear_traffic_statistics' after
-TriggerClearBgp is shown below:
-
-
 .. code-block:: yaml
 
     global_processors:
@@ -1615,16 +1904,55 @@ TriggerClearBgp is shown below:
       post:
         check_traffic_loss:
           method: genie.harness.libs.prepostprocessor.check_traffic_loss
+        compare_traffic_profile:
+          method: genie.harness.libs.prepostprocessor.compare_traffic_profile
 
-    # Disable pre-processor `clear_traffic_statistics` for this trigger
+To disable *all* traffic related processors for a given trigger, users can
+specify argument 'check_traffic: False' for the trigger in the trigger datafile
+as shown below:
+
+.. code-block:: yaml
 
     TriggerClearBgp:
       groups: ['bgp']
-      check_traffic: False <--- will disable running any global traffic processor
+      check_traffic: False <--- will disable all global traffic processor
       devices: ['uut']
 
-In order to disable local processors, simply remove them from the trigger
-definition within the `trigger_datafile` YAML.
+
+To disable globally enabled 'clear_traffic_statistics' processor for a given
+trigger, users can specify argument 'clear_traffic_statistics: False' for the
+trigger in the trigger datafile as shown below:
+
+.. code-block:: yaml
+
+    TriggerClearBgp:
+      groups: ['bgp']
+      clear_traffic_statistics: False <--- will disable only clear_traffic_statistics processor
+      devices: ['uut']
+
+
+To disable globally enabled 'check_traffic_loss' processor for a given
+trigger, users can specify argument 'check_traffic_loss: False' for the
+trigger in the trigger datafile as shown below:
+
+.. code-block:: yaml
+
+    TriggerClearBgp:
+      groups: ['bgp']
+      check_traffic_loss: False <--- will disable only check_traffic_loss processor
+      devices: ['uut']
+
+
+To disable globally enabled 'compare_traffic_profile' processor for a given
+trigger, users can specify argument 'compare_traffic_profile: False' for the
+trigger in the trigger datafile as shown below:
+
+.. code-block:: yaml
+
+    TriggerClearBgp:
+      groups: ['bgp']
+      compare_traffic_profile: False <--- will disable only compare_traffic_profile processor
+      devices: ['uut']
 
 
 processor: clear_traffic_statistics
@@ -1689,6 +2017,9 @@ as shown below:
                 stream_settings: /ws/ellewoods-sjc/genie/ixia.yaml
                 check_interval: 60
                 check_iteration: 10
+                clear_stats: True
+                clear_stats_time: 30
+                pre_check_wait: 60
 
 The `check_traffic_loss` post-trigger processor has the following arguments:
 
@@ -1698,6 +2029,9 @@ The `check_traffic_loss` post-trigger processor has the following arguments:
 4. [Optional] check_interval: Wait time to re-check traffic/frames loss is within tolerance specified before failing processor. Default: 30 seconds.
 5. [Optional] check_iteration: Maximum attempts to verify traffic/frames loss is within tolerance specified before failing processor. Default: 10 attempts.
 6. [Optional] stream_settings: User provided YAML file containing per stream data for max_outage, loss_tolerance, rate_tolerance
+7. [Optional] clear_stats: Enable/disable clearing of statistics before checking traffic loss/outage. Default: False
+8. [Optional] clear_stats_time: Wait time after clearing statistics. Default: 30 seconds.
+9. [Optional] pre_check_wait: Wait time before (clearing stats) and performing checks for traffic loss/outage. Default: None
 
 The parameters above can also be set at both the local processor and global
 processor level with the exception of argument 'stream_settings', which can only
@@ -1768,7 +2102,7 @@ It performs the following steps:
            traffic profile and and common_setup profile_traffic created golden
            traffic profile  is less than user provided threshold of ``rate_tolerance``
 
-User's can define processor `check_traffic_loss` in the `trigger_datafile`
+User's can define processor `compare_traffic_profile` in the `trigger_datafile`
 as shown below:
 
 .. code-block:: yaml
