@@ -730,7 +730,7 @@ class IxiaNative(TrafficGen):
                            loss_tolerance=15, rate_tolerance=5,
                            check_iteration=10, check_interval=60,
                            outage_dict=None, clear_stats=False,
-                           clear_stats_time=30, pre_check_wait=''):
+                           clear_stats_time=30, pre_check_wait=None):
         '''Check traffic loss for each traffic stream configured on Ixia
             using statistics/data from 'Traffic Item Statistics' view'''
 
@@ -883,8 +883,7 @@ class IxiaNative(TrafficGen):
         traffic_table = PrettyTable()
 
         # If Genie view and page has not been created before, create one
-        if 'GENIE' not in self.get_all_statistics_views() or \
-            not self._genie_page or not self._genie_view:
+        if not self._genie_page or not self._genie_view or 'GENIE' not in self.get_all_statistics_views():
             self.create_genie_statistics_view(view_create_interval=view_create_interval,
                                               view_create_iteration=view_create_iteration)
 

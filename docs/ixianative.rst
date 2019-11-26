@@ -1312,9 +1312,15 @@ User's can specify arguments to control the ``Genie`` harness subsections via:
 
     .. code-block:: bash
 
-        easypy job.py --testbed-file <testbed yaml> \
-                      --tgn-disable-start-protocols True \
-                      --tgn-traffic-loss-tolerance 15.0
+        pyats run job job.py --testbed-file <testbed yaml> \
+                             --tgn-disable-start-protocols True \
+                             --tgn-traffic-loss-tolerance 15.0
+
+    .. code-block:: bash
+
+        easypy job.py -testbed_file <testbed yaml> \
+                      -tgn_disable_start_protocols True \
+                      -tgn_traffic_loss_tolerance 15.0
 
 .. note::
     Please note that when specifying traffic generator arguments in the job
@@ -1322,8 +1328,11 @@ User's can specify arguments to control the ``Genie`` harness subsections via:
     Example: "tgn_disable_start_traffic"
 
     When specifying traffic generator arguments via command line, the user must
-    use argument names with hyphens (-). 
-    Example: "tgn-disable-start-traffic"
+    use argument names with double dash and hyphens (-) when using
+    ``pyats run job`` or with single dash and underscores (_) when using
+    ``easypy`` to kick off a run.
+
+    Example: "--tgn-disable-start-traffic" (payts run job) or "-tgn_disable_start_traffic" (easypy)
 
 
 The table below is a list of arguments that can be configured by the user to control
@@ -1429,7 +1438,7 @@ traffic generator subsections in ``Genie`` harness.
     |                                  | Default: 60 (seconds)                 |
     |----------------------------------+---------------------------------------|
     | tgn-disable-check-traffic-loss   | Disable checking of frames loss       |
-    | tgn_disable_check_traffic+_loss  | and traffic loss for all configured   |
+    | tgn_disable_check_traffic_loss   | and traffic loss for all configured   |
     |                                  | traffic streams after starting L2/L3  |
     |                                  | traffic on Ixia in'initialize_traffic'|
     |                                  | Default: False                        |
@@ -1565,8 +1574,8 @@ It performs the following steps in order:
 
     1. Connect to Ixia
     2. Load static configuration and assign physical ports to Ixia virtual ports
-    4. Start all protocols
-    5. Regenerate traffic streams
+    3. Start all protocols
+    4. Regenerate traffic streams
     5. Apply L2/L3 traffic configuration
     6. Send ARP, NS packet to all interfaces from Ixia
     7. Start L2/L3 traffic
@@ -1576,7 +1585,7 @@ It performs the following steps in order:
 
 
 Step1: Connect to Ixia
-""""""""""""""""""""""
+"""""""""""""""""""""""
 
 Once an Ixia device has been added to the `testbed` YAML file, ``Genie`` harness
 can connect to this Ixia `device` via the default connection 'tgn' as shown
@@ -1594,7 +1603,7 @@ below:
 
 
 Step2: Load static configuration and assign physical ports to Ixia virtual ports
-""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
 This section can be controlled by enabling/disabling argument: `tgn-disable-load-configuration`.
 
@@ -1618,7 +1627,7 @@ It waits for `tgn-assign-ports-time` seconds for all ports to be up (green).
 
 
 Step3: Start all protocols
-""""""""""""""""""""""""""
+"""""""""""""""""""""""""""
 
 This section can be controlled by enabling/disabling argument: `tgn-disable-start-protocols`.
 
@@ -1628,7 +1637,7 @@ streams to converge to steady state.
 
 
 Step4: Regenerate traffic streams
-"""""""""""""""""""""""""""""""""
+""""""""""""""""""""""""""""""""""
 
 This section can be controlled by enabling/disabling argument: `tgn-disable-regenerate-traffic`.
 
@@ -1638,7 +1647,7 @@ configured traffic items on the traffic generator device and then wait for
 
 
 Step5: Apply L2/L3 traffic
-""""""""""""""""""""""""""
+"""""""""""""""""""""""""""
 
 This section can be controlled by enabling/disabling argument: `tgn-disable-apply-traffic`.
 
@@ -1647,11 +1656,12 @@ device and wait for `tgn-apply-traffic-time` seconds after applying traffic.
 
 
 Step6: Send ARP, NS from Ixia
-"""""""""""""""""""""""""""""
+""""""""""""""""""""""""""""""
 
 This section can be controlled by enabling/disabling arguments:
-    * `tgn-disable-send-arp` - send ARP to all interfaces from Ixia
-    * `tgn-disable-send-ns` - send NS to all interfaces from Ixia
+
+* `tgn-disable-send-arp` - send ARP to all interfaces from Ixia
+* `tgn-disable-send-ns` - send NS to all interfaces from Ixia
 
 If these flags are enabled, ``Genie`` harness will send ARP and NS to all
 interfaces from Ixia. It will wait for `tgn-arp-wait-time` seconds after sending
@@ -1670,7 +1680,7 @@ traffic for all traffic streams to converge to steady state.
 
 
 Step8: Clear traffic statistics
-"""""""""""""""""""""""""""""""
+""""""""""""""""""""""""""""""""
 
 This section can be controlled by enabling/disabling argument: `tgn-disable-clear-statistics`.
 
@@ -1680,7 +1690,7 @@ clearing traffic statistics for traffic collection to resume.
 
 
 Step9: Create custom traffic statistics view on Ixia named "Genie"
-""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
 ``Genie`` harness will create a custom traffic items view named "GENIE" that
 contains specific traffic statistics to be used for calculating traffic outages.
@@ -1689,7 +1699,7 @@ times, while waiting for `tgn-view-create-interval` seconds between each iterati
 
 
 Step10: Check for traffic loss
-"""""""""""""""""""""""""""""
+"""""""""""""""""""""""""""""""
 
 This section can be controlled by enabling/disabling argument: `tgn-disable-check-traffic-loss`.
 
@@ -1710,10 +1720,10 @@ This section performs the following:
     The threshold values provided above are used to verify all traffic streams
     configured on the traffic generator device. 
 
-If the the threshold values for traffic outage and loss checks are different
-** per stream **, the user can provide a YAML containing stream specific 
-thresholds. This YAML file can then be provided to the common_setup via the argument
-``tgn-traffic-streams-data``
+If the the threshold values for max_outage, loss_tolerance and rate_tolerance
+are different *per stream*, the user can create a YAML file containing stream
+specific threshold valuess. This YAML file can then be provided to the
+common_setup via the argument ``tgn-traffic-streams-data``.
 
 The following is an example of the traffic items YAML a user can provide:
 
@@ -2041,10 +2051,10 @@ be set at the trigger level.
     The threshold values provided above are used to verify all traffic streams
     configured on the traffic generator device.
 
-If the the threshold values for traffic outage and loss checks are different
-** per stream **, the user can provide a YAML containing stream specific 
-thresholds. This YAML file can then be provided to the processor via the
-argument ``stream_settings``
+If the the threshold values for max_outage, loss_tolerance and rate_tolerance
+are different *per stream*, the user can create a YAML file containing stream
+specific threshold valuess. This YAML file can then be provided to the
+processor via the argument ``stream_settings``.
 
 The following is an example of the traffic items YAML a user can provide:
 
@@ -2079,28 +2089,28 @@ processor: compare_traffic_profile
 
 It performs the following steps:
 
-    1. Create a snapshot profile of traffic streams configured on Ixia
-    3. Copy the snapshot profile as "TriggerName_traffic_profile" to Genie runtime logs
-    4. [Optional] If the user provided a ``section_profile``:
-        a. Verify that the difference for Loss % between the current traffic
-           profile and section traffic profile is less than user provided
-           threshold of ``loss_tolerance``
-        b. Verify that the difference for Tx Frames Rate between the current
-           traffic profile and section traffic profile is less than user provided
-           threshold of ``rate_tolerance``
-        c. Verify that the difference for Rx Frames Rate between the current
-           traffic profile and section traffic profile is less than user provided
-           threshold of ``rate_tolerance``
-    4. If the user does not provide ``section_profile`` for the given Trigger
-        a. Verify that the difference for Loss % between the current traffic
-           profile and common_setup profile_traffic created golden traffic profile 
-           is less than user provided threshold of ``loss_tolerance``
-        b. Verify that the difference for Tx Frames Rate between the current
-           traffic profile and and common_setup profile_traffic created golden 
-           traffic profile  is less than user provided threshold of ``rate_tolerance``
-        c. Verify that the difference for Rx Frames Rate between the current
-           traffic profile and and common_setup profile_traffic created golden
-           traffic profile  is less than user provided threshold of ``rate_tolerance``
+1. Create a snapshot profile of traffic streams configured on Ixia
+2. Copy the snapshot profile as "TriggerName_traffic_profile" to Genie runtime logs
+3. [Optional] If the user provided a ``section_profile``:
+    a. Verify that the difference for Loss % between the current traffic
+       profile and section traffic profile is less than user provided
+       threshold of ``loss_tolerance``
+    b. Verify that the difference for Tx Frames Rate between the current
+       traffic profile and section traffic profile is less than user provided
+       threshold of ``rate_tolerance``
+    c. Verify that the difference for Rx Frames Rate between the current
+       traffic profile and section traffic profile is less than user provided
+       threshold of ``rate_tolerance``
+4. If the user does not provide ``section_profile`` for the given Trigger
+    a. Verify that the difference for Loss % between the current traffic
+       profile and common_setup profile_traffic created golden traffic profile 
+       is less than user provided threshold of ``loss_tolerance``
+    b. Verify that the difference for Tx Frames Rate between the current
+       traffic profile and and common_setup profile_traffic created golden 
+       traffic profile  is less than user provided threshold of ``rate_tolerance``
+    c. Verify that the difference for Rx Frames Rate between the current
+       traffic profile and and common_setup profile_traffic created golden
+       traffic profile  is less than user provided threshold of ``rate_tolerance``
 
 User's can define processor `compare_traffic_profile` in the `trigger_datafile`
 as shown below:
