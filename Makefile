@@ -105,9 +105,7 @@ develop:
 	@pip install $(DEPENDENCIES)
 	
 	@$(PYTHON) setup.py develop --no-deps
-	
-	@pip install -e ".[dev]"
-	
+		
 	@echo ""
 	@echo "Completed building and installing: $@"
 	@echo ""

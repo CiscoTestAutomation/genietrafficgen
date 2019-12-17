@@ -835,7 +835,18 @@ class IxiaNative(TrafficGen):
                          "than tolerance threshold of '{}' pps".format(given_rate_tolerance))
                 tx_rate = row.get_string(fields=["Tx Frame Rate"]).strip()
                 rx_rate = row.get_string(fields=["Rx Frame Rate"]).strip()
-                if abs(float(tx_rate) - float(rx_rate)) <= float(given_rate_tolerance):
+
+                # Check tx_rate and rx_rate can be converted to float
+                try:
+                    tx_rate = float(tx_rate)
+                except ValueError:
+                    tx_rate = 0.0
+                try:
+                    rx_rate = float(rx_rate)
+                except ValueError:
+                    rx_rate = 0.0
+
+                if abs(tx_rate - rx_rate) <= float(given_rate_tolerance):
                     log.info("* Difference between Tx Rate '{t}' and Rx Rate"
                              " '{r}' is within expected maximum rate loss"
                              " threshold of '{g}' packets per second".\
