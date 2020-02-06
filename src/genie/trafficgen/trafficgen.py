@@ -3,7 +3,7 @@ Connection Implementation class for traffic generator device
 '''
 
 # pyATS
-from ats.connections import BaseConnection
+from pyats.connections import BaseConnection
 
 
 class TrafficGen(BaseConnection):

@@ -18,9 +18,9 @@ from shutil import copyfile
 from prettytable import PrettyTable, from_csv
 
 # pyATS
-from ats.easypy import runtime
-from ats.log.utils import banner
-from ats.connections import BaseConnection
+from pyats.easypy import runtime
+from pyats.log.utils import banner
+from pyats.connections import BaseConnection
 
 # Genie
 from genie.utils.timeout import Timeout
@@ -63,6 +63,8 @@ class IxiaNative(TrafficGen):
                                  'rfc2544throughput',
                                  'rfc2544back2back',
                                  ]
+        # Type of traffic configured
+        self.config_type = None
 
         # Get Ixia device arguments from testbed YAML file
         for key in ['ixnetwork_api_server_ip', 'ixnetwork_tcl_port',
@@ -237,6 +239,37 @@ class IxiaNative(TrafficGen):
         else:
             log.info("Traffic in 'unapplied' state after loading configuration "
                      "onto device '{}'".format(self.device.name))
+
+
+    @BaseConnection.locked
+    @isconnected
+    def remove_configuration(self, wait_time=30):
+        '''Remove configuration from Ixia'''
+
+        log.info(banner("Removing configuration..."))
+
+        # Execute remove config on IxNetwork
+        try:
+            remove_config = self.ixNet.execute('newConfig')
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to remove configuration from device '{}'".\
+                                format(self.device.name)) from e
+        # Verify return
+        try:
+            assert remove_config == _PASS
+        except AssertionError as e:
+            log.error(remove_config)
+            raise GenieTgnError("Unable to remove configuration from device '{}'".\
+                                format(self.device.name)) from e
+        else:
+            log.info("Successfully removed configuration from device '{}'".\
+                    format(self.device.name))
+
+        # Wait after removing configuration file
+        log.info("Waiting for '{}' seconds after removing configuration...".\
+                 format(wait_time))
+        time.sleep(wait_time)
 
 
     @BaseConnection.locked
@@ -454,7 +487,7 @@ class IxiaNative(TrafficGen):
 
     @BaseConnection.locked
     @isconnected
-    def stop_traffic(self, wait_time=60):
+    def stop_traffic(self, wait_time=60, max_time=180):
         '''Stop traffic on Ixia'''
 
         log.info(banner("Stopping L2/L3 traffic"))
@@ -484,22 +517,29 @@ class IxiaNative(TrafficGen):
             log.info("Stopped L2/L3 traffic on device '{}'".\
                         format(self.device.name))
 
-        # Wait after starting L2/L3 traffic for streams to converge to steady state
-        log.info("Waiting for '{}' seconds after after stopping L2/L3 "
-                 "traffic...".format(wait_time))
-        time.sleep(wait_time)
-
         # Check if traffic is in 'stopped' state
         log.info("Checking if traffic is in 'stopped' state...")
-        current_state = self.get_traffic_attribute(attribute='state')
-        try:
-            assert current_state == 'stopped'
-        except AssertionError as e:
-            log.error(e)
+
+        # Begin timeout
+        timeout = Timeout(max_time=max_time, interval=wait_time)
+        while timeout.iterate():
+
+            # Wait before checking traffic state
+            log.info("Waiting '{}' seconds before checking traffic state...".\
+                     format(wait_time))
+            timeout.sleep()
+
+            # Check current traffic state
+            current_state = self.get_traffic_attribute(attribute='state')
+            if current_state == 'stopped':
+                log.info("Traffic is in 'stopped' state")
+                return
+            else:
+                log.warning("Traffic is not in 'stopped' state as expected")
+        else:
+            # No return
             raise GenieTgnError("Traffic is not in 'stopped' state - traffic "
                                 "state is '{}'".format(current_state))
-        else:
-            log.info("Traffic is in 'stopped' state")
 
 
     @BaseConnection.locked
@@ -723,6 +763,15 @@ class IxiaNative(TrafficGen):
             raise GenieTgnError("Unable to create custom IxNetwork traffic "
                                 "statistics view 'GENIE' page.") from e
 
+        # Determine traffic types, default to 'l2L3' if check fails
+        try:
+            # Get traffic items and pick first one
+            first_traffic_item = self.ixNet.getList('/traffic', 'trafficItem')[0]
+            self.config_type = self.ixNet.getAttribute(first_traffic_item,
+                                                       '-trafficType')
+        except Exception as e:
+            self.config_type = 'l2L3'
+
 
     @BaseConnection.locked
     @isconnected
@@ -800,6 +849,7 @@ class IxiaNative(TrafficGen):
                 # 1- Verify traffic Outage (in seconds) is less than tolerance threshold
                 log.info("1. Verify traffic outage (in seconds) is less than "
                          "tolerance threshold of '{}' seconds".format(given_max_outage))
+                # Check that 'Outage (seconds)' is not '' or '*'
                 current_outage = row.get_string(fields=["Outage (seconds)"]).strip()
                 if float(current_outage) <= float(given_max_outage):
                     log.info("* Traffic outage of '{c}' seconds is within "
@@ -815,10 +865,10 @@ class IxiaNative(TrafficGen):
                 # 2- Verify current loss % is less than tolerance threshold
                 log.info("2. Verify current loss % is less than tolerance "
                          "threshold of '{}' %".format(given_loss_tolerance))
-                if row.get_string(fields=["Loss %"]).strip() != '':
-                    current_loss_percentage = row.get_string(fields=["Loss %"]).strip()
-                else:
-                    current_loss_percentage = 0
+                # Check that 'Loss %' is not '' or '*'
+                tmp_loss = row.get_string(fields=["Loss %"]).strip()
+                current_loss_percentage = tmp_loss if isfloat(tmp_loss) else 0
+                # Now compare
                 if float(current_loss_percentage) <= float(given_loss_tolerance):
                     log.info("* Current traffic loss of {l}% is within"
                              " maximum expected loss tolerance of {g}%".\
@@ -833,19 +883,15 @@ class IxiaNative(TrafficGen):
                 # 3- Verify difference between Tx Rate & Rx Rate is less than tolerance threshold
                 log.info("3. Verify difference between Tx Rate & Rx Rate is less "
                          "than tolerance threshold of '{}' pps".format(given_rate_tolerance))
+                # Get 'Tx Frame Rate'
                 tx_rate = row.get_string(fields=["Tx Frame Rate"]).strip()
+                # Check that 'Tx Rate' is not '' or '*'
+                tx_rate = float(tx_rate) if isfloat(tx_rate) else 0.0
+                # Get 'Rx Frame Rate'
                 rx_rate = row.get_string(fields=["Rx Frame Rate"]).strip()
-
-                # Check tx_rate and rx_rate can be converted to float
-                try:
-                    tx_rate = float(tx_rate)
-                except ValueError:
-                    tx_rate = 0.0
-                try:
-                    rx_rate = float(rx_rate)
-                except ValueError:
-                    rx_rate = 0.0
-
+                # Check that 'Rx Rate' is not '' or '*'
+                rx_rate = float(rx_rate) if isfloat(rx_rate) else 0.0
+                # Now compare
                 if abs(tx_rate - rx_rate) <= float(given_rate_tolerance):
                     log.info("* Difference between Tx Rate '{t}' and Rx Rate"
                              " '{r}' is within expected maximum rate loss"
@@ -911,18 +957,27 @@ class IxiaNative(TrafficGen):
 
         # Add column for Outage
         headers.append('Outage (seconds)')
-        # Arrange data to fit into table as required in final format:
-        # ['Source/Dest Port Pair', 'Traffic Item', 'Tx Frames', 'Rx Frames', 'Frames Delta', 'Tx Frame Rate', 'Rx Frame Rate', 'Loss %', 'Outage (seconds)']
         del headers[0]
-        headers[1], headers[0] = headers[0], headers[1]
-        headers[5], headers[7] = headers[7], headers[5]
-        headers[6], headers[5] = headers[5], headers[6]
-        traffic_table.field_names = headers
+        # Arrange data to fit into table as required in final format
+        if self.config_type != 'raw':
+            headers[1], headers[0] = headers[0], headers[1]
+            headers[5], headers[7] = headers[7], headers[5]
+            headers[6], headers[5] = headers[5], headers[6]
+            traffic_table.field_names = headers
+            # ['Source/Dest Port Pair', 'Traffic Item', 'Tx Frames', 'Rx Frames', 'Frames Delta', 'Tx Frame Rate', 'Rx Frame Rate', 'Loss %', 'Outage (seconds)']
+            required_headers = ['Source/Dest Port Pair', 'Traffic Item',
+                                'Tx Frames', 'Rx Frames', 'Frames Delta',
+                                'Tx Frame Rate', 'Rx Frame Rate', 'Loss %',
+                                'Outage (seconds)']
+        else:
+            headers[4], headers[6] = headers[6], headers[4]
+            headers[5], headers[4] = headers[4], headers[5]
+            traffic_table.field_names = headers
+            # ['Source/Dest Port Pair', 'Tx Frames', 'Rx Frames', 'Frames Delta', 'Tx Frame Rate', 'Rx Frame Rate', 'Loss %', 'Outage (seconds)']
+            required_headers = ['Source/Dest Port Pair', 'Tx Frames',
+                                'Rx Frames', 'Frames Delta', 'Tx Frame Rate',
+                                'Rx Frame Rate', 'Loss %', 'Outage (seconds)']
 
-        required_headers = ['Source/Dest Port Pair', 'Traffic Item',
-                            'Tx Frames', 'Rx Frames', 'Frames Delta',
-                            'Tx Frame Rate', 'Rx Frame Rate', 'Loss %',
-                            'Outage (seconds)']
         # Check that all the expected headers were found
         for item in required_headers:
             try:
@@ -981,16 +1036,27 @@ class IxiaNative(TrafficGen):
             for item in all_rows:
                 # Get row value data
                 row_item = item[0]
-                # Arrange data to fit into table as required in final format:
-                # ['Source/Dest Port Pair', 'Traffic Item', 'Tx Frames', 'Rx Frames', 'Frames Delta', 'Tx Frame Rate', 'Rx Frame Rate', 'Loss %', 'Outage (seconds)']
                 del row_item[0]
-                row_item[1], row_item[0] = row_item[0], row_item[1]
-                row_item[5], row_item[7] = row_item[7], row_item[5]
-                row_item[6], row_item[5] = row_item[5], row_item[6]
+                # Arrange data to fit into table as required in final format
+                if self.config_type != 'raw':
+                    # ['Source/Dest Port Pair', 'Traffic Item', 'Tx Frames', 'Rx Frames', 'Frames Delta', 'Tx Frame Rate', 'Rx Frame Rate', 'Loss %', 'Outage (seconds)']
+                    row_item[1], row_item[0] = row_item[0], row_item[1]
+                    row_item[5], row_item[7] = row_item[7], row_item[5]
+                    row_item[6], row_item[5] = row_item[5], row_item[6]
+                    # Get 'Frames Delta' and 'Tx Frame Rate' values
+                    frames_delta = row_item[4].strip()
+                    tx_frame_rate = row_item[5].strip()
+                else:
+                    # ['Source/Dest Port Pair', 'Tx Frames', 'Rx Frames', 'Frames Delta', 'Tx Frame Rate', 'Rx Frame Rate', 'Loss %', 'Outage (seconds)']
+                    row_item[4], row_item[6] = row_item[6], row_item[4]
+                    row_item[5], row_item[4] = row_item[4], row_item[5]
+                    # Get 'Frames Delta' and 'Tx Frame Rate' values
+                    frames_delta = row_item[3].strip()
+                    tx_frame_rate = row_item[4].strip()
                 # Calculate outage in seconds from 'Frames Delta' and add to row
-                frames_delta = row_item[4]
-                tx_frame_rate = row_item[5]
                 if tx_frame_rate == '0.000' or tx_frame_rate == '0':
+                    outage_seconds = 0.0
+                elif not isfloat(frames_delta) or not isfloat(tx_frame_rate):
                     outage_seconds = 0.0
                 else:
                     outage_seconds = round(float(frames_delta)/float(tx_frame_rate), 3)
@@ -1064,60 +1130,87 @@ class IxiaNative(TrafficGen):
                     profile1_row_values['traffic_item'] == profile2_row_values['traffic_item']:
 
                     # Begin comparison
-                    log.info(banner("Comparing profiles for traffic item '{}'".format(profile1_row_values['traffic_item'])))
+                    log.info(banner("Comparing profiles for traffic item '{}'".\
+                                    format(profile1_row_values['traffic_item'])))
+
+                    # ----------------------------------------------------------
+                    #              check 'Tx Rate' between 2 profiles
+                    # ----------------------------------------------------------
+
+                    # Check profile1 values are not '' or '*'
+                    tmp_tx_rate1 = profile1_row_values['tx_rate'].strip()
+                    profile1_tx_rate = float(tmp_tx_rate1) if isfloat(tmp_tx_rate1) else 0.0
+
+                    # Check profile2 values are not '' or '*'
+                    tmp_tx_rate2 = profile2_row_values['tx_rate'].strip()
+                    profile2_tx_rate = float(tmp_tx_rate2) if isfloat(tmp_tx_rate2) else 0.0
 
                     # Compare Tx Frames Rate between two profiles
                     try:
-                        assert abs(float(profile1_row_values['tx_rate']) - float(profile2_row_values['tx_rate'])) <= float(rate_tolerance)
+                        assert abs(profile1_tx_rate - profile2_tx_rate) <= float(rate_tolerance)
                     except AssertionError as e:
                         compare_profile_failed = True
                         log.error("* Tx Frames Rate for profile 1 '{p1}' and "
                                   "profile 2 '{p2}' is more than expected "
                                   "tolerance of '{t}'".\
-                                  format(p1=profile1_row_values['tx_rate'],
-                                         p2=profile2_row_values['tx_rate'],
+                                  format(p1=profile1_tx_rate,
+                                         p2=profile2_tx_rate,
                                          t=rate_tolerance))
                     else:
                         log.info("* Tx Frames Rate difference between "
                                  "profiles is less than threshold of '{}'".\
                                  format(rate_tolerance))
 
+                    # ----------------------------------------------------------
+                    #              check 'Rx Rate' between 2 profiles
+                    # ----------------------------------------------------------
+
+                    # Check profile1 values are not '' or '*'
+                    tmp_rx_rate1 = profile1_row_values['rx_rate'].strip()
+                    profile1_rx_rate = float(tmp_rx_rate1) if isfloat(tmp_rx_rate1) else 0.0
+
+                    # Check profile2 values are not '' or '*'
+                    tmp_rx_rate2 = profile2_row_values['rx_rate'].strip()
+                    profile2_rx_rate = float(tmp_rx_rate2) if isfloat(tmp_rx_rate2) else 0.0
+
                     # Compare Rx Frames Rate between two profiles
                     try:
-                        assert abs(float(profile1_row_values['rx_rate']) - float(profile2_row_values['rx_rate'])) <= float(rate_tolerance)
+                        assert abs(profile1_rx_rate - profile2_rx_rate) <= float(rate_tolerance)
                     except AssertionError as e:
                         compare_profile_failed = True
                         log.error("* Rx Frames Rate for profile 1 '{p1}' and"
                                   " profile 2 '{p2}' is more than expected "
                                   "tolerance of '{t}'".\
-                                  format(p1=profile1_row_values['rx_rate'],
-                                         p2=profile2_row_values['rx_rate'],
+                                  format(p1=profile1_rx_rate,
+                                         p2=profile2_rx_rate,
                                          t=rate_tolerance))
                     else:
                         log.info("* Rx Frames Rate difference between "
                                  "profiles is less than threshold of '{}'".\
                                  format(rate_tolerance))
 
-                    # Check if loss % in profile1 is not ''
-                    try:
-                        float(profile1_row_values['loss'])
-                    except ValueError:
-                        profile1_row_values['loss'] = 0
-                    # Check if loss % in profile2 is not ''
-                    try:
-                        float(profile2_row_values['loss'])
-                    except ValueError:
-                        profile2_row_values['loss'] = 0
+                    # ----------------------------------------------------------
+                    #              check 'Loss %'' between 2 profiles
+                    # ----------------------------------------------------------
+
+                    # Check profile1 values are not '' or '*'
+                    tmp_loss1 = profile1_row_values['loss'].strip()
+                    profile1_loss = float(tmp_loss1) if isfloat(tmp_loss1) else 0.0
+
+                    # Check profile2 values are not '' or '*'
+                    tmp_loss2 = profile2_row_values['loss'].strip()
+                    profile2_loss = float(tmp_loss2) if isfloat(tmp_loss2) else 0.0
+
                     # Compare Loss % between two profiles
                     try:
-                        assert abs(float(profile1_row_values['loss']) - float(profile2_row_values['loss'])) <= float(loss_tolerance)
+                        assert abs(profile1_loss - profile2_loss) <= float(loss_tolerance)
                     except AssertionError as e:
                         compare_profile_failed = True
                         log.error("* Loss % for profile 1 '{p1}' and "
                                   "profile 2 '{p2}' is more than expected "
                                   "tolerance of '{t}'".\
-                                  format(p1=profile1_row_values['loss'],
-                                         p2=profile2_row_values['loss'],
+                                  format(p1=profile1_loss,
+                                         p2=profile2_loss,
                                          t=loss_tolerance))
                     else:
                         log.info("* Loss % difference between profiles "
@@ -1903,7 +1996,7 @@ class IxiaNative(TrafficGen):
         '''Returns the specified attribute for the given traffic stream'''
 
         # Sample attributes
-        # ['name', 'state', 'txPortName', 'txPortId', 'rxPortName', 'rxPortId', 'trafficItemType']
+        # ['name', 'state', 'trafficItemType']
 
         # Find traffic stream object
         ti_obj = self.find_traffic_stream_object(traffic_stream=traffic_stream)
@@ -1919,7 +2012,8 @@ class IxiaNative(TrafficGen):
 
     @BaseConnection.locked
     @isconnected
-    def start_traffic_stream(self, traffic_stream, check_stream=True, wait_time=15):
+    def start_traffic_stream(self, traffic_stream, check_stream=True,
+        wait_time=15, max_time=180):
         '''Start specific traffic stream on Ixia'''
 
         log.info(banner("Starting L2/L3 traffic for traffic stream '{}'".\
@@ -1936,22 +2030,36 @@ class IxiaNative(TrafficGen):
             raise GenieTgnError("Error while starting traffic for traffic"
                                 " stream '{}'".format(traffic_stream))
 
-        # Wait for user specified interval
-        log.info("Waiting for '{t}' seconds after starting traffic stream"
-                 " '{s}'".format(t=wait_time, s=traffic_stream))
-        time.sleep(wait_time)
-
         if check_stream:
             # Verify traffic stream state is now 'started'
             log.info("Verify traffic stream '{}' state is now 'started'".\
                      format(traffic_stream))
-            try:
-                assert 'started' == self.get_traffic_stream_attribute(traffic_stream=traffic_stream, attribute='state')
-            except AssertionError as e:
-                raise GenieTgnError("Traffic stream '{}' state is not 'started'".\
-                                    format(traffic_stream))
+
+            # Begin timeout
+            timeout = Timeout(max_time=max_time, interval=wait_time)
+            while timeout.iterate():
+
+                # Wait before checking traffic state
+                log.info("Waiting '{}' seconds before checking traffic stream "
+                         "'{}' state...".format(wait_time, traffic_stream))
+                timeout.sleep()
+
+                # Check current traffic state
+                current_state = self.\
+                    get_traffic_stream_attribute(traffic_stream=traffic_stream,
+                                                 attribute='state')
+                if current_state == 'started':
+                    log.info("Traffic stream '{}' state is 'started'".\
+                             format(traffic_stream))
+                    break
+                else:
+                    log.warning("Traffic stream '{} is not in 'started' state "
+                                "as expected".format(traffic_stream))
             else:
-                log.info("Traffic stream '{}' state is 'started'".format(traffic_stream))
+                # No break
+                raise GenieTgnError("Traffic stream '{}' state is not 'started'"
+                                    " - state is '{}'".format(traffic_stream,
+                                                              current_state))
 
             # Verify Tx Frame Rate for this stream is > 0 after starting it
             log.info("Verify Tx Frame Rate > 0 for traffic stream '{}'".\
@@ -2173,7 +2281,7 @@ class IxiaNative(TrafficGen):
 
         # Get flow group objects of given traffic stream from Ixia
         try:
-            for item in self.get_flow_group_objects():
+            for item in self.get_flow_group_objects(traffic_stream=traffic_stream):
                 flow_groups.append(self.ixNet.getAttribute(item, '-name'))
         except Exception as e:
             log.error(e)
@@ -2586,10 +2694,9 @@ class IxiaNative(TrafficGen):
 
             # 1- Verify current loss % is less than tolerance threshold
             # Get loss % value
-            if row.get_string(fields=["Loss %"]).strip() != '':
-                loss_percentage = row.get_string(fields=["Loss %"]).strip()
-            else:
-                loss_percentage = 0
+            tmp_loss = row.get_string(fields=["Loss %"]).strip()
+            # Check that 'Loss %' value is not '' or '*'
+            loss_percentage = tmp_loss if isfloat(tmp_loss) else 0
             # Check traffic loss
             if float(loss_percentage) <= float(loss_tolerance):
                 if verbose:
@@ -2606,10 +2713,15 @@ class IxiaNative(TrafficGen):
                               format(t=loss_tolerance, l=loss_percentage))
 
             # 2- Verify difference between Tx Rate & Rx Rate is less than tolerance threshold
-            # Get Tx and Rx Frame Rates
+            # Get Tx Frame Rate
             tx_rate = row.get_string(fields=["Tx Frame Rate"]).strip()
+            # Check that 'Tx Rate' value is not '' or '*'
+            tx_rate = float(tx_rate) if isfloat(tx_rate) else 0.0
+            # Get Rx Frame Rate
             rx_rate = row.get_string(fields=["Rx Frame Rate"]).strip()
-            if abs(float(tx_rate) - float(rx_rate)) <= float(rate_tolerance):
+            # Check that 'Rx Rate' value is not '' or '*'
+            rx_rate = float(rx_rate) if isfloat(rx_rate) else 0.0
+            if abs(tx_rate - rx_rate) <= float(rate_tolerance):
                 if verbose:
                     log.info("* Difference between Tx Rate '{t}' and Rx Rate"
                              " '{r}' is within expected maximum rate loss"
@@ -3687,4 +3799,9 @@ class IxiaNative(TrafficGen):
                          "'{d}'".format(q=quicktest, d=dest_pdf_file))
 
 
-
+def isfloat(string):
+    try:
+        float(string)
+        return True
+    except ValueError:
+        return False

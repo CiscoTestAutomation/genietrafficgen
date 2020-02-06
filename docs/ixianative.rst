@@ -419,6 +419,12 @@ an Ixia traffic generator device:
     |                                 |           loading configuration file.          |
     |                                 |           Default: 60 (seconds)                |
     |---------------------------------+------------------------------------------------|
+    | remove_configuration            | Remove configuration from Ixia device.         |
+    |                                 | Arguments:                                     |
+    |                                 |     * [O] wait_time - time to wait after       |
+    |                                 |           removing configuration.              |
+    |                                 |           Default: 30 (seconds)                |
+    |---------------------------------+------------------------------------------------|
     | start_all_protocols             | Starts all protocols on Ixia device.           |
     |                                 | Arguments:                                     |
     |                                 |     * [O] wait_time - time to wait after       |
@@ -1403,32 +1409,40 @@ traffic generator subsections in ``Genie`` harness.
     |                                  | Default: False                        |
     |----------------------------------+---------------------------------------|
     | tgn-arp-wait-time                | Time to wait after sending ARP from   |
-    | tgn-arp-wait-time                | Ixia in 'initialize_traffic'          |
+    | tgn_arp_wait_time                | Ixia in 'initialize_traffic'          |
     |                                  | Default: 60 (seconds)                 |
     |----------------------------------+---------------------------------------|
     | tgn-disable-send-ns              | Disable send NS to interfaces on Ixia |
-    | tgn-disable-send-ns              | in 'initialize_traffic'               |
+    | tgn_disable_send_ns              | in 'initialize_traffic'               |
     |                                  | Default: False                        |
     |----------------------------------+---------------------------------------|
     | tgn-ns-wait-time                 | Time to wait after sending NS packet  |
-    | tgn-ns-wait-time                 | from Ixia in 'initialize_traffic'     |
+    | tgn_ns_wait_time                 | from Ixia in 'initialize_traffic'     |
     |                                  | Default: 60 (seconds)                 |
     |----------------------------------+---------------------------------------|
     | tgn-disable-start-traffic        | Disable starting L2/L3 traffic on     |
-    | tgn-disable-start-traffic        | Ixia in 'initialize_traffic'          |
+    | tgn_disable_start_traffic        | Ixia in 'initialize_traffic'          |
     |                                  | Default: False                        |
     |----------------------------------+---------------------------------------|
     | tgn-steady-state-convergence-time| Time to wait for traffic streams to   |
-    | tgn-steady-state-convergence-time| converge to steady state after start  |
+    | tgn_steady_state_convergence_time| converge to steady state after start  |
     |                                  | traffic in 'initialize_traffic'       |
     |                                  | Default: 15 (seconds)                 |
     |----------------------------------+---------------------------------------|
     | tgn-stop-traffic-time            | Time to wait after stopping traffic   |
-    | tgn-stop-traffic-time            | streams in 'stop_traffic'             |
+    | tgn_stop_traffic_time            | streams in 'stop_traffic'             |
     |                                  | Default: 15 (seconds)                 |
     |----------------------------------+---------------------------------------|
+    | tgn-remove-configuration         | Remove configuration after stopping   |
+    | tgn_remove_configuration         | traffic streams in 'stop_traffic'     |
+    |                                  | Default: False                        |
+    |----------------------------------+---------------------------------------|
+    | tgn-remove-configuration-time    | Time to wait after removing all Ixia  |
+    | tgn_remove_configuration_time    | configuration in 'stop_traffic'       |
+    |                                  | Default: 30 (seconds)                 |
+    |----------------------------------+---------------------------------------|
     | tgn-disable-clear-statistics     | Disable clearing of all protocol and  |
-    | tgn-disable-clear-statistics     | traffic statistics on Ixia in         |
+    | tgn_disable_clear_statistics     | traffic statistics on Ixia in         |
     |                                  | 'initialize_traffic'                  |
     |                                  | Default: False                        |
     |----------------------------------+---------------------------------------|
