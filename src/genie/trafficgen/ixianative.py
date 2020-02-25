@@ -149,7 +149,7 @@ class IxiaNative(TrafficGen):
                                             p=self.ixnetwork_tcl_port)) from e
         # Verify return
         try:
-            assert connect == _PASS
+            assert connect == self.ixNet.OK
         except AssertionError as e:
             log.error(connect)
             raise GenieTgnError("Failed to connect to device '{d}' on port "
@@ -175,7 +175,7 @@ class IxiaNative(TrafficGen):
 
         # Verify return
         try:
-            assert disconnect == _PASS
+            assert disconnect == self.ixNet.OK
         except AssertionError as e:
             log.error(disconnect)
             raise GenieTgnError("Unable to disconnect from '{}'".\
@@ -213,7 +213,7 @@ class IxiaNative(TrafficGen):
                                                 f=configuration)) from e
         # Verify return
         try:
-            assert load_config == _PASS
+            assert load_config == self.ixNet.OK
         except AssertionError as e:
             log.error(load_config)
             raise GenieTgnError("Unable to load configuration file '{f}' onto "
@@ -243,6 +243,36 @@ class IxiaNative(TrafficGen):
 
     @BaseConnection.locked
     @isconnected
+    def save_configuration(self, config_file):
+        '''Saving existing configuration on Ixia into a file'''
+
+        log.info(banner("Saving configuration..."))
+
+        # Save existing config on IXIA
+        try:
+            save_config = self.ixNet.execute('saveConfig',
+                                             self.ixNet.writeTo(config_file))
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to save configuration from device '{}' "
+                                "to file '{}'".format(self.device.name,
+                                config_file)) from e
+
+        # Verify return
+        try:
+            assert save_config == self.ixNet.OK
+        except AssertionError as e:
+            log.error(save_config)
+            raise GenieTgnError("Unable to save configuration from device '{}' "
+                                "to file '{}'".format(self.device.name,
+                                config_file)) from e
+        else:
+            log.info("Saved configuration from device '{}' to file '{}'".\
+                    format(self.device.name, config_file))
+
+
+    @BaseConnection.locked
+    @isconnected
     def remove_configuration(self, wait_time=30):
         '''Remove configuration from Ixia'''
 
@@ -257,7 +287,7 @@ class IxiaNative(TrafficGen):
                                 format(self.device.name)) from e
         # Verify return
         try:
-            assert remove_config == _PASS
+            assert remove_config == self.ixNet.OK
         except AssertionError as e:
             log.error(remove_config)
             raise GenieTgnError("Unable to remove configuration from device '{}'".\
@@ -288,7 +318,7 @@ class IxiaNative(TrafficGen):
                                 format(self.device.name)) from e
         # Verify return
         try:
-            assert start_protocols == _PASS
+            assert start_protocols == self.ixNet.OK
         except AssertionError as e:
             log.error(start_protocols)
             raise GenieTgnError("Unable to start all protocols on device '{}'".\
@@ -318,7 +348,7 @@ class IxiaNative(TrafficGen):
                                 format(self.device.name)) from e
         # Verify return
         try:
-            assert stop_protocols == _PASS
+            assert stop_protocols == self.ixNet.OK
         except AssertionError as e:
             log.error(stop_protocols)
             raise GenieTgnError("Unable to stop all protocols on device '{}'".\
@@ -348,7 +378,7 @@ class IxiaNative(TrafficGen):
                                 format(self.device.name)) from e
         # Verify return
         try:
-            assert apply_traffic == _PASS
+            assert apply_traffic == self.ixNet.OK
         except AssertionError as e:
             log.error(apply_traffic)
             raise GenieTgnError("Unable to apply L2/L3 traffic on device '{}'".\
@@ -390,7 +420,7 @@ class IxiaNative(TrafficGen):
                                 " '{}'".format(self.device.name)) from e
         # Verify return
         try:
-            assert send_arp == _PASS
+            assert send_arp == self.ixNet.OK
         except AssertionError as e:
             log.error(send_arp)
             raise GenieTgnError("Unable to send ARP to all interfaces on device"
@@ -420,7 +450,7 @@ class IxiaNative(TrafficGen):
             raise GenieTgnError("Error sending NS to all interfaces on device "
                                 "'{}'".format(self.device.name)) from e
         try:
-            assert send_ns == _PASS
+            assert send_ns == self.ixNet.OK
         except AssertionError as e:
             log.error(send_ns)
             raise GenieTgnError("Error sending NS to all interfaces on device "
@@ -458,7 +488,7 @@ class IxiaNative(TrafficGen):
                                 format(self.device.name)) from e
         # Verify return
         try:
-            assert start_traffic == _PASS
+            assert start_traffic == self.ixNet.OK
         except AssertionError as e:
             log.error(start_traffic)
             raise GenieTgnError("Unable to start traffic on device '{}'".\
@@ -508,7 +538,7 @@ class IxiaNative(TrafficGen):
                                 format(self.device.name)) from e
         # Verify result
         try:
-            assert stop_traffic == _PASS
+            assert stop_traffic == self.ixNet.OK
         except AssertionError as e:
             log.error(stop_traffic)
             raise GenieTgnError("Unable to stop traffic on device '{}'".\
@@ -557,7 +587,7 @@ class IxiaNative(TrafficGen):
             raise GenieTgnError("Unable to clear all statistics") from e
         else:
             try:
-                assert res_clear_all == _PASS
+                assert res_clear_all == self.ixNet.OK
             except AssertionError as e:
                 log.error(res_clear_all)
             else:
@@ -573,7 +603,7 @@ class IxiaNative(TrafficGen):
                 raise GenieTgnError("Unable to clear port statistics") from e
             else:
                 try:
-                    assert res_clear_port == _PASS
+                    assert res_clear_port == self.ixNet.OK
                 except AssertionError as e:
                     log.error(res_clear_port)
                 else:
@@ -589,7 +619,7 @@ class IxiaNative(TrafficGen):
                 raise GenieTgnError("Unable to clear protocol statistics") from e
             else:
                 try:
-                    assert res_clear_protocol == _PASS
+                    assert res_clear_protocol == self.ixNet.OK
                 except AssertionError as e:
                     log.error(res_clear_protocol)
                 else:
@@ -1043,9 +1073,10 @@ class IxiaNative(TrafficGen):
                     row_item[1], row_item[0] = row_item[0], row_item[1]
                     row_item[5], row_item[7] = row_item[7], row_item[5]
                     row_item[6], row_item[5] = row_item[5], row_item[6]
-                    # Get 'Frames Delta' and 'Tx Frame Rate' values
+                    # Get 'Frames Delta' values
                     frames_delta = row_item[4].strip()
-                    tx_frame_rate = row_item[5].strip()
+                    # Get configured 'Tx Frame Rate' for given traffic item
+                    tx_frame_rate = self.get_packet_rate(traffic_stream=row_item[1])
                 else:
                     # ['Source/Dest Port Pair', 'Tx Frames', 'Rx Frames', 'Frames Delta', 'Tx Frame Rate', 'Rx Frame Rate', 'Loss %', 'Outage (seconds)']
                     row_item[4], row_item[6] = row_item[6], row_item[4]
@@ -1053,13 +1084,12 @@ class IxiaNative(TrafficGen):
                     # Get 'Frames Delta' and 'Tx Frame Rate' values
                     frames_delta = row_item[3].strip()
                     tx_frame_rate = row_item[4].strip()
-                # Calculate outage in seconds from 'Frames Delta' and add to row
-                if tx_frame_rate == '0.000' or tx_frame_rate == '0':
-                    outage_seconds = 0.0
-                elif not isfloat(frames_delta) or not isfloat(tx_frame_rate):
-                    outage_seconds = 0.0
-                else:
+                # Calculate outage in seconds
+                if isfloat(frames_delta) and isfloat(tx_frame_rate):
                     outage_seconds = round(float(frames_delta)/float(tx_frame_rate), 3)
+                else:
+                    outage_seconds = 0.0
+                # Add data to row
                 row_item.append(str(outage_seconds))
                 # Add data to traffic_table
                 traffic_table.add_row(row_item)
@@ -1880,7 +1910,7 @@ class IxiaNative(TrafficGen):
         try:
             # Save file to C:
             assert self.ixNet.execute('saveCapture', directory, '_{}'.\
-                                                format(filename)) == _PASS
+                                                format(filename)) == self.ixNet.OK
         except AssertionError as e:
             log.info(e)
             raise GenieTgnError("Unable to save packet capture file as '{}'".\
@@ -2762,7 +2792,7 @@ class IxiaNative(TrafficGen):
                 if verbose:
                     log.error("* Traffic outage of '{o}' seconds is *NOT* within "
                               "expected maximum outage threshold of '{s}' seconds".\
-                              format(o=outage, s=max_outage))
+                              format(o=outage_seconds, s=max_outage))
 
             # Do checks to determine overall result
             if loss_check and rate_check and outage_check:
@@ -3611,7 +3641,7 @@ class IxiaNative(TrafficGen):
 
         # Verify return
         try:
-            assert load_config == _PASS
+            assert load_config == self.ixNet.OK
         except AssertionError as e:
             log.error(load_config)
             raise GenieTgnError("Unable to load Quicktest configuration file "
@@ -3642,7 +3672,7 @@ class IxiaNative(TrafficGen):
 
     @BaseConnection.locked
     @isconnected
-    def execute_quicktest(self, quicktest, apply_wait=60, exec_wait=1800, exec_interval=300, save_location="C:\\Users\\"):
+    def execute_quicktest(self, quicktest, apply_wait=60, exec_wait=1800, exec_interval=300, save_location=None):
         '''Execute specific RFC QuickTest'''
 
         log.info(banner("Prepare execution of Quicktest '{}'...".\
@@ -3662,7 +3692,7 @@ class IxiaNative(TrafficGen):
 
         # Verify QuickTest configuration application passed
         try:
-            assert apply_qt == _PASS
+            assert apply_qt == self.ixNet.OK
         except AssertionError as e:
             log.error(apply_qt)
             raise GenieTgnError("Unable to apply QuickTest '{}' configuration".\
@@ -3679,13 +3709,21 @@ class IxiaNative(TrafficGen):
         # Enable QuickTest report
         log.info("Enable QuickTest '{}' report generation".format(quicktest))
         try:
-            self.ixNet.setMultiAttribute('::ixNet::OBJ-/quickTest/globals',
-                                         '-enableGenerateReportAfterRun', 'true',
-                                         '-useDefaultRootPath', 'false',
-                                         '-outputRootPath', save_location,
-                                         '-titlePageComments',
-                                         "QuickTest {} Genie Test Result".\
-                                         format(quicktest))
+            if save_location:
+                self.ixNet.setMultiAttribute('::ixNet::OBJ-/quickTest/globals',
+                                             '-enableGenerateReportAfterRun', 'true',
+                                             '-useDefaultRootPath', 'false',
+                                             '-outputRootPath', save_location,
+                                             '-titlePageComments',
+                                             "QuickTest {} Genie Test Result".\
+                                             format(quicktest))
+            else:
+                self.ixNet.setMultiAttribute('::ixNet::OBJ-/quickTest/globals',
+                                             '-enableGenerateReportAfterRun', 'true',
+                                             '-useDefaultRootPath', 'true',
+                                             '-titlePageComments',
+                                             "QuickTest {} Genie Test Result".\
+                                             format(quicktest))
             self.ixNet.commit()
         except Exception as e:
             log.error(e)
@@ -3705,7 +3743,7 @@ class IxiaNative(TrafficGen):
 
         # Verify QuickTest successfully started
         try:
-            assert start_qt == _PASS
+            assert start_qt == self.ixNet.OK
         except AssertionError as e:
             log.error(start_qt)
             raise GenieTgnError("Unable to start execution of QuickTest '{}'".\

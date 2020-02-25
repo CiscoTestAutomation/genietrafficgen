@@ -67,7 +67,7 @@ devnet: package
 	@echo ""
 
 install_build_deps:
-	@echo "no action"
+	@pip install --upgrade pip setuptools wheel
 
 uninstall_build_deps:
 	@echo "no action"

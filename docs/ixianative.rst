@@ -425,6 +425,13 @@ an Ixia traffic generator device:
     |                                 |           removing configuration.              |
     |                                 |           Default: 30 (seconds)                |
     |---------------------------------+------------------------------------------------|
+    | save_confiugration              | Saving existing configuration on Ixia into a   |
+    |                                 | the specified file.                            |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] config_file - Complete write-able    |
+    |                                 |           filepath and filename to copy Ixia   |
+    |                                 |           configuration to.                    |
+    |---------------------------------+------------------------------------------------|
     | start_all_protocols             | Starts all protocols on Ixia device.           |
     |                                 | Arguments:                                     |
     |                                 |     * [O] wait_time - time to wait after       |
@@ -1256,52 +1263,8 @@ methods (actions) mentioned in the previous section.
     >> dev.clear_statistics()
 
 
-Genie Traffic Subsections
--------------------------
-
-``Genie`` bundles the different steps involved with Ixia setup and configuration
-into controllable subsections that can be executed within ``Genie`` harness.
-
-The harness provides the following subsections:
-    1. common_setup: initialize_traffic
-    2. common_setup: profile_traffic
-    3. common_cleanup: stop_traffic
-
-To add/remove execution of the above mentioned subsections simply "enable" or
-"disable" them by adding/removing the subsection name from the execution order
-key, as shown below:
-
-.. code-block:: yaml
-
-    setup:
-      sections:
-        connect:
-          method: genie.harness.commons.connect
-        configure:
-          method: genie.harness.commons.configure
-        configuration_snapshot:
-          method: genie.harness.commons.check_config
-        save_bootvar:
-          method: genie.libs.sdk.libs.abstracted_libs.subsection.save_bootvar
-        learn_system_defaults:
-          method: genie.libs.sdk.libs.abstracted_libs.subsection.learn_system_defaults
-        initialize_traffic:
-          method: genie.harness.commons.initialize_traffic
-        profile_traffic:
-          method: genie.harness.commons.profile_traffic
-
-      order: ['connect', 'configure', 'initialize_traffic', 'profile_traffic']
-
-    cleanup:
-      sections:
-        stop_traffic:
-          method: genie.harness.commons.stop_traffic
-
-      order: ['stop_traffic']
-
-
-Genie Harness Traffic Generator Arguments
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Genie Harness Traffic Arguments
+-------------------------------
 
 User's can specify arguments to control the ``Genie`` harness subsections via:
 
@@ -1577,6 +1540,51 @@ traffic generator subsections in ``Genie`` harness.
     | tgn-view-enable-port-pair     | tgn-disable-port-pair-filter     |
     +==================================================================+
 
+
+Genie Harness Traffic Subsections
+---------------------------------
+
+``Genie`` bundles the different steps involved with Ixia setup and configuration
+into controllable subsections that can be executed within ``Genie`` harness.
+
+The harness provides the following subsections:
+    1. common_setup: initialize_traffic
+    2. common_setup: profile_traffic
+    3. common_cleanup: stop_traffic
+
+To add/remove execution of the above mentioned subsections simply "enable" or
+"disable" them by adding/removing the subsection name from the execution order
+key, as shown below:
+
+.. code-block:: yaml
+
+    setup:
+      sections:
+        connect:
+          method: genie.harness.commons.connect
+        configure:
+          method: genie.harness.commons.configure
+        configuration_snapshot:
+          method: genie.harness.commons.check_config
+        save_bootvar:
+          method: genie.libs.sdk.libs.abstracted_libs.subsection.save_bootvar
+        learn_system_defaults:
+          method: genie.libs.sdk.libs.abstracted_libs.subsection.learn_system_defaults
+        initialize_traffic:
+          method: genie.harness.commons.initialize_traffic
+        profile_traffic:
+          method: genie.harness.commons.profile_traffic
+
+      order: ['connect', 'configure', 'initialize_traffic', 'profile_traffic']
+
+    cleanup:
+      sections:
+        stop_traffic:
+          method: genie.harness.commons.stop_traffic
+
+      order: ['stop_traffic']
+
+
 common_setup: initialize_traffic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -1803,7 +1811,7 @@ This subsection performs the following:
     1. Connect to Ixia
     2. Create a snapshot profile of traffic streams configured on Ixia
     3. Copy the snapshot profile as "golden_traffic_profile" to Genie runtime logs
-    4. [Optional] If the user provided a ``tgn-golden-profile``:
+    4. (Optional) If the user provided a ``tgn-golden-profile``:
         a. Verify that the difference for Loss % between the current traffic
            profile and golden traffic profile is less than user provided
            threshold of ``tgn-profile-traffic-loss-tolerance``
@@ -2105,7 +2113,7 @@ It performs the following steps:
 
 1. Create a snapshot profile of traffic streams configured on Ixia
 2. Copy the snapshot profile as "TriggerName_traffic_profile" to Genie runtime logs
-3. [Optional] If the user provided a ``section_profile``:
+3. (Optional) If the user provided a ``section_profile``:
     a. Verify that the difference for Loss % between the current traffic
        profile and section traffic profile is less than user provided
        threshold of ``loss_tolerance``
