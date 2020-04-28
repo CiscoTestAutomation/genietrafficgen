@@ -2005,7 +2005,8 @@ class IxiaNative(TrafficGen):
         # Find traffic stream object of the given traffic stream
         for item in self.get_traffic_stream_objects():
             try:
-                if self.ixNet.getAttribute(item, '-name') == traffic_stream:
+                name = self.ixNet.getAttribute(item, '-name').replace("\\'", "\'")
+                if name == traffic_stream:
                     ti_obj = item
                     break
             except Exception as e:
