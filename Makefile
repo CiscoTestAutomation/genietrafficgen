@@ -36,7 +36,7 @@ PYPIREPO      = pypitest
 # Development pkg requirements
 DEPENDENCIES  = restview psutil Sphinx wheel asynctest
 DEPENDENCIES += setproctitle  sphinx-rtd-theme 
-DEPENDENCIES += pip-tools Cython requests
+DEPENDENCIES += Cython requests
 
 ifeq ($(MAKECMDGOALS), devnet)
 	BUILD_CMD += --devnet
