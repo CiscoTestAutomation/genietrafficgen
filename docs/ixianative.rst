@@ -965,6 +965,8 @@ an Ixia traffic generator device:
     |                                 |           snapshot file to save data into.     |
     |                                 |     * [O] verbose - enable/disable printing of |
     |                                 |           outage verified for each flow group  |
+    |                                 |     * [O] remove_vlan - remove 'VLAN:VLAN-ID'  |
+    |                                 |           check.
     |---------------------------------+------------------------------------------------|
     | get_flow_statistics_table       | Returns the last "Flow Statistics" table that  |
     |                                 | was created using CSV snapshot data.           |

@@ -2675,7 +2675,7 @@ class IxiaNative(TrafficGen):
                                loss_tolerance=15, rate_tolerance=5,
                                csv_windows_path="C:\\Users\\",
                                csv_file_name="Flow_Statistics", verbose=False,
-                               display=True, export_to_filename=""):
+                               display=True, export_to_filename="", remove_vlan=False):
         '''Checks traffic loss for all flow groups configured on Ixia using
             'Flow Statistics' view data'''
 
@@ -2690,6 +2690,9 @@ class IxiaNative(TrafficGen):
                                         "Loss %",
                                         "Outage (seconds)",
                                         "Overall Result"]
+
+        if remove_vlan:
+            flow_group_table.field_names.remove("VLAN:VLAN-ID")
 
         # Save 'Flow Statistics' view CSV snapshot
         csv_file = self.save_statistics_snapshot_csv(view_name="Flow Statistics",
@@ -2707,7 +2710,8 @@ class IxiaNative(TrafficGen):
 
             # Get all the data for this row
             flow_group_name = row.get_string(fields=["Traffic Item"]).strip()
-            vlan_id = row.get_string(fields=["VLAN:VLAN-ID"]).strip()
+            if not remove_vlan:
+                vlan_id = row.get_string(fields=["VLAN:VLAN-ID"]).strip()
             src_dest_port_pair = row.get_string(fields=["Source/Dest Port Pair"]).strip()
             tx_frame_rate = row.get_string(fields=["Tx Frame Rate"]).strip()
             rx_frame_rate = row.get_string(fields=["Rx Frame Rate"]).strip()
@@ -2721,7 +2725,7 @@ class IxiaNative(TrafficGen):
             # Check row for loss/outage within tolerance
             if verbose:
                 log.info(banner("Checking flow group: '{t} | {vlan} | {pair}'".\
-                                format(t=flow_group_name, vlan=vlan_id, pair=src_dest_port_pair)))
+                                format(t=flow_group_name, vlan='' if remove_vlan else vlan_id, pair=src_dest_port_pair)))
 
             # 1- Verify current loss % is less than tolerance threshold
             # Get loss % value
@@ -2802,15 +2806,25 @@ class IxiaNative(TrafficGen):
                 overall_result = "FAIL"
 
             # Add data to the smaller table to display to user
-            flow_group_table.add_row([flow_group_name,
-                                      vlan_id,
-                                      src_dest_port_pair,
-                                      tx_frame_rate,
-                                      rx_frame_rate,
-                                      frames_delta,
-                                      loss_percentage,
-                                      outage_seconds,
-                                      overall_result])
+            if remove_vlan:
+                flow_group_table.add_row([flow_group_name,
+                                        src_dest_port_pair,
+                                        tx_frame_rate,
+                                        rx_frame_rate,
+                                        frames_delta,
+                                        loss_percentage,
+                                        outage_seconds,
+                                        overall_result])
+            else:
+                flow_group_table.add_row([flow_group_name,
+                                        vlan_id,
+                                        src_dest_port_pair,
+                                        tx_frame_rate,
+                                        rx_frame_rate,
+                                        frames_delta,
+                                        loss_percentage,
+                                        outage_seconds,
+                                        overall_result])
 
         # Align and print flow groups table in the logs
         flow_group_table.align = "l"
