@@ -634,7 +634,9 @@ class IxiaNative(TrafficGen):
 
     @BaseConnection.locked
     @isconnected
-    def create_genie_statistics_view(self, view_create_interval=30, view_create_iteration=10, disable_tracking=False, disable_port_pair=False):
+    def create_genie_statistics_view(self, view_create_interval=30,
+        view_create_iteration=10, disable_tracking=False,
+        disable_port_pair=False):
         '''Creates a custom TCL View named "Genie" with the required stats data'''
 
         log.info(banner("Creating new custom IxNetwork traffic statistics view 'GENIE'"))
@@ -809,7 +811,8 @@ class IxiaNative(TrafficGen):
                            loss_tolerance=15, rate_tolerance=5,
                            check_iteration=10, check_interval=60,
                            outage_dict=None, clear_stats=False,
-                           clear_stats_time=30, pre_check_wait=None):
+                           clear_stats_time=30, pre_check_wait=None,
+                           disable_tracking=False, disable_port_pair=False):
         '''Check traffic loss for each traffic stream configured on Ixia
             using statistics/data from 'Traffic Item Statistics' view'''
 
@@ -826,7 +829,9 @@ class IxiaNative(TrafficGen):
             # Get and display 'GENIE' traffic statistics table containing outage/loss values
             traffic_table = self.create_traffic_streams_table(
                                     clear_stats=clear_stats,
-                                    clear_stats_time=clear_stats_time)
+                                    clear_stats_time=clear_stats_time,
+                                    disable_tracking=disable_tracking,
+                                    disable_port_pair=disable_port_pair)
 
             # Log iteration attempt to user
             log.info("\nAttempt #{}: Checking for traffic outage/loss".format(i+1))
@@ -963,7 +968,9 @@ class IxiaNative(TrafficGen):
 
     @BaseConnection.locked
     @isconnected
-    def create_traffic_streams_table(self, set_golden=False, clear_stats=False, clear_stats_time=30, view_create_interval=30, view_create_iteration=5):
+    def create_traffic_streams_table(self, set_golden=False, clear_stats=False,
+        clear_stats_time=30, view_create_interval=30, view_create_iteration=5,
+        disable_tracking=False, disable_port_pair=False):
         '''Returns traffic profile of configured streams on Ixia'''
 
         # Init
@@ -971,8 +978,11 @@ class IxiaNative(TrafficGen):
 
         # If Genie view and page has not been created before, create one
         if not self._genie_page or not self._genie_view or 'GENIE' not in self.get_all_statistics_views():
-            self.create_genie_statistics_view(view_create_interval=view_create_interval,
-                                              view_create_iteration=view_create_iteration)
+            self.create_genie_statistics_view(
+                    view_create_interval=view_create_interval,
+                    view_create_iteration=view_create_iteration,
+                    disable_tracking=disable_tracking,
+                    disable_port_pair=disable_port_pair)
 
         # Clear stats and wait
         if clear_stats:

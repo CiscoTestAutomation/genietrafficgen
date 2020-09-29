@@ -514,6 +514,13 @@ an Ixia traffic generator device:
     |                                 |           "Src/Dest Port Pair" per traffic     |
     |                                 |           stream.                              |
     |                                 |           Default: True.                       |
+    |                                 |     * [O] disable_tracking - disable enabling  |
+    |                                 |           'Traffic Items' filter if not present|
+    |                                 |           Default: False.                      |
+    |                                 |     * [O] disable_port_pair - disable enabling |
+    |                                 |           'Source/Dest Port Pair' filter if    |
+    |                                 |           not present.                         |
+    |                                 |           Default: False.                      |
     |---------------------------------+------------------------------------------------|
     | check_traffic_loss              | Checks all traffic streams for traffic loss.   |
     |                                 | For each traffic stream configured on Ixia:    |
@@ -559,6 +566,13 @@ an Ixia traffic generator device:
     |                                 |     * [O] pre_check_wait - time to wait before |
     |                                 |           checking for traffic loss/outage.    |
     |                                 |           Default: None                        |
+    |                                 |     * [O] disable_tracking - disable enabling  |
+    |                                 |           'Traffic Items' filter if not present|
+    |                                 |           Default: False.                      |
+    |                                 |     * [O] disable_port_pair - disable enabling |
+    |                                 |           'Source/Dest Port Pair' filter if    |
+    |                                 |           not present.                         |
+    |                                 |           Default: False.                      |
     |---------------------------------+------------------------------------------------|
     | create_traffic_streams_table    | Creates and returns a table containing traffic |
     |                                 | statistics for all traffic items/streams that  |
@@ -582,7 +596,15 @@ an Ixia traffic generator device:
     |                                 |           Default: 30 (seconds)                |
     |                                 |     * [O] view_create_iteration - max iteration|
     |                                 |           for checking if custom traffic items |
-    |                                 |           view is ready. Default: 10.          |
+    |                                 |           view is ready.                       |
+    |                                 |           Default: 10.                         |
+    |                                 |     * [O] disable_tracking - disable enabling  |
+    |                                 |           'Traffic Items' filter if not present|
+    |                                 |           Default: False.                      |
+    |                                 |     * [O] disable_port_pair - disable enabling |
+    |                                 |           'Source/Dest Port Pair' filter if    |
+    |                                 |           not present.                         |
+    |                                 |           Default: False.                      |
     |---------------------------------+------------------------------------------------|
     | compare_traffic_profile         | Compares values between two Ixia traffic table |
     |                                 | statistics created from custom IxNetwork view  |
