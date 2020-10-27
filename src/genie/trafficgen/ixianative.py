@@ -2884,14 +2884,17 @@ class IxiaNative(TrafficGen):
 
     @BaseConnection.locked
     @isconnected
-    def create_flow_statistics_table(self, flow_stats_columns=None, display=True, export_to_filename=""):
+    def create_flow_statistics_table(self, flow_stats_columns=None, csv_windows_path="C:\\Users\\",
+                               csv_file_name="Flow_Statistics", display=True, export_to_filename=""):
         ''' Create table of "Flow Statistics" view'''
 
         # Init
         flow_stats_table = PrettyTable()
 
         # Save 'Flow Statistics' view CSV snapshot
-        csv_file = self.save_statistics_snapshot_csv(view_name="Flow Statistics")
+        csv_file = self.save_statistics_snapshot_csv(view_name="Flow Statistics",
+            csv_windows_path=csv_windows_path,
+            csv_file_name=csv_file_name)
         # Convert CSV file into PrettyTable
         all_flow_stats_data = from_csv(open(csv_file))
 
