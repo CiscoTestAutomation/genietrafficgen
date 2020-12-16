@@ -994,36 +994,14 @@ class IxiaNative(TrafficGen):
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Unable to get Column Captions from custom view 'GENIE'")
-
         # Add column for Outage
         headers.append('Outage (seconds)')
         del headers[0]
-        # Arrange data to fit into table as required in final format
-        if self.config_type != 'raw':
-            headers[1], headers[0] = headers[0], headers[1]
-            headers[5], headers[7] = headers[7], headers[5]
-            headers[6], headers[5] = headers[5], headers[6]
-            traffic_table.field_names = headers
-            # ['Source/Dest Port Pair', 'Traffic Item', 'Tx Frames', 'Rx Frames', 'Frames Delta', 'Tx Frame Rate', 'Rx Frame Rate', 'Loss %', 'Outage (seconds)']
-            required_headers = ['Source/Dest Port Pair', 'Traffic Item',
-                                'Tx Frames', 'Rx Frames', 'Frames Delta',
-                                'Tx Frame Rate', 'Rx Frame Rate', 'Loss %',
-                                'Outage (seconds)']
-        else:
-            headers[4], headers[6] = headers[6], headers[4]
-            headers[5], headers[4] = headers[4], headers[5]
-            traffic_table.field_names = headers
-            # ['Source/Dest Port Pair', 'Tx Frames', 'Rx Frames', 'Frames Delta', 'Tx Frame Rate', 'Rx Frame Rate', 'Loss %', 'Outage (seconds)']
-            required_headers = ['Source/Dest Port Pair', 'Tx Frames',
-                                'Rx Frames', 'Frames Delta', 'Tx Frame Rate',
-                                'Rx Frame Rate', 'Loss %', 'Outage (seconds)']
-
-        # Check that all the expected headers were found
-        for item in required_headers:
-            try:
-                assert item in headers
-            except AssertionError as e:
-                raise GenieTgnError("Column '{}' is missing from custom created 'GENIE' view".format(item))
+        
+        '''
+        No longer checking config_type since column/row_data(key/pair) will be created.
+        Header rearrangement is removed
+        '''
 
         # Increase page size for "GENIE" view to max size
         try:
@@ -1072,28 +1050,30 @@ class IxiaNative(TrafficGen):
                 raise GenieTgnError("Unable to get row data from 'GENIE' "
                                     "view page '{}'".format(i))
 
+            traffic_table.field_names = headers
+            
             # Populate table with row data from current page
             for item in all_rows:
                 # Get row value data
                 row_item = item[0]
                 del row_item[0]
-                # Arrange data to fit into table as required in final format
-                if self.config_type != 'raw':
-                    # ['Source/Dest Port Pair', 'Traffic Item', 'Tx Frames', 'Rx Frames', 'Frames Delta', 'Tx Frame Rate', 'Rx Frame Rate', 'Loss %', 'Outage (seconds)']
-                    row_item[1], row_item[0] = row_item[0], row_item[1]
-                    row_item[5], row_item[7] = row_item[7], row_item[5]
-                    row_item[6], row_item[5] = row_item[5], row_item[6]
-                    # Get 'Frames Delta' values
-                    frames_delta = row_item[4].strip()
-                    # Get configured 'Tx Frame Rate' for given traffic item
-                    tx_frame_rate = self.get_packet_rate(traffic_stream=row_item[1])
+                
+                # Create dict with header/value pair
+                header_data_dict = dict(zip(headers,row_item))
+
+                # Get current state of traffic
+                state = self.get_traffic_attribute(attribute='state')
+
+                # Get 'Frames Delta' values
+                frames_delta = header_data_dict['Frames Delta']
+
+                # If current state of traffic is stopped, get the tx_frame_rate 
+                # from the configuration settings on the IXIA device
+                if state == 'stopped':
+                    tx_frame_rate = self.get_packet_rate(traffic_stream=header_data_dict['Traffic Item'])
                 else:
-                    # ['Source/Dest Port Pair', 'Tx Frames', 'Rx Frames', 'Frames Delta', 'Tx Frame Rate', 'Rx Frame Rate', 'Loss %', 'Outage (seconds)']
-                    row_item[4], row_item[6] = row_item[6], row_item[4]
-                    row_item[5], row_item[4] = row_item[4], row_item[5]
-                    # Get 'Frames Delta' and 'Tx Frame Rate' values
-                    frames_delta = row_item[3].strip()
-                    tx_frame_rate = row_item[4].strip()
+                    tx_frame_rate = header_data_dict['Tx Frame Rate']
+
                 # Calculate outage in seconds
                 if isfloat(frames_delta) and isfloat(tx_frame_rate):
                     outage_seconds = round(float(frames_delta)/float(tx_frame_rate), 3)
