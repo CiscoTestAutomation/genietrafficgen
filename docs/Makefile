@@ -17,6 +17,8 @@ PROD_BKUP_DIR = /auto/pyats/wwwin-pyats/genietrafficgen/genietrafficgen-backup/$
 WATCHERS      = asg-genie-dev
 HEADER        = [Genie Watchdog]
 HOSTNAME	  = `hostname`
+DEPENDENCIES  = Sphinx sphinxcontrib-napoleon sphinxcontrib-mockautodoc sphinx-rtd-theme
+
 
 # User-friendly check for sphinx-build
 ifeq ($(shell which $(SPHINXBUILD) >/dev/null 2>&1; echo $$?), 1)
@@ -32,7 +34,7 @@ I18NSPHINXOPTS  = $(PAPEROPT_$(PAPER)) $(SPHINXOPTS) .
 
 .PHONY: distribute help clean docs html dirhtml singlehtml\
 	    pickle json htmlhelp qthelp devhelp epub latex latexpdf text man\
-	    changes linkcheck doctest gettext
+	    changes linkcheck doctest gettext install_build_deps
 
 help:
 	@echo "Please use 'make <target>' where <target> is one of"
@@ -43,6 +45,7 @@ help:
 	@echo "     --- default Sphinx targets ---"
 	@echo ""
 	@echo "  html       to make standalone HTML files"
+	@echo "install_build_deps:     Install build dependencies for docs (will be run in make docs)"
 	@echo "  serve      to start a web server to serve generated html files"
 	@echo "  dirhtml    to make HTML files named index.html in directories"
 	@echo "  singlehtml to make a single large HTML file"
@@ -74,10 +77,17 @@ serve:
 	@cd $(BUILDDIR)/html && python -m http.server || echo Error: run \'make \
 	html\' before using \'make serve\'
 
-docs: html latexpdf
+docs: html
 	@echo ""
 	@echo "Done."
 	@echo ""
+
+install_build_deps:
+	@echo "Installing build dependecies into your environment"
+	@pip install $(DEPENDENCIES)
+	@echo ""
+	@echo "Done"
+
 
 distribute:
 	@echo ""
