@@ -125,7 +125,7 @@ class Trex(TrafficGen):
         # otherwise it just returns one stream-id
         ip_src_string = self.ip_src_addr
         ip_dst_string = self.ip_dst_addr
-        for ipnum in range(count):
+        for _ in range(count):
             try:
                 config_status = self._trex.traffic_config(
                 mode = 'create',
@@ -141,11 +141,11 @@ class Trex(TrafficGen):
                 ip_dst_addr = ip_dst_string,
                 ip_dst_mode = ip_dst_mode,
                 ip_dst_count = ip_dst_count,
-                
+
                 l4_protocol = l4_protocol,
                 udp_dst_port = udp_dst_port,
                 udp_src_port = udp_src_port,
-                
+
                 rate_pps = rate_pps 
             )
             except Exception as e:
@@ -155,7 +155,7 @@ class Trex(TrafficGen):
                 self._traffic_streams.append(config_status['stream_id'])
                 stream_list = str(self._traffic_streams)[1:-1]
                 log.info("Traffic config streams: " + stream_list)
-            
+
             log.info("Src IP: " + ip_src_string)
             log.info("Dst IP: " + ip_dst_string)
             ip_src_string = str(ipaddress.IPv4Address(ip_src_string) + 1)
@@ -244,7 +244,7 @@ class Trex(TrafficGen):
         time.sleep(wait_time)
        
         if print_stats:
-            print_statistics(mode='aggregate')
+            self.print_statistics(mode='aggregate')
 
         # Get the _traffic_statistics_table before unconfiguring
         self._traffic_statistics_table = self.create_traffic_statistics_table()
@@ -257,7 +257,7 @@ class Trex(TrafficGen):
         '''Stop traffic on given streams on TRex'''
 
         log.info(banner("Stopping traffic for given streams on TRex"))
-        if streams == None:
+        if streams is None:
             streams = self._traffic_streams
         # Stop traffic
         try:
@@ -270,7 +270,7 @@ class Trex(TrafficGen):
         time.sleep(wait_time)
 
         if print_stats:
-            print_statistics(mode='streams')
+            self.print_statistics(mode='streams')
 
         # Get the _traffic_statistics_table before unconfiguring
         self._traffic_statistics_table_stream = self.create_traffic_statistics_table_stream(traffic_streams = streams)
@@ -280,7 +280,7 @@ class Trex(TrafficGen):
         if unconfig_traffic:
             self.unconfigure_traffic()
     
-    def print_statistics(mode = 'aggregate'):
+    def print_statistics(self, mode = 'aggregate'):
         '''Print traffic related statistics'''
         res = self._trex.traffic_stats(mode = mode, port_handle = self.port_list)
         log.info(res)
@@ -328,9 +328,7 @@ class Trex(TrafficGen):
                                         port_handle = self.port_list)
         self._latest_stats = stat
         for port in stat:
-            data = []
-            data.append(port)
-            data.append('Tx')
+            data = [port, 'Tx']
             for key in stat[port]['aggregate']['tx']:
                 data.append(stat[port]['aggregate']['tx'][key])
             traffic_table.add_row(data)
@@ -365,15 +363,12 @@ class Trex(TrafficGen):
         # stat is 'trex_hltapi.utils.wrappers.HltApiResult'
         stat = self._trex.traffic_stats(mode = 'streams', 
                                         port_handle = self.port_list)
-        
+
         self._latest_stats_stream  = stat
         for port in stat:
             num_streams = len(stat[port]['stream'])
             for stream_id in stat[port]['stream'].keys():
-                data = []
-                data.append(port)
-                data.append(str(stream_id))
-                data.append('tx')
+                data = [port, str(stream_id), 'tx']
                 for key in stat[port]['stream'][str(stream_id)]['tx'].keys():
                     data.append(stat[port]['stream'][str(stream_id)]['tx'][key])
                 traffic_table.add_row(data)

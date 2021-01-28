@@ -5,7 +5,7 @@ https://pypi.org/project/ixnetwork/
 
 Requirements:
     * IxOS/IxVM 7.50 or higher
-    * IxNetork EA version 7.50 or higher
+    * IxNetwork EA version 7.50 or higher
 '''
 
 # Python
@@ -71,10 +71,11 @@ class IxiaNative(TrafficGen):
                     'ixia_port_list', 'ixnetwork_version', 'ixia_chassis_ip',
                     'ixia_license_server_ip']:
             # Verify Ixia ports provided are a list
-            if key is 'ixia_port_list':
-                if not isinstance(self.connection_info[key], list):
-                    log.error("Attribute '{}' is not a list as expected".\
-                              format(key))
+            if key == 'ixia_port_list' and not isinstance(
+                self.connection_info[key], list
+            ):
+                log.error("Attribute '{}' is not a list as expected".\
+                          format(key))
             try:
                 setattr(self, key, self.connection_info[key])
             except Exception:
