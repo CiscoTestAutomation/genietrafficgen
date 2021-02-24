@@ -1077,7 +1077,12 @@ class IxiaNative(TrafficGen):
 
                 # Calculate outage in seconds
                 if isfloat(frames_delta) and isfloat(tx_frame_rate):
-                    outage_seconds = round(float(frames_delta)/float(tx_frame_rate), 3)
+                    try:
+                        outage_seconds = round(float(frames_delta)/float(tx_frame_rate), 3)
+                    except ZeroDivisionError:
+                        outage_seconds = 0.0
+                    except Exception:
+                        raise
                 else:
                     outage_seconds = 0.0
                 # Add data to row
