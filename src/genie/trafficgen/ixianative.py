@@ -1913,8 +1913,8 @@ class IxiaNative(TrafficGen):
                                                             format(filename))
 
         # Return pcap file to caller
-        return 'C:/Results/{port_name}_{pcap}_{f}.cap'.\
-            format(port_name=port_name, pcap=pcap_dict[pcap_type], f=filename)
+        return '{directory}/{port_name}_{pcap}_{f}.cap'.\
+            format(directory=directory, port_name=port_name, pcap=pcap_dict[pcap_type], f=filename)
 
 
     @BaseConnection.locked
