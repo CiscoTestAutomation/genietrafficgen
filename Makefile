@@ -115,6 +115,7 @@ develop:
 	@echo "Building and installing $(PKG_NAME) development distributable: $@"
 	@echo ""
 
+	@pip uninstall -y genie.trafficgen || true
 	@pip install $(DEPENDENCIES)
 
 	@$(PYTHON) setup.py develop --no-deps
