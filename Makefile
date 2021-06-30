@@ -30,15 +30,15 @@ PROD_USER     = pyadm@pyats-ci
 PROD_PKGS     = /auto/pyats/packages
 STAGING_PKGS  = /auto/pyats/staging/packages
 STAGING_EXT_PKGS  = /auto/pyats/staging/packages_external
-PYTHON        = python
+PYTHON        = python3
 TESTCMD       = $(PYTHON) setup.py test
 BUILD_CMD     = $(PYTHON) setup.py bdist_wheel --dist-dir=$(DIST_DIR)
 PYPIREPO      = pypitest
 
 # Development pkg requirements
 DEPENDENCIES  = restview psutil Sphinx wheel asynctest
-DEPENDENCIES += setproctitle  sphinx-rtd-theme
-DEPENDENCIES += Cython requests
+DEPENDENCIES += sphinx-rtd-theme
+DEPENDENCIES += Cython requests ixnetwork ixnetwork_restpy
 
 ifeq ($(MAKECMDGOALS), devnet)
 	BUILD_CMD += --devnet
@@ -89,7 +89,7 @@ docs:
 	@echo "Completed building docs for preview."
 	@echo ""
 	@echo "Done."
-	@dcho ""
+	@echo ""
 
 
 test:
@@ -168,7 +168,7 @@ changelogs:
 	@echo "--------------------------------------------------------------------"
 	@echo "Generating changelog file"
 	@echo ""
-	@python -c "from ciscodistutils.make_changelog import main; main('./docs/changelog/undistributed', './docs/changelog/undistributed.rst')"
+	@python3 -c "from ciscodistutils.make_changelog import main; main('./docs/changelog/undistributed', './docs/changelog/undistributed.rst')"
 	@echo "genietrafficgen changelog created..."
 	
 distribute_staging:

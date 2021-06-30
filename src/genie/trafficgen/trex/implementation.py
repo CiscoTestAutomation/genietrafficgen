@@ -6,21 +6,19 @@ from prettytable import PrettyTable
 
 # pyATS
 from pyats.log.utils import banner
-from pyats.connections import BaseConnection
 
 # Genie
-from genie.utils.timeout import Timeout
-from genie.utils.summary import Summary
-from genie.harness.utils import get_url
 from genie.trafficgen.trafficgen import TrafficGen
 from genie.harness.exceptions import GenieTgnError
 
-# TRex
-import trex_hltapi
-from trex_hltapi.hltapi import TRexHLTAPI
-
 # Logger
 log = logging.getLogger(__name__)
+
+# TRex
+try:
+    from trex_hltapi.hltapi import TRexHLTAPI
+except:
+    log.warning('trex_hltapi must be installed to use the trex traffic gen')
 
 class Trex(TrafficGen):
 
@@ -51,12 +49,12 @@ class Trex(TrafficGen):
                 setattr(self, key, self.connection_info[key])
             except Exception:
                 raise GenieTgnError("Argument '{k}' not found in testbed"
-                                    "for device '{d}'".\
-                                            format(k=key, d=self.device.name))
+                                    "for device '{d}'"
+                                    .format(k=key, d=self.device.name))
 
-    def configure_interface(self, arp_send_req=False, arp_req_retries=3, \
-        multicast=False, vlan=False):
-        ''' Method to configure the interfaces on the TRex device. 
+    def configure_interface(self, arp_send_req=False, arp_req_retries=3,
+                            multicast=False, vlan=False):
+        ''' Method to configure the interfaces on the TRex device.
             This needs to be configured before starting traffic. '''
 
         try:
@@ -67,12 +65,11 @@ class Trex(TrafficGen):
                     intf_ip_addr=self.intf_ip_list,
                     gateway=self.gw_ip_list,
                     multicast=multicast,
-                    vlan=vlan
-                    )
+                    vlan=vlan)
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Failed to configure interfaces on TRex device") from e
-                                            
+
     def isconnected(self):
         ''' Method to check connectivity to TRex device '''
         return self._trex is not None and self._trex.is_connected()
@@ -85,13 +82,13 @@ class Trex(TrafficGen):
         # try connecting
         try:
             self._trex.connect(device = self.device_ip,
-                    username = self.username,
-                    reset = self.reset,
-                    break_locks = self.break_locks,
-                    raise_errors = self.raise_errors,
-                    verbose = self.verbose,
-                    timeout = self.timeout,
-                    port_list = self.port_list)
+                               username = self.username,
+                               reset = self.reset,
+                               break_locks = self.break_locks,
+                               raise_errors = self.raise_errors,
+                               verbose = self.verbose,
+                               timeout = self.timeout,
+                               port_list = self.port_list)
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Failed to connect to TRex device") from e
@@ -115,7 +112,7 @@ class Trex(TrafficGen):
 
     def configure_traffic_profile(self, bidirectional=False, frame_size=60, ignore_macs=True,
             l3_protocol='ipv4', ip_src_mode='increment', ip_src_count=254,
-            ip_dst_mode='increment', ip_dst_count=254, l4_protocol='udp', 
+            ip_dst_mode='increment', ip_dst_count=254, l4_protocol='udp',
             udp_dst_port=1209, udp_src_port=1025, rate_pps=1000, count=3):
         ''' Configure the traffic profile, the profile has to be configured
             before calling the start_traffic method.
@@ -146,7 +143,7 @@ class Trex(TrafficGen):
                 udp_dst_port = udp_dst_port,
                 udp_src_port = udp_src_port,
 
-                rate_pps = rate_pps 
+                rate_pps = rate_pps
             )
             except Exception as e:
                 log.error(e)
@@ -218,7 +215,7 @@ class Trex(TrafficGen):
 
     def unconfigure_traffic(self):
         '''Unconfigure traffic. This will remove the profile configured.
-           There is an option to unconfigure per port as well. 
+           There is an option to unconfigure per port as well.
         '''
 
         log.info(banner("Unconfiguring TRex traffic profile"))
@@ -242,7 +239,7 @@ class Trex(TrafficGen):
                                 format(self.device.name)) from e
         log.info("Sleeping for {d} seconds".format(d = wait_time))
         time.sleep(wait_time)
-       
+
         if print_stats:
             self.print_statistics(mode='aggregate')
 
@@ -279,7 +276,7 @@ class Trex(TrafficGen):
         # if needed to unconfigure traffic after stopping
         if unconfig_traffic:
             self.unconfigure_traffic()
-    
+
     def print_statistics(self, mode = 'aggregate'):
         '''Print traffic related statistics'''
         res = self._trex.traffic_stats(mode = mode, port_handle = self.port_list)
@@ -318,13 +315,13 @@ class Trex(TrafficGen):
 
         # Initialize the table
         traffic_table = PrettyTable()
-        traffic_table.field_names = ['Port', 'Tx/Rx', 'Packet Bit Rate', 
+        traffic_table.field_names = ['Port', 'Tx/Rx', 'Packet Bit Rate',
                                      'Packet Byte Count',
-                                     'Packet Count', 'Packet Rate', 
-                                     'Total_pkt_bytes', 'Total Packet Rate', 
+                                     'Packet Count', 'Packet Rate',
+                                     'Total_pkt_bytes', 'Total Packet Rate',
                                      'Total Packets']
 
-        stat = self._trex.traffic_stats(mode = 'aggregate', 
+        stat = self._trex.traffic_stats(mode = 'aggregate',
                                         port_handle = self.port_list)
         self._latest_stats = stat
         for port in stat:
@@ -361,7 +358,7 @@ class Trex(TrafficGen):
 
         # TODO: no hltapi to check if stat is empty?
         # stat is 'trex_hltapi.utils.wrappers.HltApiResult'
-        stat = self._trex.traffic_stats(mode = 'streams', 
+        stat = self._trex.traffic_stats(mode = 'streams',
                                         port_handle = self.port_list)
 
         self._latest_stats_stream  = stat
