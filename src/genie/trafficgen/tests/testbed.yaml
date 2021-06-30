@@ -1,0 +1,109 @@
+devices:
+    ixia1:
+        os: tgn
+        connections:
+            tgn:
+                class: genie.trafficgen.ixianative.IxiaNative
+                ixnetwork_api_server_ip: 172.25.195.91
+                ixnetwork_tcl_port: 8012
+                ixnetwork_version: '8.10'
+                ixia_chassis_ip: 172.27.101.96
+                ixia_license_server_ip: 172.27.101.96
+                ixia_port_list: ['9/6', '9/7']
+
+    ixia2:
+        os: ixianative
+        connections:
+            tgn:
+                class: genie.trafficgen.TrafficGen
+                ixnetwork_api_server_ip: 172.25.195.91
+                ixnetwork_tcl_port: 8012
+                ixnetwork_version: '8.10'
+                ixia_chassis_ip: 172.27.101.96
+                ixia_license_server_ip: 172.27.101.96
+                ixia_port_list: ['9/6', '9/7']
+
+    ixia3:
+        type: tgn
+        os: tgn
+        credentials:
+            default:
+                username: test
+                password: test
+        connections:
+            tgn:
+                class: genie.trafficgen.ixiarestpy.IxiaRestPy
+                ip: 192.0.0.1
+                port: 11009
+                chassis_ip: 192.0.0.2
+                logfile: restpy.log
+
+    ixia4:
+        type: tgn
+        os: ixiarestpy
+        credentials:
+            default:
+                username: test
+                password: test
+        connections:
+            tgn:
+                class: genie.trafficgen.TrafficGen
+                ip: 192.0.0.1
+                port: 11009
+                chassis_ip: 192.0.0.2
+                logfile: restpy.log
+
+
+    trex1:
+        os: tgn
+        connections:
+            tgn:
+                class: genie.trafficgen.trex.Trex
+                device_ip: trex-host
+                username: trex-hlt-user
+                reset: true
+                break_locks: true
+                raise_errors: true
+                verbose: info
+                timeout: 15
+                port_list: []
+                ip_src_addr: 1.1.1.1
+                ip_dst_addr: 2.2.2.2
+                intf_ip_list: []
+                gw_ip_list: []
+
+    trex2:
+        os: trex
+        connections:
+            tgn:
+                class: genie.trafficgen.TrafficGen
+                device_ip: trex-host
+                username: trex-hlt-user
+                reset: true
+                break_locks: true
+                raise_errors: true
+                verbose: info
+                timeout: 15
+                port_list: []
+                ip_src_addr: 1.1.1.1
+                ip_dst_addr: 2.2.2.2
+                intf_ip_list: []
+                gw_ip_list: []
+
+    trex3:
+        os: trex
+        connections:
+            tgn:
+                class: genie.trafficgen.trex.Trex
+                device_ip: trex-host
+                username: trex-hlt-user
+                reset: true
+                break_locks: true
+                raise_errors: true
+                verbose: info
+                timeout: 15
+                port_list: []
+                ip_src_addr: 1.1.1.1
+                ip_dst_addr: 2.2.2.2
+                intf_ip_list: []
+                gw_ip_list: []

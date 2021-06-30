@@ -639,7 +639,6 @@ class IxiaNative(TrafficGen):
         view_create_iteration=10, disable_tracking=False,
         disable_port_pair=False):
         '''Creates a custom TCL View named "Genie" with the required stats data'''
-
         log.info(banner("Creating new custom IxNetwork traffic statistics view 'GENIE'"))
 
         # Default statistics to add to custom 'GENIE' traffic statistics view
@@ -760,7 +759,6 @@ class IxiaNative(TrafficGen):
             self.ixNet.setAttribute(self._genie_view, '-enabled', 'true')
             self.ixNet.setAttribute(self._genie_view, '-visible', 'true')
             self.ixNet.commit()
-
             # Print to log
             log.info("Populated traffic statistics view 'GENIE' with required "
                      "data.")
@@ -844,7 +842,10 @@ class IxiaNative(TrafficGen):
                 row.header = False ; row.border = False
 
                 # Get data
-                stream = row.get_string(fields=["Traffic Item"]).strip()
+                try:
+                    stream = row.get_string(fields=["Traffic Item"]).strip()
+                except Exception as e:
+                    raise GenieTgnError("Traffic Item doesn't exist in GENIE view. Make sure to configure more than 1 traffic item, user defined stats/custom statistics view with a single traffic is not supported.: {}".format(e))
                 src_dest_pair = row.get_string(fields=["Source/Dest Port Pair"]).strip()
 
                 # Skip other streams if list of stream provided
