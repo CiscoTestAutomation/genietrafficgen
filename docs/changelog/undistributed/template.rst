@@ -1,20 +1,30 @@
+Only one changelog file per pull request. Combine these two templates where applicable.
+
+Templates
+=========
+
 --------------------------------------------------------------------------------
                                 New
 --------------------------------------------------------------------------------
 * <Module>
-    * <Added|Removed|Modified> <Class>:
-      * <Description>
+    * <Added|Modified> <Class>:
+        * <Description>
 
 --------------------------------------------------------------------------------
                                 Fix
 --------------------------------------------------------------------------------
 * <Module>
-    * <Added|Removed|Modified> <Class>:
-      * <Description>
+    * <Added|Modified|Removed> <Class>:
+        * <Description>
       
-# Examples
+Examples
+========
+
+
+--------------------------------------------------------------------------------
+                                New
+--------------------------------------------------------------------------------
 * Module
-	* Modified Class:
-    	* Changed variable.
+    * Modified Class:
+        * Changed variable.
         * Updated some value to some value
-        

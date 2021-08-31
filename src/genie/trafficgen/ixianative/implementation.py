@@ -65,43 +65,51 @@ class IxiaNative(TrafficGen):
                                  ]
         # Type of traffic configured
         self.config_type = None
+        if 'chassis' not in self.connection_info:
+            self.connection_info['chassis'] = []
 
         # Get Ixia device arguments from testbed YAML file
         for key in ['ixnetwork_api_server_ip', 'ixnetwork_tcl_port',
                     'ixia_port_list', 'ixnetwork_version', 'ixia_chassis_ip',
-                    'ixia_license_server_ip']:
+                    'ixia_license_server_ip', 'chassis']:
+
             # Verify Ixia ports provided are a list
-            if key == 'ixia_port_list' and not isinstance(
-                self.connection_info[key], list
-            ):
-                log.error("Attribute '{}' is not a list as expected".\
-                          format(key))
-            try:
+            if key == 'ixia_port_list' and key in self.connection_info \
+                and not isinstance(self.connection_info[key], list):
+                log.error("Attribute '{}' is not a list as expected"
+                          .format(key))
+
+            if key in self.connection_info:
                 setattr(self, key, self.connection_info[key])
-            except Exception:
-                raise GenieTgnError("Argument '{k}' is not found in testbed "
-                                    "YAML for device '{d}'".\
-                                    format(k=key, d=self.device.name))
+            else:
+                log.warning("Argument '{k}' is not found in testbed "
+                            "YAML for device '{d}'".
+                            format(k=key, d=self.device.name))
 
         # Ixia Chassis Details
         header = "Ixia Chassis Details"
-        summary = Summary(title=header, width=45)
-        summary.add_message(msg='IxNetwork API Server: {}'.\
+        summary = Summary(title=header, width=48)
+        summary.add_message(msg='IxNetwork API Server: {}'.
                             format(self.ixnetwork_api_server_ip))
         summary.add_sep_line()
         summary.add_message(msg='IxNetwork API Server Platform: Windows')
         summary.add_sep_line()
-        summary.add_message(msg='IxNetwork Version: {}'.\
-                         format(self.ixnetwork_version))
+        summary.add_message(msg='IxNetwork Version: {}'
+                            .format(self.ixnetwork_version))
         summary.add_sep_line()
-        summary.add_message(msg='Ixia Chassis: {}'.\
-                         format(self.ixia_chassis_ip))
+        if self.chassis:
+            summary.add_message(msg='Ixia Multi Chassis: {}'
+                                .format([c['ip'] for c in self.chassis]))
+            summary.add_sep_line()
+        else:
+            summary.add_message(msg='Ixia Chassis: {}'
+                                .format(self.ixia_chassis_ip))
+            summary.add_sep_line()
+        summary.add_message(msg='Ixia License Server: {}'
+                            .format(self.ixia_license_server_ip))
         summary.add_sep_line()
-        summary.add_message(msg='Ixia License Server: {}'.\
-                         format(self.ixia_license_server_ip))
-        summary.add_sep_line()
-        summary.add_message(msg='Ixnetwork TCL Port: {}'.\
-                         format(self.ixnetwork_tcl_port))
+        summary.add_message(msg='Ixnetwork TCL Port: {}'
+                            .format(self.ixnetwork_tcl_port))
         summary.add_sep_line()
         summary.print()
 
@@ -109,7 +117,6 @@ class IxiaNative(TrafficGen):
         url = get_url().replace("genie", "genietrafficgen")
         log.info('For more information, see Genie traffic documentation: '
                  '{}/ixianative.html'.format(url))
-
 
     def isconnected(func):
         '''Decorator to make sure session to device is active
@@ -140,9 +147,9 @@ class IxiaNative(TrafficGen):
         # Execute connect on IxNetwork
         try:
             connect = self.ixNet.connect(self.ixnetwork_api_server_ip,
-                                        '-port', self.ixnetwork_tcl_port,
-                                        '-version', self.ixnetwork_version,
-                                        '-setAttribute', 'strict')
+                                         '-port', self.ixnetwork_tcl_port,
+                                         '-version', self.ixnetwork_version,
+                                         '-setAttribute', 'strict')
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Failed to connect to device '{d}' on port "
@@ -158,7 +165,7 @@ class IxiaNative(TrafficGen):
                                             p=self.ixnetwork_tcl_port)) from e
         else:
             self._is_connected = True
-            log.info("Connected to IxNetwork API server on TCL port '{p}'".\
+            log.info("Connected to IxNetwork API server on TCL port '{p}'".
                      format(d=self.device.name, p=self.ixnetwork_tcl_port))
 
 
@@ -205,7 +212,7 @@ class IxiaNative(TrafficGen):
 
         # Execute load config on IxNetwork
         try:
-            load_config = self.ixNet.execute('loadConfig', 
+            load_config = self.ixNet.execute('loadConfig',
                                              self.ixNet.readFrom(configuration))
         except Exception as e:
             log.error(e)
@@ -1531,9 +1538,38 @@ class IxiaNative(TrafficGen):
         return self._golden_profile
 
 
+    @BaseConnection.locked
+    @isconnected
+    def add_chassis(self, chassis_ip):
+        log.info("Adding chassis {}...".format(chassis_ip))
+        try:
+            chassis = self.ixNet.add(self.ixNet.getRoot() + \
+                                        'availableHardware',\
+                                        'chassis', '-hostname',\
+                                        chassis_ip)
+            self.ixNet.commit()
+            chassis = self.ixNet.remapIds(chassis)
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Error while adding chassis '{}'".\
+                                format(chassis_ip))
+        else:
+            log.info("Successfully added chassis '{}'".\
+                    format(chassis_ip))
+
     #--------------------------------------------------------------------------#
     #                           Virtual Ports                                  #
     #--------------------------------------------------------------------------#
+
+    def _update_physical_port_list(self, chassis_ip, port_list):
+        log.info("Getting a list of physical ports for chassis {}".format(chassis_ip))
+        for item in port_list:
+            log.info("-> {}".format(item))
+            ixnet_port = []
+            lc, port = item.split('/')
+            for tmpvar in chassis_ip, lc, port:
+                ixnet_port.append(tmpvar)
+            self.physical_ports.append(ixnet_port)
 
     @BaseConnection.locked
     @isconnected
@@ -1542,33 +1578,24 @@ class IxiaNative(TrafficGen):
 
         log.info(banner("Assigning Ixia ports"))
 
-        # Get list of physical ports
-        log.info("Getting a list of physical ports...")
         self.physical_ports = []
-        for item in self.ixia_port_list:
-            log.info("-> {}".format(item))
-            ixnet_port = []
-            lc, port = item.split('/')
-            for tmpvar in self.ixia_chassis_ip, lc, port:
-                ixnet_port.append(tmpvar)
-            self.physical_ports.append(ixnet_port)
-
-        # Add the chassis
-        log.info("Adding chassis...")
-        try:
-            self.chassis = self.ixNet.add(self.ixNet.getRoot() + \
-                                          'availableHardware',\
-                                          'chassis', '-hostname',\
-                                          self.ixia_chassis_ip)
-            self.ixNet.commit()
-            self.chassis = self.ixNet.remapIds(self.chassis)
-        except Exception as e:
-            log.error(e)
-            raise GenieTgnError("Error while adding chassis '{}'".\
-                                format(self.ixia_chassis_ip))
+        if self.chassis:
+            # Get list of physical ports
+            for chassis in self.chassis:
+                port_list = chassis.get('port_list')
+                chassis_ip = chassis.get('ip')
+                self._update_physical_port_list(
+                    chassis_ip, port_list)
+            # Add chassis
+            for chassis in self.chassis:
+                chassis_ip = chassis.get('ip')
+                self.add_chassis(chassis_ip)
         else:
-            log.info("Successfully added chassis '{}'".\
-                     format(self.ixia_chassis_ip))
+            # Get list of physical ports
+            self._update_physical_port_list(
+                self.chassis_ip, self.ixia_port_list)
+            # Add chassis
+            self.add_chassis(self.ixia_chassis_ip)
 
         # Get virtual ports
         log.info("Getting virtual ports...")
@@ -1631,8 +1658,8 @@ class IxiaNative(TrafficGen):
 
         # If all pass
         log.info("Assigned the following physical Ixia ports to virtual ports:")
-        for port in self.ixia_port_list:
-            log.info("-> Ixia Port: '{}'".format(port))
+        for port in self.physical_ports:
+            log.info("-> Ixia Port: '{}'".format('/'.join(port)))
 
 
     @BaseConnection.locked
