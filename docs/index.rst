@@ -15,7 +15,7 @@ Genie currently supports the following traffic generator devices:
 
     1. Ixia Native - Using IxNetwork 7.50+
     2. Ixia via REST - Using IxNetwork 8.52+ and ixnetwork_restpy
-
+    3. Pagent
 
 .. toctree::
     :maxdepth: 1
@@ -23,4 +23,5 @@ Genie currently supports the following traffic generator devices:
     overview
     ixianative
     ixiarestpy
+    pagent
     changelog/index

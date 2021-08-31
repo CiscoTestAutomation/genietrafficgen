@@ -4,11 +4,11 @@ devices:
         connections:
             tgn:
                 class: genie.trafficgen.ixianative.IxiaNative
-                ixnetwork_api_server_ip: 172.25.195.91
+                ixnetwork_api_server_ip: 192.0.0.1
                 ixnetwork_tcl_port: 8012
                 ixnetwork_version: '8.10'
-                ixia_chassis_ip: 172.27.101.96
-                ixia_license_server_ip: 172.27.101.96
+                ixia_chassis_ip: 192.0.0.2
+                ixia_license_server_ip: 192.0.0.2
                 ixia_port_list: ['9/6', '9/7']
 
     ixia2:
@@ -16,11 +16,11 @@ devices:
         connections:
             tgn:
                 class: genie.trafficgen.TrafficGen
-                ixnetwork_api_server_ip: 172.25.195.91
+                ixnetwork_api_server_ip: 192.0.0.1
                 ixnetwork_tcl_port: 8012
                 ixnetwork_version: '8.10'
-                ixia_chassis_ip: 172.27.101.96
-                ixia_license_server_ip: 172.27.101.96
+                ixia_chassis_ip: 192.0.0.2
+                ixia_license_server_ip: 192.0.0.2
                 ixia_port_list: ['9/6', '9/7']
 
     ixia3:
@@ -53,6 +53,20 @@ devices:
                 chassis_ip: 192.0.0.2
                 logfile: restpy.log
 
+    ixia5:
+        os: ixianative
+        connections:
+            tgn:
+                class: genie.trafficgen.TrafficGen
+                ixnetwork_api_server_ip: 192.0.0.1
+                ixnetwork_tcl_port: 8012
+                ixnetwork_version: '8.10'
+                ixia_license_server_ip: 192.0.0.2
+                chassis:
+                - ip: 1.1.1.1
+                  port_list: ['1/1', '1/2']
+                - ip: 2.2.2.2
+                  port_list: ['2/1', '2/2']
 
     trex1:
         os: tgn
@@ -107,3 +121,9 @@ devices:
                 ip_dst_addr: 2.2.2.2
                 intf_ip_list: []
                 gw_ip_list: []
+
+    pagent:
+        os: pagent
+        connections:
+            tgn:
+                class: genie.trafficgen.TrafficGen

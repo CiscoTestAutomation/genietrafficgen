@@ -97,8 +97,34 @@ defining an Ixia `device`:
     connection class implementation for their traffic generator device.
 
 
+Multi-chassis support
+---------------------
+
+To use multiple chassis with the `ixianative` implementation, specify the chassis
+as shown below including ``ip`` and ``port_list``.
+
+.. code-block:: yaml
+
+    devices:
+      IXIA:
+        type: tgn
+        os: 'ixianative'
+        connections:
+          tgn:
+            class: genie.trafficgen.TrafficGen
+            ixnetwork_api_server_ip: 192.0.0.1
+            ixnetwork_tcl_port: 8012
+            ixnetwork_version: '8.10'
+            ixia_license_server_ip: 192.0.0.2
+            chassis:
+            - ip: 1.1.1.1
+              port_list: ['1/1', '1/2']
+            - ip: 2.2.2.2
+              port_list: ['2/1', '2/2']
+
+
 Genie Trafficgen Use Cases
----------------------------
+--------------------------
 
 The following sections provide sample use cases for performing operations on 
 traffic generator devices within your network automation.

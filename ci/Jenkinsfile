@@ -16,6 +16,7 @@ pipeline {
                     pip list
                     pip freeze
                     export PIP_DOWNLOAD_CACHE=/scratch/pip_download_cache
+                    export LC_ALL=C.UTF-8
                     /usr/bin/python3.6 -m venv genietrafficgen-env
                     . genietrafficgen-env/bin/activate
                     pip3 install --upgrade pip setuptools
