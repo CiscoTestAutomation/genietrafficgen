@@ -945,15 +945,6 @@ an Ixia traffic generator device:
     |                                 | Arguments:                                     |
     |                                 |     None                                       |
     |---------------------------------+------------------------------------------------|
-    |save_flow_statistics_snapshot_csv| Save the data from all the rows/pages of Ixia  |
-    |                                 | "Flow Statistics" view/tab as CSV snapshot file|
-    |                                 | Arguments:                                     |
-    |                                 |     * [M] csv_windows_path - location to save  |
-    |                                 |           the CSV snapshot generated on Ixia   |
-    |                                 |           windows API server.                  |
-    |                                 |     * [M] csv_file_name - name of the CSV      |
-    |                                 |           snapshot file to save data into.     |
-    |---------------------------------+------------------------------------------------|
     | check_flow_groups_loss          | Checks traffic loss for all flow groups that   |
     |                                 | are configured on Ixia using data from the     |
     |                                 | 'Flow Statistics' tab/view.                    |

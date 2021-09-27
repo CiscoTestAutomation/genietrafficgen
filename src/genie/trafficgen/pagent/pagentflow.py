@@ -3,7 +3,6 @@
 # *              Any attempt to use it externally will fail and 
 # *                       no support will be provided
 #---------------------------------------------------------------------------
-
 #
 # pagent.py
 #
@@ -42,9 +41,9 @@ class PG_flow_t(object):
         raise NotImplementedError
 
 
-class PG_flow_arp(PG_flow_t):
-    def __init__(self, name, smac, dmac, sip, dip, vlan_tag=0):
-        super(PG_flow_arp, self).__init__('arp', name)
+class PG_flow_arp_request(PG_flow_t):
+    def __init__(self, name, smac, sip, dip, vlan_tag=0):
+        super(PG_flow_arp_request, self).__init__('arp', name)
         cmds = [
         ]
 
@@ -59,7 +58,7 @@ class PG_flow_arp(PG_flow_t):
 
         cmds.extend([
             'L2-src-addr {}'.format(smac),
-            'L2-dest-addr {}'.format(dmac),
+            'L2-dest-addr {}'.format('FFFF.FFFF.FFFF'),
             'L3-sender-haddr {}'.format(smac),
             'L3-sender-paddr {}'.format(sip),
         ])
@@ -375,6 +374,56 @@ class PG_flow_rawip(PG_flow_t):
     def get_config(self):
         return self.__config
 
+class PG_flow_rawipv6(PG_flow_t):
+    def __init__(self, name, smac, dmac, sip, dip, vlan_tag=0, **kwargs):
+        super(PG_flow_rawipv6, self).__init__('ipv6', name)
+        cmds = [
+        ]
+
+        pkt_len = 0
+        if 0 != vlan_tag:
+            cmds.extend([
+                'layer 2 ethernet',
+                'l2-shim is dot1q',
+                'l2-shim vlan-id {}'.format(vlan_tag),
+            ])
+            pkt_len = pkt_len + 2
+
+        cmds.extend([
+            'L2-src-addr {}'.format(smac),
+            'L2-dest-addr {}'.format(dmac),
+            'L3-src-addr {}'.format(sip),
+            'L3-dest-addr {}'.format(dip),
+        ])
+
+        if 'ttl' in kwargs:
+            cmds.extend([
+                'L3-hop-limit {}'.format(kwargs['ttl']),
+            ])
+
+        cmds.extend([
+            'data-length 18'
+        ])
+        pkt_len = pkt_len + 14 + 40 + 18
+
+        self.__config = cmds
+        self.__pkt_len = pkt_len
+
+        mask_cmds = [
+            'match start-at packet-start offset 0 length {}'.format(pkt_len),
+        ]
+        if 'ttl' not in kwargs:
+            mask_cmds.extend([
+                'match mask-start L3-hop-limit offset 0 length 1',
+                'match mask-data 0 00'
+            ])
+        self.__mask_cmds = mask_cmds
+
+    def get_mask_cmds(self):
+        return self.__mask_cmds
+
+    def get_config(self):
+        return self.__config
 
 class PG_flow_ndp_ns(PG_flow_t):
     def __init__(self, name, smac, sip, dip, vlan_tag=0, **kwargs):
@@ -447,7 +496,15 @@ class PG_flow_ndp_na(PG_flow_t):
             ])
             pkt_len = pkt_len + 2
 
-        l3target_full = ipaddress.IPv6Address(sip).exploded
+        # flag is solicited + override
+        flag = 6
+        if 'FF02::1' == dip or 'ff02::1' == dip:
+            l3target_full = ipaddress.IPv6Address(dip).exploded
+            low24 = l3target_full[32:]
+            dmac = '3333.ff{}.{}'.format(low24[0:2], low24[3:])
+            # flag is unsolicited + override
+            flag = 1
+
         cmds.extend([
             'L2-src-addr {}'.format(smac),
             'L2-dest-addr {}'.format(dmac),
@@ -462,11 +519,13 @@ class PG_flow_ndp_na(PG_flow_t):
 
         pkt_len = pkt_len + 40
 
+        l3target_full = ipaddress.IPv6Address(sip).exploded
         cmds.extend([
             'L4-type 136',
             'L4-code 0',
-            'data 0 60000000{}0201{}'.format(l3target_full.replace(':', ''),
-                                             smac.replace('.', ''))
+            'data 0 {}0000000{}0201{}'.format(flag,
+                                              l3target_full.replace(':', ''),
+                                              smac.replace('.', ''))
         ])
 
         pkt_len = pkt_len + 8 + 16 + 8
@@ -486,6 +545,265 @@ class PG_flow_ndp_na(PG_flow_t):
     def get_config(self):
         return self.__config
 
+class PG_flow_mldv1(PG_flow_t):
+    def __init__(self, name, smac, sip, dip,
+                  type_code, max_resp, grpip, vlan_tag=0):
+        super(PG_flow_mldv1, self).__init__('icmpv6', name)
+        cmds = [
+        ]
+        pkt_len = 0
+        if 0 != vlan_tag:
+            cmds.extend([
+                'layer 2 ethernet',
+                'l2-shim is dot1q',
+                'l2-shim vlan-id {}'.format(vlan_tag),
+            ])
+            pkt_len = pkt_len+4
+
+        map_addr = int(ipaddress.IPv6Address(dip))
+        map_addr = map_addr & 0xFFFFFFFF
+        dmac = '3333.%04X.%04X' %(map_addr >> 16, map_addr & 0xFFFF)
+        cmds.extend([
+            'L2-src-addr {}'.format(smac),
+            'L2-dest-addr {}'.format(dmac),
+            'L3-src-addr {}'.format(sip),
+            'L3-dest-addr {}'.format(dip),
+        ])
+
+        pkt_len = pkt_len+14+40
+
+        cmds.extend([
+            'L3-hop-limit 1',
+            'L3-next-header 0',
+            'L3-header total 1 modules',
+            'L3-header 0 is hop_by_hop',
+            'L3-header 0 next-header 58',
+            'L3-header 0 option 0 0 0502',
+        ])
+
+        pkt_len = pkt_len+8
+
+        cmds.extend([
+            'L4-type {}'.format(type_code),
+        ])
+
+        data = ''
+        data_len = 0
+        max_resp_hex = '%04X' % max_resp
+        data += max_resp_hex
+        grpip_value = int(ipaddress.IPv6Address(grpip))
+        grpip_hex = '0000%032X' % grpip_value
+        data += grpip_hex
+        data_len += 24
+
+        cmds.extend([
+            'L4-message 0 {}'.format(data),
+        ])
+
+        pkt_len = pkt_len+data_len
+
+        self.__config = cmds
+        self.__pkt_len = pkt_len
+
+        mask_cmds = [
+            'match add icmpv6',
+            'match start-at packet-start offset 0 length {}'.format(pkt_len),
+        ]
+
+        self.__mask_cmds = mask_cmds
+
+    def get_mask_cmds(self):
+        return self.__mask_cmds
+
+    def get_config(self):
+        return self.__config
+
+class PG_flow_mldv1_query(PG_flow_mldv1):
+    def __init__(self, name, smac, sip, dip, max_resp, grpip, vlan_tag=0):
+        super(PG_flow_mldv1_query, self).__init__(name, smac, sip,
+                    dip, 130, max_resp, grpip, vlan_tag)
+
+class PG_flow_mldv1_report(PG_flow_mldv1):
+    def __init__(self, name, smac, sip, dip, grpip, vlan_tag=0):
+        super(PG_flow_mldv1_report, self).__init__(name, smac, sip,
+                    dip, 131, 0, grpip, vlan_tag)
+
+class PG_flow_mldv1_done(PG_flow_mldv1):
+    def __init__(self, name, smac, sip, grpip, vlan_tag=0):
+        super(PG_flow_mldv1_done, self).__init__(name, smac, sip,
+                    'FF02::2', 132, 0, grpip, vlan_tag)
+
+class PG_flow_mldv2_query(PG_flow_t):
+    def __init__(self, name, smac, sip, dip, max_resp,
+                 grpip, qqic, src_num, src_list, vlan_tag=0, qrv=2):
+        super(PG_flow_mldv2_query, self).__init__('icmpv6', name)
+        cmds = [
+        ]
+        pkt_len = 0
+
+        type_code = 130
+        if 0 != vlan_tag:
+            cmds.extend([
+                'layer 2 ethernet',
+                'l2-shim is dot1q',
+                'l2-shim vlan-id {}'.format(vlan_tag),
+            ])
+            pkt_len = pkt_len+4
+
+        map_addr = int(ipaddress.IPv6Address(dip))
+        map_addr = map_addr & 0xFFFFFFFF
+        dmac = '3333.%04X.%04X' %(map_addr >> 16, map_addr & 0xFFFF)
+        cmds.extend([
+            'L2-src-addr {}'.format(smac),
+            'L2-dest-addr {}'.format(dmac),
+            'L3-src-addr {}'.format(sip),
+            'L3-dest-addr {}'.format(dip),
+        ])
+
+        pkt_len = pkt_len+14+40
+
+        cmds.extend([
+            'L3-hop-limit 1',
+            'L3-next-header 0',
+            'L3-header total 1 modules',
+            'L3-header 0 is hop_by_hop',
+            'L3-header 0 next-header 58',
+            'L3-header 0 option 0 0 0502',
+        ])
+
+        pkt_len = pkt_len+8
+
+        cmds.extend([
+            'L4-type {}'.format(type_code),
+        ])
+
+        data = ''
+        data_len = 0
+        max_resp_hex = '%04X' % max_resp
+        data += max_resp_hex
+        grpip_value = int(ipaddress.IPv6Address(grpip))
+        grpip_hex = '0000%032X' % grpip_value
+        data += grpip_hex
+        qrv_hex = '%02X' % qrv
+        data += qrv_hex
+        qqic_hex = '%02X' % qqic
+        data += qqic_hex
+        src_num_hex = '%04X' % src_num
+        data += src_num_hex
+        data_len += 28
+
+        for src in range(src_num):
+            srcip_value = int(ipaddress.IPv6Address(src_list[src]))
+            srcip_hex = '%032X' % srcip_value
+            data += srcip_hex
+            data_len += 16
+
+        cmds.extend([
+            'L4-message 0 {}'.format(data),
+        ])
+
+        pkt_len = pkt_len+data_len
+
+        self.__config = cmds
+        self.__pkt_len = pkt_len
+
+        mask_cmds = [
+            'match add icmpv6',
+            'match start-at packet-start offset 0 length {}'.format(pkt_len),
+        ]
+
+        self.__mask_cmds = mask_cmds
+
+    def get_mask_cmds(self):
+        return self.__mask_cmds
+
+    def get_config(self):
+        return self.__config
+
+
+class PG_flow_mldv2_report(PG_flow_t):
+    def __init__(self, name, smac, sip, grpip, src_num, src_list,
+                 mode_code, vlan_tag=0):
+        super(PG_flow_mldv2_report, self).__init__('icmpv6', name)
+        cmds = [
+        ]
+        pkt_len = 0
+
+        type_code = 143
+        dip = 'FF02::16'
+        if 0 != vlan_tag:
+            cmds.extend([
+                'layer 2 ethernet',
+                'l2-shim is dot1q',
+                'l2-shim vlan-id {}'.format(vlan_tag),
+            ])
+            pkt_len = pkt_len+4
+
+        map_addr = int(ipaddress.IPv6Address(dip))
+        map_addr = map_addr & 0xFFFFFFFF
+        dmac = '3333.%04X.%04X' %(map_addr >> 16, map_addr & 0xFFFF)
+        cmds.extend([
+            'L2-src-addr {}'.format(smac),
+            'L2-dest-addr {}'.format(dmac),
+            'L3-src-addr {}'.format(sip),
+            'L3-dest-addr {}'.format(dip),
+        ])
+
+        pkt_len = pkt_len+14+40
+
+        cmds.extend([
+            'L3-hop-limit 1',
+            'L3-next-header 0',
+            'L3-header total 1 modules',
+            'L3-header 0 is hop_by_hop',
+            'L3-header 0 next-header 58',
+            'L3-header 0 option 0 0 0502',
+        ])
+
+        pkt_len = pkt_len+8
+
+        cmds.extend([
+            'L4-type {}'.format(type_code),
+        ])
+
+        data = ''
+        data_len = 0
+        record_num = 1
+        record_num_hex = '0000%04X' % record_num
+        data += record_num_hex
+        record_hdr_hex = '%02X00%04X' %(mode_code,src_num)
+        data += record_hdr_hex
+        grpip_value = int(ipaddress.IPv6Address(grpip))
+        grpip_hex = '%032X' % grpip_value
+        data += grpip_hex
+        data_len +=28
+
+        for src in range(src_num):
+            srcip_value = int(ipaddress.IPv6Address(src_list[src]))
+            srcip_hex = '%032X' % srcip_value
+            data += srcip_hex
+            data_len += 16
+
+        cmds.extend([
+            'L4-message 0 {}'.format(data),
+        ])
+
+        pkt_len = pkt_len+data_len
+        self.__config = cmds
+        self.__pkt_len = pkt_len
+
+        mask_cmds = [
+            'match add icmpv6',
+            'match start-at packet-start offset 0 length {}'.format(pkt_len),
+        ]
+
+        self.__mask_cmds = mask_cmds
+
+    def get_mask_cmds(self):
+        return self.__mask_cmds
+
+    def get_config(self):
+        return self.__config
 
 class PG_flow_rawipv6(PG_flow_t):
     def __init__(self, name, smac, dmac, sip, dip, vlan_tag=0, **kwargs):
