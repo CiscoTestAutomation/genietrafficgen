@@ -1,5 +1,5 @@
 --------------------------------------------------------------------------------
-                                New
+                                Fix
 --------------------------------------------------------------------------------
-* trex
-    * Added configure NA, NS, and DAD stream API implementation
+* pagent
+    * Clean read buffer after using sendline() and expect()

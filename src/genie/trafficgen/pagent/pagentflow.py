@@ -895,6 +895,9 @@ class PG_Manager(object):
         self.__tg.sendline('tgn start send')
         '''find replacement'''
         self.__tg.expect('   Send process complete.', timeout=1000)
+        # Clean the buffer to remove any remaining device prompt
+        self.__tg.spawn.read_update_buffer()
+        self.__tg.spawn.buffer = ''
 
     def add_filter(self, filter_type, flow, intf):
         self.__addintf(intf)
