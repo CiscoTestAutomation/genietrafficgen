@@ -18,6 +18,12 @@ log = logging.getLogger(__name__)
 try:
     from trex_hltapi.hltapi import TRexHLTAPI
     from trex_hltapi import DhcpMessageType
+    from trex_hltapi import make_multicast_ipv6
+    from trex_hltapi import make_multicast_mac
+    from trex_hltapi import ALL_IPV6_NODES_MULTICAST
+    from trex_hltapi.utils.tools import mac_to_colon_notation
+    from trex_hltapi import (make_link_local_ipv6, make_multicast_mac, DhcpMessageType, Dhcpv6MessageType,
+    Dhcpv6OptCode, ALL_IPV6_NODES_MULTICAST, ALL_DHCPV6_SERVERS_MULTICAST)
 except:
     log.warning('trex_hltapi must be installed to use the trex traffic gen')
 
@@ -33,9 +39,11 @@ class Trex(TrafficGen):
         self._traffic_statistics_table = PrettyTable()
         self._traffic_statistics_table_stream = PrettyTable()
         self._traffic_streams = []
+        self.pktcnt_hdl = {}
 
         # Internal variables
         self.igmp_clients = {}
+        self.mld_clients = {}
 
         # Get TRex device from testbed
         try:
@@ -114,6 +122,367 @@ class Trex(TrafficGen):
         self._trex.cleanup_session(port_handle = 'all')
         self._is_connected = self.isconnected()
 
+    def send_rawip(self, interface, mac_src, mac_dst, ip_src, ip_dst,
+                   vlanid=0, count=1):
+        '''Send rawip packet
+           Args:
+             interface ('str'): interface name
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             mac_dst ('str'): destination mac address, exaple aabb.bbcc.ccdd
+             ip_src ('str'): source ip address
+             ip_dst ('str'): destination ip address
+             vlanid ('int'): vlan id, default = 0
+             count ('int'): send packets count
+           Returns:
+             True
+        '''
+        mac_src = mac_to_colon_notation(mac_src)
+        mac_dst = mac_to_colon_notation(mac_dst)
+        trex_ns = self._trex.get_trex_namespace().ns
+
+        with trex_ns.trex_client_context():
+            from scapy.all import IP, Ether, Dot1Q
+            ether_part = Ether(src=mac_src, dst=mac_dst)
+            ip_part = IP(src=ip_src, dst=ip_dst)
+            if vlanid:
+                scapy_pkt = ether_part / Dot1Q(vlan=vlanid) / ip_part
+            else:
+                scapy_pkt = ether_part / ip_part
+            pkt = trex_ns.trex.stl.api.STLPktBuilder(pkt=scapy_pkt)
+            bst_mode = trex_ns.trex.stl.api.STLTXSingleBurst(
+                total_pkts=count
+            )
+            flow = trex_ns.trex.stl.api.STLStream(packet=pkt,
+                                                        mode=bst_mode)
+            self._trex.get_stl_client().client.remove_all_streams(
+                ports=interface
+            )
+            self._trex.get_stl_client().client.add_streams(ports=interface,
+                                                        streams=flow)
+            self._trex.get_stl_client().client.start(ports=interface)
+            self._trex.get_stl_client().client.wait_on_traffic(
+                ports=interface
+            )
+            time.sleep(5)
+        return True
+
+    def start_pkt_count_rawip(self, interface, mac_src, mac_dst,
+                              ip_src, ip_dst, vlan_tag=0):
+        '''Start ip packet count
+           Args:
+             interface ('str'): interface name
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             mac_dst ('str'): destination mac address, example aabb.bbcc.ccdd
+             ip_src ('str'): source ip address
+             ip_dst ('str'): destination ip address
+             vlan_tag ('int'): vlan tag
+           Returns:
+             True
+        '''
+        self._trex.get_stl_client().client.set_service_mode(ports=interface)
+        pfilter = "ether dst {} and ether src {} and vlan {} "\
+                    "and dst host {} and src host {}".format(mac_dst, mac_src,
+                                                            vlan_tag,
+                                                            ip_dst, ip_src)
+        result = self._trex.get_stl_client().client.start_capture(
+            rx_ports=[interface],
+            limit=1,
+            bpf_filter=pfilter,
+        )
+
+        self.pktcnt_hdl[interface] = {'cap_id': result['id']}
+        return True
+
+    def send_rawipv6(self, interface, mac_src, mac_dst, ipv6_src, ipv6_dst,
+                     vlanid=0, count=1, interval=5):
+        '''Send rawipv6 packet
+           Args:
+             interface ('str'): interface name
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             mac_dst ('str'): destination mac address, exaple aabb.bbcc.ccdd
+             ipv6_src ('str'): source ipv6 address
+             ipv6_dst ('str'): destination ipv6 address
+             vlanid ('int'): vlan id, default = 0
+             count ('int'): send packets count, default = 1
+             interval ('int'): interval for sleep, default = 5
+           Returns:
+             None
+        '''
+        mac_src = mac_to_colon_notation(mac_src)
+        mac_dst = mac_to_colon_notation(mac_dst)
+        trex_ns = self._trex.get_trex_namespace().ns
+
+        with trex_ns.trex_client_context():
+            from scapy.all import IPv6, Ether, Dot1Q
+            ether_part = Ether(src=mac_src, dst=mac_dst)
+            ip_part = IPv6(src=ipv6_src, dst=ipv6_dst, hlim=1)
+            if vlanid:
+                scapy_pkt = ether_part / Dot1Q(vlan=vlanid) / ip_part
+            else:
+                scapy_pkt = ether_part / ip_part
+            pkt = trex_ns.trex.stl.api.STLPktBuilder(pkt=scapy_pkt)
+            bst_mode = trex_ns.trex.stl.api.STLTXSingleBurst(
+                total_pkts=count
+            )
+            flow = trex_ns.trex.stl.api.STLStream(packet=pkt,
+                                                        mode=bst_mode)
+            self._trex.get_stl_client().client.remove_all_streams(
+                ports=interface
+            )
+            self._trex.get_stl_client().client.add_streams(ports=interface,
+                                                        streams=flow)
+            self._trex.get_stl_client().client.start(ports=interface)
+            self._trex.get_stl_client().client.wait_on_traffic(
+                ports=interface
+            )
+            time.sleep(interval)
+
+    def start_pkt_count_rawipv6(self, interface, mac_src, mac_dst,
+                                ipv6_src, ipv6_dst, vlan_tag=0):
+        '''Start ipv6 packet count
+           Args:
+             interface ('str'): interface name
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             mac_dst ('str'): destination mac address, example aabb.bbcc.ccdd
+             ipv6_src ('str'): source ipv6 address
+             ipv6_dst ('str'): destination ipv6 address
+             vlan_tag ('int'): vlan id, default = 0
+           Returns:
+             None
+        '''
+        self._trex.get_stl_client().client.set_service_mode(ports=interface)
+        pfilter = "ether dst {} and ether src {} and vlan {} "\
+                    "and dst host {} and src host {}".format(mac_dst, mac_src,
+                                                            vlan_tag,
+                                                            ipv6_dst, ipv6_src)
+        result = self._trex.get_stl_client().client.start_capture(
+            rx_ports=[interface],
+            limit=1,
+            bpf_filter=pfilter,
+        )
+
+        self.pktcnt_hdl[interface] = {'cap_id': result['id']}
+
+    def stop_pkt_count(self, interface):
+        '''Stop ip packet count
+           Args:
+             interface ('str'): interface name
+           Returns:
+             True
+        '''
+        self._trex.get_stl_client().client.stop_capture(
+            capture_id=self.pktcnt_hdl[interface]['cap_id']
+        )
+        self._trex.get_stl_client().client.set_service_mode(ports=interface,
+                                                            enabled=False)
+        return True
+
+    def get_pkt_count(self, interface):
+        '''Get ip packet count and stop pkt capture
+           Args:
+             interface ('str'): interface name
+           Returns:
+             count('int')
+        '''
+        stats = self._trex.get_stl_client().client.get_capture_status()
+        intf_caps = stats[self.pktcnt_hdl[interface]['cap_id']]
+        packet_stats = intf_caps['matched']
+        return packet_stats
+
+    def start_pkt_count_rawip_mcast(self, interface, mac_src,
+                                ip_src, ip_dst, vlan):
+        '''Start ip packet count mcast
+           Args:
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             ip_src ('str'): source ip address
+             ip_dst ('str'): destination ip address
+             vlan ('int'): vlan id
+           Returns:
+             True
+        '''
+        map_addr = int(ipaddress.ip_address(ip_dst))
+        map_addr = map_addr & 0x7FFFFF
+        mac_dst = '0100.5E%02X.%04X' % (map_addr >> 16, map_addr & 0xFFFF)
+        self.start_pkt_count_rawip(interface, mac_src, mac_dst,
+                                   ip_src, ip_dst, vlan)
+        return True
+
+    def send_rawip_mcast(self, interface, mac_src, ip_src, ip_dst,
+                         vlan, count):
+        '''Start ip packet count mcast
+           Args:
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             ip_src ('str'): source ip address
+             ip_dst ('str'): destination ip address
+             vlan ('int'): vlan id
+             count ('int') : number of pkts send
+           Returns:
+             True
+        '''
+        map_addr = int(ipaddress.ip_address(ip_dst))
+        map_addr = map_addr & 0x7FFFFF
+        mac_dst = '0100.5E%02X.%04X' % (map_addr >> 16, map_addr & 0xFFFF)
+        self.send_rawip(interface, mac_src, mac_dst, ip_src, ip_dst,
+                        vlan, count)
+        return True
+
+    def send_arp_request(self, interface, mac_src, ip_src, ip_target,
+                         vlan_tag=0, count=1):
+        '''Send arp request packet
+           Args:
+             interface ('str'): interface name
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             ip_src ('str'): source ip address
+             ip_target ('str'): target ip address
+             vlan_tag ('int', optional): vlan tag, default 0
+             count ('int', optional): send packets count, default 1
+           Returns:
+             None
+           Raises:
+             None
+        '''
+        mac_src = mac_to_colon_notation(mac_src)
+
+        trex_ns = self._trex.get_trex_namespace().ns
+        with trex_ns.trex_client_context():
+            from scapy.all import IP, Ether, Dot1Q, ARP
+            ether_part = Ether(src=mac_src, dst='ff:ff:ff:ff:ff:ff')
+            if ip_src == ip_target:
+                arp_part = ARP(op=1, hwsrc=mac_src, psrc=ip_src,
+                                hwdst='ff:ff:ff:ff:ff:ff',
+                                pdst=ip_target)
+            else:
+                arp_part = ARP(op=1, hwsrc=mac_src, psrc=ip_src,
+                                hwdst='00:00:00:00:00:00',
+                                pdst=ip_target)
+            if vlan_tag:
+                scapy_pkt = ether_part / Dot1Q(vlan=vlan_tag) / arp_part
+            else:
+                scapy_pkt = ether_part / arp_part
+
+            pkt = trex_ns.trex.stl.api.STLPktBuilder(pkt=scapy_pkt)
+            bst_mode = trex_ns.trex.stl.api.STLTXSingleBurst(
+                total_pkts=count
+            )
+            flow = trex_ns.trex.stl.api.STLStream(packet=pkt,
+                                                  mode=bst_mode)
+            self._trex.get_stl_client().client.remove_all_streams(
+                ports=interface
+            )
+            self._trex.get_stl_client().client.add_streams(ports=interface,
+                                                           streams=flow)
+            self._trex.get_stl_client().client.start(ports=interface)
+            self._trex.get_stl_client().client.wait_on_traffic(
+                ports=interface
+            )
+
+    def send_ndp_ns(self, interface, mac_src, ip_src, ip_dst,
+                    vlan_tag=0, count=1):
+        '''Send ndp neighbor solicitation packet
+           Args:
+             interface ('str'): interface name
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             ip_src ('str'): source ip address
+             ip_dst ('str'): destination ip address
+             vlan_tag ('int', optional): vlan tag, default 0
+             count ('int', optional): send packets count, default 1
+           Returns:
+             None
+           Raises:
+             None
+        '''
+        mac_src = mac_to_colon_notation(mac_src)
+        trex_ns = self._trex.get_trex_namespace().ns
+        with trex_ns.trex_client_context():
+            from scapy.all import Ether, Dot1Q
+            from scapy.all import IPv6, ICMPv6ND_NS
+            from scapy.all import ICMPv6NDOptSrcLLAddr
+
+            ether_p = Ether(src=mac_src, dst=make_multicast_mac(ip_dst))
+
+            ipv6_p = IPv6(src=ip_src, dst=make_multicast_ipv6(ip_dst))
+            icmpv6_p = ICMPv6ND_NS(tgt=ip_dst)
+            icmpv6_opt = ICMPv6NDOptSrcLLAddr(lladdr=mac_src)
+            if vlan_tag:
+                scapy_pkt = \
+                  ether_p / Dot1Q(vlan=vlan_tag) / ipv6_p / icmpv6_p / icmpv6_opt
+            else:
+                scapy_pkt = ether_p / ipv6_p / icmpv6_p / icmpv6_opt
+
+            pkt = trex_ns.trex.stl.api.STLPktBuilder(pkt=scapy_pkt)
+            bst_mode = trex_ns.trex.stl.api.STLTXSingleBurst(
+                total_pkts=count
+            )
+            flow = trex_ns.trex.stl.api.STLStream(packet=pkt,
+                                                  mode=bst_mode)
+            self._trex.get_stl_client().client.remove_all_streams(
+                ports=interface
+            )
+            self._trex.get_stl_client().client.add_streams(ports=interface,
+                                                           streams=flow)
+            self._trex.get_stl_client().client.start(ports=interface)
+            self._trex.get_stl_client().client.wait_on_traffic(
+                ports=interface
+            )
+
+    def send_ndp_na(self, interface, mac_src, mac_dst, ip_src, ip_dst,
+                    vlan_tag=0, count=1):
+        '''Send ndp neighbor solicitation packet
+           Args:
+             interface ('str'): interface name
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             mac_dst ('str'): destination mac address, example aabb.bbcc.ccdd
+             ip_src ('str'): source ip address
+             ip_dst ('str'): destination ip address
+             vlan_tag ('int', optional): vlan tag, default 0
+             count ('int', optional): send packets count, default 1
+           Returns:
+             None
+           Raises:
+             None
+        '''
+        mac_src = mac_to_colon_notation(mac_src)
+
+        solicited = 1
+        if 'FF02::1' == ip_dst or 'ff02::1' == ip_dst:
+            mac_dst = make_multicast_mac(ip_dst)
+            solicited = 0
+
+        mac_dst = mac_to_colon_notation(mac_dst)
+
+        trex_ns = self._trex.get_trex_namespace().ns
+        with trex_ns.trex_client_context():
+            from scapy.all import Ether, Dot1Q
+            from scapy.all import IPv6, ICMPv6ND_NA
+            from scapy.all import ICMPv6NDOptSrcLLAddr
+
+            ether_p = Ether(src=mac_src, dst=mac_dst)
+
+            ipv6_p = IPv6(src=ip_src, dst=ip_dst)
+            icmpv6_p = ICMPv6ND_NA(R=0, S=solicited, O=1, tgt=ip_src)
+            icmpv6_opt = ICMPv6NDOptSrcLLAddr(type=2, lladdr=mac_src)
+            if vlan_tag:
+                scapy_pkt = \
+                  ether_p / Dot1Q(vlan=vlan_tag) / ipv6_p / icmpv6_p / icmpv6_opt
+            else:
+                scapy_pkt = ether_p / ipv6_p / icmpv6_p / icmpv6_opt
+
+            pkt = trex_ns.trex.stl.api.STLPktBuilder(pkt=scapy_pkt)
+            bst_mode = trex_ns.trex.stl.api.STLTXSingleBurst(
+                total_pkts=count
+            )
+            flow = trex_ns.trex.stl.api.STLStream(packet=pkt,
+                                                  mode=bst_mode)
+            self._trex.get_stl_client().client.remove_all_streams(
+                ports=interface
+            )
+            self._trex.get_stl_client().client.add_streams(ports=interface,
+                                                           streams=flow)
+            self._trex.get_stl_client().client.start(ports=interface)
+            self._trex.get_stl_client().client.wait_on_traffic(
+                ports=interface
+            )
+
     def configure_traffic_profile(self, bidirectional=False, frame_size=60, ignore_macs=True,
             l3_protocol='ipv4', ip_src_mode='increment', ip_src_count=254,
             ip_dst_mode='increment', ip_dst_count=254, l4_protocol='udp',
@@ -164,31 +533,29 @@ class Trex(TrafficGen):
 
         self._traffic_profile_configured = True
 
-    def configure_dhcpv4_request(self, mac_src, l3addr, xid, length_mode='auto',
-                            mac_dst='ff:ff:ff:ff:ff:ff', l3_protocol='ipv4',
-                            ip_src_addr='0.0.0.0', ip_dst_addr='255.255.255.255',
-                            transmit_mode='single_burst', num=1, pps=100):
+    def configure_dhcpv4_request(self, interface, mac_src, requested_ip, xid=0,
+                                 transmit_mode='single_burst', pkts_per_burst=1, pps=100):
         ''' Method to configure a DHCPv4 REQUEST stream '''
 
         try:
             config_status = self._trex.traffic_config (
                 mode='create',
-                port_handle=self.port_list[0],
-                length_mode=length_mode,
+                port_handle=interface,
+                length_mode='auto',
                 mac_src=mac_src,
-                mac_dst=mac_dst,
-                l3_protocol=l3_protocol,
-                ip_src_addr=ip_src_addr,
-                ip_dst_addr=ip_dst_addr,
+                mac_dst='ff:ff:ff:ff:ff:ff',
+                l3_protocol='ipv4',
+                ip_src_addr='0.0.0.0',
+                ip_dst_addr='255.255.255.255',
 
                 l4_protocol='dhcp',
                 dhcp_transaction_id=xid,
                 dhcp_client_hw_addr=mac_src,
-                dhcp_client_ip_addr=l3addr,
+                dhcp_client_ip_addr=requested_ip,
                 dhcp_option=['dhcp_message_type'],
                 dhcp_option_data=[DhcpMessageType.REQUEST],
                 transmit_mode=transmit_mode,
-                pkts_per_burst=num,
+                pkts_per_burst=pkts_per_burst,
                 rate_pps=pps
             )
         except Exception as e:
@@ -201,37 +568,445 @@ class Trex(TrafficGen):
 
         self._traffic_profile_configured = True
 
-    def configure_dhcpv4_reply(self, mac_src, l3addr, xid, lease_time, length_mode='auto',
-                            mac_dst='ff:ff:ff:ff:ff:ff', l3_protocol='ipv4',
-                            ip_src_addr='192.168.11.1', ip_dst_addr='255.255.255.255',
-                            transmit_mode='single_burst', num=1, pps=100):
+    def configure_dhcpv4_reply(self, interface, mac_src, ip_src, assigned_ip,
+                               lease_time, xid=0, transmit_mode='single_burst',
+                               pkts_per_burst=1, pps=100):
         ''' Method to configure a DHCPv4 REPLY stream '''
 
         try:
             config_status = self._trex.traffic_config(
                 mode='create',
-                port_handle=self.port_list[0],
-                length_mode=length_mode,
+                port_handle=interface,
+                length_mode='auto',
                 mac_src=mac_src,
-                mac_dst=mac_dst,
-                l3_protocol=l3_protocol,
-                ip_src_addr=ip_src_addr,
-                ip_dst_addr=ip_dst_addr,
+                mac_dst="ff:ff:ff:ff:ff:ff",
+                l3_protocol='ipv4',
+                ip_src_addr=ip_src,
+                ip_dst_addr='255.255.255.255',
 
                 l4_protocol='dhcp',
                 dhcp_transaction_id=xid,
                 dhcp_operation_code='reply',
                 dhcp_client_hw_addr=mac_src,
-                dhcp_your_ip_addr=l3addr,
+                dhcp_your_ip_addr=assigned_ip,
                 dhcp_option=['dhcp_message_type', 'dhcp_ip_addr_lease_time'],
                 dhcp_option_data=[DhcpMessageType.ACK, lease_time],
                 transmit_mode=transmit_mode,
-                pkts_per_burst=num,
+                pkts_per_burst=pkts_per_burst,
                 rate_pps=pps
             )
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Failed to configure dhcpv4 reply stream on TRex")
+        else:
+            self._traffic_streams.append(config_status['stream_id'])
+            stream_list = str(self._traffic_streams)[1:-1]
+            log.info("Traffic config streams: " + stream_list)
+
+        self._traffic_profile_configured = True
+
+    def configure_dhcpv6_request(self, interface, src_mac, requested_ip,
+                            cid=None, sid=None,
+                            vlan_id=0, xid=0,
+                            transmit_mode='single_burst',
+                            pkts_per_burst=1, pps=100):
+        ''' Method to configure a DHCPv6 REQUEST stream '''
+
+        try:
+            config_status = self._trex.traffic_config(
+                mode='create',
+                port_handle=interface,
+
+                length_mode='auto',
+                l3_protocol='ipv6',
+                mac_src=src_mac,
+                mac_dst=make_multicast_mac(ALL_DHCPV6_SERVERS_MULTICAST),
+                ipv6_src_addr=make_link_local_ipv6(src_mac),
+                ipv6_dst_addr=ALL_DHCPV6_SERVERS_MULTICAST,
+
+                l4_protocol='dhcp',
+                dhcp6_opt_ia_address=requested_ip,
+                dhcp6_message_type=Dhcpv6MessageType.REQUEST,
+                dhcp6_transaction_id=xid,
+                dhcp6_opt_server_id_duid=cid,
+                dhcp6_opt_client_id_duid=sid,
+                dhcp6_opt_req_opts=[
+                    Dhcpv6OptCode.DNS_SERRVERS,
+                    Dhcpv6OptCode.DNS_DOMAINS,
+                    Dhcpv6OptCode.CLIENT_FQDN
+                ],
+
+                vlan_id=vlan_id,
+                transmit_mode=transmit_mode,
+                pkts_per_burst=pkts_per_burst,
+                rate_pps=pps
+            )
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Failed to configure dhcpv6 request stream on TRex")
+
+        else:
+            self._traffic_streams.append(config_status['stream_id'])
+            stream_list = str(self._traffic_streams)[1:-1]
+            log.info("Traffic config streams: " + stream_list)
+
+        self._traffic_profile_configured = True
+
+    def configure_arp_request(self, port, mac_src, ip_src, ip_dst, frame_size=60,
+                              vlan_id=0, transmit_mode='single_burst',
+                              pkts_per_burst=1, pps=100):
+        ''' Method to configure an ARP request stream '''
+
+        try:
+            config_status = self._trex.traffic_config(
+                # Configure stream
+                mode='create',
+                port_handle=port,
+
+                # Configure layer 2 settings
+                frame_size=frame_size,
+                mac_src=mac_src,
+                mac_dst='ff:ff:ff:ff:ff:ff',
+                vlan_id=vlan_id,
+
+                # Configure layer 3 settings
+                l3_protocol='arp',
+                arp_src_hw_addr=mac_src,
+                arp_dst_hw_addr='ff:ff:ff:ff:ff:ff',
+                arp_psrc_addr=ip_src,
+                arp_pdst_addr=ip_dst,
+                arp_operation='arpRequest',
+
+                # Configure transmit settings
+                transmit_mode=transmit_mode,
+                pkts_per_burst=pkts_per_burst,
+                rate_pps=pps
+            )
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Failed to configure ARP request stream on TRex")
+        else:
+            self._traffic_streams.append(config_status['stream_id'])
+            stream_list = str(self._traffic_streams)[1:-1]
+            log.info("Traffic config streams: " + stream_list)
+
+        self._traffic_profile_configured = True
+
+    def configure_garp(self, port, mac_src, ip, frame_size=60,
+                       vlan_id=0, transmit_mode='single_burst',
+                       pkts_per_burst=1, pps=100):
+        ''' Method to configure a GARP stream '''
+
+        try:
+            config_status = self._trex.traffic_config(
+                # Configure stream
+                mode='create',
+                port_handle=port,
+
+                # Configure layer 2 settings
+                frame_size=frame_size,
+                mac_src=mac_src,
+                mac_dst='ff:ff:ff:ff:ff:ff',
+                vlan_id=vlan_id,
+
+                # Configure layer 3 settings
+                l3_protocol='arp',
+                arp_src_hw_addr=mac_src,
+                arp_dst_hw_addr='ff:ff:ff:ff:ff:ff',
+                arp_psrc_addr=ip,
+                arp_pdst_addr=ip,
+                arp_operation='arpReply',
+
+                # Configure transmit settings
+                transmit_mode=transmit_mode,
+                pkts_per_burst=pkts_per_burst,
+                rate_pps=pps
+            )
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Failed to configure GARP stream on TRex")
+        else:
+            self._traffic_streams.append(config_status['stream_id'])
+            stream_list = str(self._traffic_streams)[1:-1]
+            log.info("Traffic config streams: " + stream_list)
+
+        self._traffic_profile_configured = True
+
+    def configure_dhcpv6_reply(self, interface, src_mac, src_ip, assigned_ip, lease_time,
+                          cid=None, sid=None, vlan_id=0, xid=0,
+                          transmit_mode='single_burst',
+                          pkts_per_burst=1, pps=100):
+        ''' Method to configure a DHCPv6 REPLY stream '''
+        try:
+            config_status = self._trex.traffic_config(
+                mode='create',
+                port_handle=interface,
+                length_mode='auto',
+
+                l3_protocol='ipv6',
+                mac_src=src_mac,
+                mac_dst=make_multicast_mac(ALL_IPV6_NODES_MULTICAST),
+                ipv6_src_addr = src_ip,
+                ipv6_dst_addr=ALL_IPV6_NODES_MULTICAST,
+
+                l4_protocol='dhcp',
+                dhcp6_message_type=Dhcpv6MessageType.REPLY,
+                dhcp6_transaction_id=xid,
+
+                dhcp6_opt_client_id_duid=cid,
+                dhcp6_opt_server_id_duid=sid,
+                dhcp6_opt_ia_id=xid,
+                dhcp6_opt_ia_address=assigned_ip,
+                dhcp6_opt_ia_address_valid_lifetime=lease_time,
+
+                vlan_id=vlan_id,
+                transmit_mode=transmit_mode,
+                pkts_per_burst=pkts_per_burst,
+                rate_pps=pps
+                )
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Failed to configure dhcpv6 reply stream on TRex")
+
+        else:
+            self._traffic_streams.append(config_status['stream_id'])
+            stream_list = str(self._traffic_streams)[1:-1]
+            log.info("Traffic config streams: " + stream_list)
+
+        self._traffic_profile_configured = True
+
+    def configure_ipv4_data_traffic(self, interface, src_ip, dst_ip, 
+                                    l4_protocol, payload, transmit_mode='single_burst', 
+                                    pkts_per_burst=1, pps=100):
+        '''Method to configure ipv4 data traffic stream'''
+        try:
+            config_status = self._trex.traffic_config(
+                mode='create',
+                port_handle=interface,
+                length_mode='auto',
+                ignore_macs=True,
+                ip_src_addr=src_ip,
+                ip_dst_addr=dst_ip,
+                
+                l3_protocol='ipv4',
+                l4_protocol=l4_protocol,
+                payload=bytes(str.encode(payload)),
+                rate_pps=pps,
+                transmit_mode=transmit_mode,
+                pkts_per_burst=pkts_per_burst
+            )
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Failed to configure ipv4 data packet stream on TRex")
+        else:
+            self._traffic_streams.append(config_status['stream_id'])
+            stream_list = str(self._traffic_streams)[1:-1]
+            log.info("Traffic config streams: " + stream_list)
+
+        self._traffic_profile_configured = True
+
+    def configure_ipv6_data_traffic(self, interface, src_ip, dst_ip, 
+                                    l4_protocol, payload, transmit_mode='single_burst', 
+                                    pkts_per_burst=1, pps=100):
+        '''Method to configure ipv6 data traffic stream'''
+
+        try:
+            config_status = self._trex.traffic_config(
+                mode='create',
+                port_handle=interface,
+                length_mode='auto',
+                ignore_macs=True,
+                ipv6_src_addr=src_ip,
+                ipv6_dst_addr=dst_ip,
+
+                l3_protocol='ipv6',
+                l4_protocol=l4_protocol,
+                payload=bytes(str.encode(payload)),
+                rate_pps=pps,
+                transmit_mode=transmit_mode,
+                pkts_per_burst=pkts_per_burst
+            )
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Failed to configure ipv6 data packet stream on TRex")
+        else:
+            self._traffic_streams.append(config_status['stream_id'])
+            stream_list = str(self._traffic_streams)[1:-1]
+            log.info("Traffic config streams: " + stream_list)
+
+        self._traffic_profile_configured = True
+
+    def configure_acd(self, port, mac_src, ip_dst, frame_size=60,
+                      vlan_id=0, transmit_mode='single_burst',
+                      pkts_per_burst=1, pps=100):
+        ''' Method to configure an address conflict detection stream '''
+
+        try:
+            config_status = self._trex.traffic_config(
+                # Configure stream
+                mode='create',
+                port_handle=port,
+
+                # Configure layer 2 settings
+                frame_size=frame_size,
+                mac_src=mac_src,
+                mac_dst='00:00:00:00:00:00',
+                vlan_id=vlan_id,
+
+                # Configure layer 3 settings
+                l3_protocol='arp',
+                arp_src_hw_addr=mac_src,
+                arp_dst_hw_addr='00:00:00:00:00:00',
+                arp_psrc_addr='0.0.0.0',
+                arp_pdst_addr=ip_dst,
+                arp_operation='arpRequest',
+
+                # Configure transmit settings
+                transmit_mode=transmit_mode,
+                pkts_per_burst=pkts_per_burst,
+                rate_pps=pps
+            )
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Failed to configure ACD stream on TRex")
+        else:
+            self._traffic_streams.append(config_status['stream_id'])
+            stream_list = str(self._traffic_streams)[1:-1]
+            log.info("Traffic config streams: " + stream_list)
+
+        self._traffic_profile_configured = True
+
+    def configure_ns(self, interface, mac_src, ip_src, ip_dst, hop_limit=255,
+                     length_mode='auto', vlan_id=0, transmit_mode='single_burst',
+                     pkts_per_burst=1, pps=100):
+        ''' Method to configure an NS stream '''
+
+        try:
+            config_status = self._trex.traffic_config(
+                # Configure stream
+                mode='create',
+                port_handle=interface,
+
+                # Configure layer 2 settings
+                ipv6_hop_limit=hop_limit,
+                mac_src=mac_src,
+                mac_dst=make_multicast_mac(ip_src),
+                length_mode=length_mode,
+
+                # Configure layer 3 settings
+                l3_protocol='ipv6',
+                ipv6_src_addr=ip_src,
+                ipv6_dst_addr=make_multicast_ipv6(ip_dst),
+                vlan_id=vlan_id,
+
+                # Configure layer 4 settings
+                l4_protocol='icmp',
+                icmp_type='nd_ns',
+                icmp_nd_target=ip_dst,
+                icmp_nd_opt_src_lladr=mac_src,
+
+                # Configure transmit settings
+                transmit_mode=transmit_mode,
+                pkts_per_burst=pkts_per_burst,
+                rate_pps=pps
+            )
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Failed to configure NS stream on TRex")
+        else:
+            self._traffic_streams.append(config_status['stream_id'])
+            stream_list = str(self._traffic_streams)[1:-1]
+            log.info("Traffic config streams: " + stream_list)
+
+        self._traffic_profile_configured = True
+
+    def configure_na(self, interface, mac_src, ip_src, ip_dst, solicited=True,
+                     hop_limit=255, length_mode='auto', vlan_id=0,
+                     transmit_mode='single_burst', pkts_per_burst=1, pps=100):
+        ''' Method to configure an NA stream '''
+
+        if solicited:
+            mac_dst = make_multicast_mac(ip_dst)
+            ip_multicast_dst = make_multicast_ipv6(ip_dst)
+        else:
+            mac_dst = make_multicast_mac(ALL_IPV6_NODES_MULTICAST)
+            ip_multicast_dst = ALL_IPV6_NODES_MULTICAST
+
+        try:
+            config_status = self._trex.traffic_config(
+                # Configure stream
+                mode='create',
+                port_handle=interface,
+
+                # Configure layer 2 settings
+                ipv6_hop_limit=hop_limit,
+                mac_src=mac_src,
+                mac_dst=mac_dst,
+                length_mode=length_mode,
+                vlan_id=vlan_id,
+
+                # Configure layer 3 settings
+                l3_protocol='ipv6',
+                ipv6_src_addr=ip_src,
+                ipv6_dst_addr=ip_multicast_dst,
+
+                # Configure layer 4 settings
+                l4_protocol='icmp',
+                icmp_type='nd_na',
+                icmp_nd_target=ip_src,
+                icmp_nd_opt_src_lladr=mac_src,
+
+                # Configure transmit settings
+                transmit_mode=transmit_mode,
+                pkts_per_burst=pkts_per_burst,
+                rate_pps=pps
+            )
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Failed to configure NA stream on TRex")
+        else:
+            self._traffic_streams.append(config_status['stream_id'])
+            stream_list = str(self._traffic_streams)[1:-1]
+            log.info("Traffic config streams: " + stream_list)
+
+        self._traffic_profile_configured = True
+
+    def configure_dad(self, interface, mac_src, ip_dst, hop_limit=255,
+                      length_mode='auto', vlan_id=0, transmit_mode='single_burst',
+                      pkts_per_burst=1, pps=100):
+        ''' Method to configure a DAD stream '''
+
+        try:
+            config_status = self._trex.traffic_config(
+                # Configure stream
+                mode='create',
+                port_handle=interface,
+
+                # Configure layer 2 settings
+                ipv6_hop_limit=hop_limit,
+                mac_src=mac_src,
+                mac_dst=make_multicast_mac(ip_dst),
+                length_mode=length_mode,
+                vlan_id=vlan_id,
+
+                # Configure layer 3 settings
+                l3_protocol='ipv6',
+                ipv6_src_addr='::',
+                ipv6_dst_addr=make_multicast_ipv6(ip_dst),
+
+                # Configure layer 4 settings
+                l4_protocol='icmp',
+                icmp_type='nd_ns',
+                icmp_nd_target=ip_dst,
+
+                # Configure transmit settings
+                transmit_mode=transmit_mode,
+                pkts_per_burst=pkts_per_burst,
+                rate_pps=pps
+            )
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Failed to configure DAD stream on TRex")
         else:
             self._traffic_streams.append(config_status['stream_id'])
             stream_list = str(self._traffic_streams)[1:-1]
@@ -245,17 +1020,22 @@ class Trex(TrafficGen):
 
         return self._traffic_streams
 
-    def start_traffic(self, wait_time=10):
-        '''Start traffic on TRex'''
+    def start_traffic(self, port=None, wait_time=10):
+        '''Start traffic for specified port(s) on TRex'''
 
-        # Configure traffic profile first
+        if port is None:
+            port = self.port_list
+
+        # Check if traffic profile is configured
         if not self._traffic_profile_configured:
-            self.configure_traffic_profile()
+            raise GenieTgnError("No traffic profile configured on device'{}'".\
+                                format(self.device.name))
 
-        log.info(banner("Starting traffic on TRex"))
+        log.info(banner("Starting traffic for specified port(s) on TRex"))
+
         # Start traffic
         try:
-            start_traffic = self._trex.traffic_control(action = 'run', port_handle = self.port_list)
+            start_traffic = self._trex.traffic_control(action = 'run', port_handle = port)
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Unable to start traffic on device '{}'".\
@@ -307,13 +1087,17 @@ class Trex(TrafficGen):
 
         self._traffic_profile_configured = False
 
-    def stop_traffic(self, wait_time=10, unconfig_traffic=True, print_stats=False):
-        '''Stop traffic on all ports on TRex'''
+    def stop_traffic(self, port=None, wait_time=10, unconfig_traffic=True, print_stats=False):
+        '''Stop traffic for specified port(s) on TRex'''
 
-        log.info(banner("Stopping traffic for all ports on TRex"))
+        log.info(banner("Stopping traffic for specified port(s) on TRex"))
+
+        if port is None:
+            port = self.port_list
+
         # Stop traffic
         try:
-            stop_traffic = self._trex.traffic_control(action = 'stop', port_handle = self.port_list)
+            stop_traffic = self._trex.traffic_control(action = 'stop', port_handle = port)
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Unable to stop traffic on device '{}'".\
@@ -523,7 +1307,7 @@ class Trex(TrafficGen):
         self._trex.emulation_multicast_source_config(mode='delete',
                                                      handle=source_handler.handle)
         return True
-    
+
     # IGMP APIs
     def create_igmp_client(self, interface, clientip, version, vlanid=0):
         '''Create IGMP Client
@@ -553,11 +1337,13 @@ class Trex(TrafficGen):
            Returns:
              True/False
         '''
-        #need to be changed
         intf = self._get_igmpclient_field(client_handler.handles[0], 'interface')
-        self._trex.emulation_igmp_config(mode = 'delete', 
-                                         handle = client_handler.handles[0],
-                                         intf_ip_addr = intf)
+        self._trex.emulation_igmp_config(mode='delete',
+                                         handle=client_handler.handles[0],
+                                         intf_ip_addr=intf,
+                                         port_handle=intf)
+        self._trex.emulation_igmp_control(mode='start',
+                                         port_handle=intf)
         return self._del_igmpclient_hkey(client_handler.handles[0])
 
     def igmp_client_add_group(self, client_handler,
@@ -575,7 +1361,7 @@ class Trex(TrafficGen):
              filter_mode ('str'): include | exclude | N/A (by default)
 
              for v3 (*,g) which is (0.0.0.0, g)-exclude, the source_handler
-             should be None, filter_mode should be exclude
+             if the source_handler is None, filter_mode will be set to exclude
            Returns:
              group membership handler
         '''
@@ -585,14 +1371,28 @@ class Trex(TrafficGen):
         if source_handler:
             source_handler = source_handler.handle
 
-        grp_hdl = self._trex.emulation_igmp_group_config(mode='create',
-                                                         session_handle=client_handler.handles[0],
-                                                         source_pool_handle=source_handler,
-                                                         group_pool_handle=group_handler.handle,
-                                                         g_filter_mode=filter_mode)
-        
-        self._add_igmpgroup(source_handler, client_handler.handles[0], group_handler.handle, grp_hdl.handle)
-        self._filter_update(client_handler.handles[0], grp_hdl.handle, filter_mode)
+        version = self._get_igmpclient_field(client_handler.handles[0], 'version')
+        if version == 'v3':
+            if source_handler is None:
+                filter_mode = 'exclude'
+            grp_hdl = self._trex.emulation_igmp_group_config(
+                    mode='create',
+                    session_handle=client_handler.handles[0],
+                    source_pool_handle=source_handler,
+                    group_pool_handle=group_handler.handle,
+                    g_filter_mode=filter_mode
+            )
+        else:
+            grp_hdl = self._trex.emulation_igmp_group_config(
+                    mode='create',
+                    session_handle=client_handler.handles[0],
+                    group_pool_handle=group_handler.handle,
+            )
+
+        self._add_igmpgroup(source_handler, client_handler.handles[0],
+                            group_handler.handle, grp_hdl.handle)
+        self._update_igmp_filter(client_handler.handles[0],
+                                 grp_hdl.handle, filter_mode)
 
         return grp_hdl
 
@@ -613,30 +1413,44 @@ class Trex(TrafficGen):
                                                session_handle=client_handler.handles[0],
                                                g_filter_mode='change_to_'+filter_mode)
 
-        self._filter_update(client_handler.handles[0], handler.handle, filter_mode)
+        self._update_igmp_filter(client_handler.handles[0], handler.handle, filter_mode)
         return handler
 
-    def igmp_client_del_group(self, client_handler, handler, action=None):
+    def igmp_client_del_group(self, client_handler, group_handler,
+                              mem_handler, source_handler='*'):
         '''IGMP Client delete group membership
            Args:
              client_handler ('obj'): IGMP Client handler
-             handler ('obj'):
+             group_handler ('obj'):
+                Multicast group pool handler created by create_multicast_group
+             source_handler ('obj'):
+                Multicast source handler created by create_multicast_source
+                by default is None, means (*, g)
+             mem_handler ('obj'):
                 Group membership handler created by igmp_client_add_group
            Returns:
              True
            Raises:
              KeyError
         '''
-        self._trex.emulation_igmp_group_config(mode='delete',
-                                               handle=handler.handle,
-                                               session_handle=client_handler.handles[0],
-                                               g_action=action)
         grps = self._get_igmpclient_field(client_handler.handles[0], 'grps')
-        if handler.handle not in grps:
+        if group_handler not in grps:
+            log.error('Client handler and Membership handler mismatch')
+            raise KeyError
+
+        if source_handler not in grps[group_handler]:
             log.error('Group does not exist')
             raise KeyError
-        
-        grps.remove(handler.handle)
+
+        if mem_handler not in grps[group_handler][source_handler]:
+            log.error('Source does not exist')
+            raise KeyError
+
+        self._trex.emulation_igmp_group_config(mode='delete',
+                                               handle=mem_handler,
+                                               session_handle=client_handler.handles[0])
+
+        del grps[group_handler]
         self._update_igmpclient_field(client_handler.handles[0], 'grps', grps)
         return True
 
@@ -655,25 +1469,31 @@ class Trex(TrafficGen):
         version = self._get_igmpclient_field(client_handler.handles[0], 'version')
         if mode == 'start':
             if version == 'v2':
-                self._trex.emulation_igmp_control(mode = 'join',
+                self._trex.emulation_igmp_control(mode='join',
                                                   port_handle=interface)
             else:
-                self._trex.emulation_igmp_control(mode = 'start',
-                                                  port_handle=interface)      
+                self._trex.emulation_igmp_control(mode='start',
+                                                  port_handle=interface)
         else:
             grps = self._get_igmpclient_field(client_handler.handles[0], 'grps')
 
             if version == 'v2':
+                del_grps_list =[]
                 for grp in grps:
-                    filt = self.igmp_clients[client_handler.handles[0]]['filters'][grps[grp]['*']]
                     self._trex.emulation_igmp_group_config(mode='modify',
-                                                            session_handle=client_handler.handles[0],
-                                                            handle=grps[grp]['*'],
-                                                            g_action='leave',
-                                                            g_filter_mode=None)
-                
+                                                           session_handle=client_handler.handles[0],
+                                                           handle=grps[grp]['*'],
+                                                           g_action='leave')
+                    del_grps_list.append(grp)
+                # Send the leave message
                 self._trex.emulation_igmp_control(port_handle=interface,
                                                   mode='start')
+                # Remove the groups membership from the client
+                for grp in del_grps_list:
+                    self.igmp_client_del_group(client_handler, grp, grps[grp]['*'])
+                # Restart the updated client
+                self._trex.emulation_igmp_control(port_handle=interface,
+                                                  mode='join')
             else:
                 for grp in grps:
                     for src in grps[grp]:
@@ -690,7 +1510,7 @@ class Trex(TrafficGen):
                                                                              source_pool_handle='{}/0.0.0.0/1'.format(src),
                                                                              g_filter_mode=g_filter)
                             self._add_igmpgroup(src, client_handler.handles[0], grp, grp_hdl.handle)
-                            self._filter_update(client_handler.handles[0], grp_hdl.handle, 'block_old_source')
+                            self._update_igmp_filter(client_handler.handles[0], grp_hdl.handle, 'block_old_source')
                         else:
                             g_filter = 'change_to_include'
                             grp_hdl = self._trex.emulation_igmp_group_config(mode='create',
@@ -698,7 +1518,7 @@ class Trex(TrafficGen):
                                                                              group_pool_handle=grp,
                                                                              g_filter_mode=g_filter)
                             self._add_igmpgroup(src, client_handler.handles[0], grp, grp_hdl.handle)
-                            self._filter_update(client_handler.handles[0], grps[grp][src], 'change_to_include')
+                            self._update_igmp_filter(client_handler.handles[0], grps[grp][src], 'change_to_include')
 
                 self._trex.emulation_igmp_control(port_handle=interface,
                                                   mode='start')
@@ -710,7 +1530,6 @@ class Trex(TrafficGen):
     # Allocate a clientkey to track all the clients
     # This set of methods used to manage the igmp clients of pagent
     # ==============================================================
-
     def _get_igmpclient_hkey(self, interface, vlanid, clientip, version):
         '''Get host key of igmp client, create a new key for new client
            Args:
@@ -731,6 +1550,7 @@ class Trex(TrafficGen):
                 'grps': {},
                 'filters': {},
                 'interface': interface,
+                'ip': clientip,
             }
 
         return client_hdl
@@ -778,28 +1598,32 @@ class Trex(TrafficGen):
            Raise:
              KeyError
         '''
-        val = self.igmp_clients[client_hdl][key]
-        if not val:
+        val = self.igmp_clients[client_hdl].get(key)
+        if val is None:
             log.warn('Key not in dictionary')
             raise KeyError
         return val
-    
-    def _filter_update(self, client, grp_hdl, filter):
+
+    def _update_igmp_filter(self, client, grp_hdl, filter):
         '''Update filter by group member handle
            Args:
-             client_handle ('str')
-             group member handle ('str')
-             filter('str')
+             client_handle ('str'): handler for the client
+             group member handle ('str'): generated group member handle
+             filter_mode('str'): filter mode 'include' 'exclude'
            Return:
              True
            Raise:
              KeyError
         '''
-        if grp_hdl not in self.igmp_clients:
+        if client not in self.igmp_clients:
+            log.error('Client does not exist')
+            raise KeyError
+        if grp_hdl not in self.igmp_clients[client]['filters']:
+            log.error('Group does not exist')
             raise KeyError
         self.igmp_clients[client]['filters'][grp_hdl] = filter
         return True
-    
+
     def _add_igmpgroup(self, source_handler, client_handler, group_handler, grp_hdl):
         '''Add igmpclient to group
            Args:
@@ -824,3 +1648,340 @@ class Trex(TrafficGen):
         '''filter initialization'''
         self.igmp_clients[client_handler]['filters'][grp_hdl] = None
         return True
+
+    # MLD APIs
+    def create_mld_client(self, interface, clientip, version, vlanid=0):
+        '''Create MLD Client
+           Args:
+             interface ('str'): interface name
+             clientip ('str'): ip address
+             version ('int'): v1 or v2
+             vlanid ('int'): vlan id, default = 0
+           Returns:
+             mld client handler
+        '''
+        if version == 1:
+            version = 'v1'
+        else:
+            version = 'v2'
+
+        handle = self._get_mldclient_hkey(interface, vlanid, clientip, version)
+        self._update_mldclient_field(handle.handles[0], 'vlan', vlanid)
+        self._update_mldclient_field(handle.handles[0], 'version', version)
+
+        return handle
+
+    def delete_mld_client(self, client_handler):
+        '''Delete MLD Client
+           Args:
+             client_handler ('obj'): MLD Client handler
+           Returns:
+             True/False
+        '''
+        #need to be changed
+        intf = self._get_mldclient_field(client_handler.handles[0], 'interface')
+        self._trex.emulation_mld_config(mode='delete',
+                                        handle=client_handler.handles[0],
+                                        intf_ip_addr=intf,
+                                        port_handle=intf)
+        self._trex.emulation_mld_control(mode='start',
+                                         port_handle=intf)
+        return self._del_mldclient_hkey(client_handler.handles[0])
+
+    def mld_client_add_group(self, client_handler,
+                             group_handler,
+                             source_handler=None,
+                             filter_mode='N/A'):
+        '''MLD Client add group membership
+           Args:
+             client_handler ('obj'): MLD Client handler
+             group_handler ('obj'):
+                Multicast group pool handler created by create_multicast_group
+             source_handler ('obj'):
+                Multicast source handler created by create_multicast_source
+                by default is None, means (*, g)
+             filter_mode ('str'): include | exclude | N/A (by default)
+             for v2 (*,g) which is (0.0.0.0, g)-exclude, the source_handler
+             should be None, filter_mode will be exclude
+           Returns:
+             group membership handler
+        '''
+        if filter_mode == 'N/A':
+            filter_mode = None
+
+        if source_handler:
+            source_handler = source_handler.handle
+
+        version = self._get_mldclient_field(client_handler.handles[0], 'version')
+        if version == 'v2':
+            if source_handler is None:
+                filter_mode = 'exclude'
+            grp_hdl = self._trex.emulation_mld_group_config(mode='create',
+                                                            session_handle=client_handler.handles[0],
+                                                            source_pool_handle=source_handler,
+                                                            group_pool_handle=group_handler.handle,
+                                                            g_filter_mode=filter_mode)
+        else:
+            grp_hdl = self._trex.emulation_mld_group_config(mode='create',
+                                                            session_handle=client_handler.handles[0],
+                                                            group_pool_handle=group_handler.handle)
+
+        self._add_mldgroup(source_handler, client_handler.handles[0], group_handler.handle, grp_hdl.handle)
+        self._update_mld_filter(client_handler.handles[0], grp_hdl.handle, filter_mode)
+
+        return grp_hdl
+
+    def mld_client_modify_group_filter_mode(self, client_handler,
+                                            handler, filter_mode=None):
+        '''MLD Client modify group member filter mode, Only MLD v2
+           client is supported
+           Args:
+             client_handler ('obj'): MLD Client handler
+             handler ('obj'):
+                Group membership handler created by mld_client_add_group
+             filter_mode: include | exclude
+           Returns:
+             Updated Group membership handler
+        '''
+        self._trex.emulation_mld_group_config(mode='modify',
+                                              handle=handler.handle,
+                                              session_handle=client_handler.handles[0],
+                                              g_filter_mode='change_to_'+filter_mode)
+
+        self._update_mld_filter(client_handler.handles[0], handler.handle, filter_mode)
+        return handler
+
+    def mld_client_del_group(self, client_handler, group_handler,
+                             mem_handler, source_handler='*'):
+        '''MLD Client delete group membership
+           Args:
+             client_handler ('obj'): MLD Client handler
+             group_handler ('obj'):
+                Multicast group pool handler created by create_multicast_group
+             source_handler ('obj'):
+                Multicast source handler created by create_multicast_source
+                by default is None, means (*, g)
+             mem_handler ('obj'):
+                Group membership handler created by mld_client_add_group
+           Returns:
+             True
+           Raises:
+             KeyError
+        '''
+        grps = self._get_mldclient_field(client_handler.handles[0], 'grps')
+        if group_handler not in grps:
+            log.error('Client handler and Membership handler mismatch')
+            raise KeyError
+
+        if source_handler not in grps[group_handler]:
+            log.error('Group does not exist')
+            raise KeyError
+
+        if mem_handler not in grps[group_handler][source_handler]:
+            log.error('Source does not exist')
+            raise KeyError
+
+        self._trex.emulation_mld_group_config(mode='delete',
+                                              handle=mem_handler,
+                                              session_handle=client_handler.handles[0])
+
+        del grps[group_handler]
+        self._update_mldclient_field(client_handler.handles[0], 'grps', grps)
+        return True
+
+    def mld_client_control(self, interface, client_handler, mode):
+        '''MLD Client protocol control
+           Args:
+             interface ('str'): interface name
+             client_handler: MLD Client handler
+             mode ('mode'):
+                start: start the client with sending mld join message
+                stop: stop the client with sending mld leave message
+                restart: restart the client
+           Returns:
+             True
+        '''
+        version = self._get_mldclient_field(client_handler.handles[0], 'version')
+        if mode == 'start':
+            if version == 'v1':
+                self._trex.emulation_mld_control(mode='join',
+                                                 port_handle=interface)
+            else:
+                self._trex.emulation_mld_control(mode='start',
+                                                 port_handle=interface)
+        else:
+            grps = self._get_mldclient_field(client_handler.handles[0], 'grps')
+
+            if version == 'v1':
+                del_grps_list =[]
+                for grp in grps:
+                    self._trex.emulation_mld_group_config(mode='modify',
+                                                          session_handle=client_handler.handles[0],
+                                                          handle=grps[grp]['*'],
+                                                          g_action='leave')
+                    del_grps_list.append(grp)
+                # Send the leave message
+                self._trex.emulation_mld_control(port_handle=interface,
+                                                 mode='start')
+                # Remove the groups membership from the client
+                for grp in del_grps_list:
+                    self.mld_client_del_group(client_handler, grp, grps[grp]['*'])
+                # Restart the updated client
+                self._trex.emulation_mld_control(port_handle=interface,
+                                                 mode='join')
+            else:
+                for grp in grps:
+                    for src in grps[grp]:
+                        self._trex.emulation_mld_group_config(mode='delete',
+                                                              handle=grps[grp][src],
+                                                              session_handle=client_handler.handles[0])
+                        #get filter
+                        filt = self.mld_clients[client_handler.handles[0]]['filters'][grps[grp][src]]
+                        if filt == 'include':
+                            g_filter = 'block_old_source'
+                            grp_hdl = self._trex.emulation_mld_group_config(mode='create',
+                                                                            session_handle=client_handler.handles[0],
+                                                                            group_pool_handle=grp,
+                                                                            source_pool_handle='{}/0.0.0.0/1'.format(src),
+                                                                            g_filter_mode=g_filter)
+                            self._add_mldgroup(src, client_handler.handles[0], grp, grp_hdl.handle)
+                            self._update_mld_filter(client_handler.handles[0], grp_hdl.handle, 'block_old_source')
+                        else:
+                            g_filter = 'change_to_include'
+                            grp_hdl = self._trex.emulation_mld_group_config(mode='create',
+                                                                            session_handle=client_handler.handles[0],
+                                                                            group_pool_handle=grp,
+                                                                            g_filter_mode=g_filter)
+                            self._add_mldgroup(src, client_handler.handles[0], grp, grp_hdl.handle)
+                            self._update_mld_filter(client_handler.handles[0], grps[grp][src], 'change_to_include')
+
+                self._trex.emulation_mld_control(port_handle=interface,
+                                                 mode='start')
+        return True
+
+    # =============================================================
+    # MLD Client management methods
+    # Allocate a client key to track all the clients
+    # This set of methods used to manage the mld clients of pagent
+    # ==============================================================
+
+    def _get_mldclient_hkey(self, interface, vlanid, clientip, version):
+        '''Get host key of mld client, create a new key for new client
+           Args:
+             interface ('str'): interface name
+             vlanid ('int'): vlan id
+             clientip ('str'): client ip address
+             version ('str'): mld version
+           Returns:
+             Host key of mld client
+        '''
+        client_hdl = self._trex.emulation_mld_config(mode='create',
+                                                     port_handle=interface,
+                                                     intf_ip_addr=clientip,
+                                                     version=version,
+                                                     vlan_id=vlanid)
+
+        if client_hdl.handles[0] not in self.mld_clients:
+            self.mld_clients[client_hdl.handles[0]] = {
+                'version': version,
+                'grps': {},
+                'filters': {},
+                'interface': interface,
+            }
+
+        return client_hdl
+
+    def _del_mldclient_hkey(self, handle):
+        '''Delete a mld client host
+           Args:
+             handle ('str'): mld client host key
+           Returns:
+             True/False
+           Raises:
+             None
+        '''
+        if handle in self.mld_clients:
+            del self.mld_clients[handle]
+            return True
+
+        return False
+
+    def _update_mldclient_field(self, handle, key, value):
+        '''Update mldclient field by host key
+           Args:
+             handle ('str'): mld client host key
+             key ('any'): field key
+             value ('any'): field value
+           Returns:
+             None
+           Raises:
+             None
+        '''
+        self.mld_clients[handle][key] = value
+        log.info(
+            'Client {handle} update: {key}'.format(
+                handle=handle, key=key
+            )
+        )
+
+    def _get_mldclient_field(self, client_hdl, key):
+        '''Update igmpclient field by host key
+           Args:
+             client_hdl ('str'): igmp client host key
+             key ('any'): field key
+           Returns:
+             field value
+           Raise:
+             KeyError
+        '''
+        val = self.mld_clients[client_hdl][key]
+        if val is None:
+            log.warn('Key not in dictionary')
+            raise KeyError
+        return val
+
+    def _update_mld_filter(self, client, grp_hdl, filter):
+        '''Update filter by group member handle
+           Args:
+             client ('str')
+             grp_hdl ('str')
+             filter('str')
+           Return:
+             True
+           Raise:
+             KeyError
+        '''
+        if client not in self.mld_clients:
+            log.error('Client does not exist')
+            raise KeyError
+        if grp_hdl not in self.mld_clients[client]['filters']:
+            log.error('Group does not exist')
+            raise KeyError
+        self.mld_clients[client]['filters'][grp_hdl] = filter
+        return True
+
+    def _add_mldgroup(self, source_handler, client_handler, group_handler, grp_hdl):
+        '''Add mld client to group
+           Args:
+             source_handler ('str'): source handle key
+             client_handler (dictionary): client handle
+             group_handler (dictionary): group handle
+             grp_hdl (dictionary): group member handle
+           Returns:
+             True
+           Raise:
+             KeyError
+        '''
+        if client_handler not in self.mld_clients:
+            raise KeyError
+        if group_handler not in self.mld_clients[client_handler]['grps']:
+            self.mld_clients[client_handler]['grps'][group_handler]={}
+        if not source_handler:
+            self.mld_clients[client_handler]['grps'][group_handler]['*']=grp_hdl
+        else:
+            self.mld_clients[client_handler]['grps'][group_handler][source_handler]=grp_hdl
+
+        '''filter initialization'''
+        self.mld_clients[client_handler]['filters'][grp_hdl] = None
+        return True
+

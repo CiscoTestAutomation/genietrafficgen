@@ -1593,7 +1593,7 @@ class IxiaNative(TrafficGen):
         else:
             # Get list of physical ports
             self._update_physical_port_list(
-                self.chassis_ip, self.ixia_port_list)
+                self.ixia_chassis_ip, self.ixia_port_list)
             # Add chassis
             self.add_chassis(self.ixia_chassis_ip)
 
@@ -2232,13 +2232,21 @@ class IxiaNative(TrafficGen):
     @BaseConnection.locked
     @isconnected
     def get_traffic_items_statistics_data(self, traffic_stream, traffic_data_field):
-        '''Get value of traffic_data_field of traffic_tream from "Traffic Item Statistics" '''
+        '''Get value of traffic_data_field of traffic_tream from "Traffic Item Statistics"
+         Args:
+            traffic_stream        (`str`) : name of traffic stream, Eg: 'SPAN_ERSPAN_L2_traffic_9400'
+            traffic_data_field    (`str`) : traffic data field to retrieve data, Eg: 'Packet Loss Duration (ms)'
+         Returns:
+             stream_data ('int' or 'float')
+        '''
 
         # Get all stream data for given traffic_stream
         try:
-            return self.ixNet.execute('getValue', 
-                    '::ixNet::OBJ-/statistics/view:"Traffic Item Statistics"',
-                    traffic_stream, traffic_data_field)
+            stream_data = self.ixNet.execute('getValue',
+                          '::ixNet::OBJ-/statistics/view:"Traffic Item Statistics"',
+                          traffic_stream, traffic_data_field)
+            return (0 if not stream_data else stream_data)
+
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Error while retrieving '{data}' for traffic "

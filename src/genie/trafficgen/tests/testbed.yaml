@@ -68,6 +68,20 @@ devices:
                 - ip: 2.2.2.2
                   port_list: ['2/1', '2/2']
 
+    ixia6:
+        alias: IXIA
+        type: tgn
+        os: 'ixianative'
+        connections:
+            tgn:
+                class: genie.trafficgen.ixianative.IxiaNative
+                ixnetwork_api_server_ip: 192.0.0.1
+                ixnetwork_tcl_port: 8012
+                ixnetwork_version: '9.00'
+                ixia_chassis_ip: 1.1.1.1
+                ixia_license_server_ip: 192.0.0.2
+                ixia_port_list: ['1/1', '1/2']
+
     trex1:
         os: tgn
         connections:
