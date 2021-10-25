@@ -875,13 +875,13 @@ class PG_Manager(object):
         if intf not in self.__intfs:
             self.__intfs.append(intf)
 
-    def send_traffic(self, flow, send_intf, repeat=1):
+    def send_traffic(self, flow, send_intf, pps=1, repeat=1):
         self.__addintf(send_intf)
         '''need modification'''
-        cfg = '''
-        interface {}
-          no shutdown
-        '''.format(send_intf)
+        cfg = [
+            f"interface {send_intf}",
+            "no shutdown",
+        ]
         self.__tg.configure(cfg)
         self.__tg.execute('tgn clear all')
         self.__tg.execute('tgn ' + send_intf)
@@ -890,6 +890,7 @@ class PG_Manager(object):
         for cmd in flow.get_config():
             self.__tg.execute('tgn ' + cmd)
 
+        self.__tg.execute('tgn rate {}'.format(pps))
         self.__tg.execute('tgn send {}'.format(repeat))
         self.__tg.execute('tgn on')
         self.__tg.sendline('tgn start send')
@@ -916,24 +917,44 @@ class PG_Manager(object):
 
     def add_fastcount_filter(self, flow, intf):
         self.__addintf(intf)
+        cfg = [
+            f"interface {intf}",
+            "no shutdown",
+        ]
+        self.__tg.configure(cfg)
         self.__tg.execute('pkts {} promiscuous on'.format(intf))
         self.__tg.execute('pkts {} fast-count on'.format(intf))
         self.add_filter('fast-count', flow, intf)
 
     def add_display_filter(self, flow, intf):
         self.__addintf(intf)
+        cfg = [
+            f"interface {intf}",
+            "no shutdown",
+        ]
+        self.__tg.configure(cfg)
         self.__tg.execute('pkts {} promiscuous on'.format(intf))
         self.__tg.execute('pkts {} fast-count on'.format(intf))
         self.add_filter('display', flow, intf)
 
     def add_capture_filter(self, flow, intf):
         self.__addintf(intf)
+        cfg = [
+            f"interface {intf}",
+            "no shutdown",
+        ]
+        self.__tg.configure(cfg)
         self.__tg.execute('pkts {} promiscuous on'.format(intf))
         self.__tg.execute('pkts {} fast-count on'.format(intf))
         self.add_filter('capture', flow, intf)
 
     def add_cap_buffer(self, intf):
         self.__addintf(intf)
+        cfg = [
+            f"interface {intf}",
+            "no shutdown",
+        ]
+        self.__tg.configure(cfg)
         self.__tg.execute('pkts {} promiscuous on'.format(intf))
         self.__tg.execute('pkts {}'.format(intf))
         self.__tg.execute('pkts add 1000000')

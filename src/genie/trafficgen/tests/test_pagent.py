@@ -90,12 +90,13 @@ class TestPagentAPIs(unittest.TestCase):
         mac_dst = 'aabb.0011.0021'
         ip_src = '192.168.101.111'
         ip_dst = '239.1.101.3'
+        pps = 100
         vlan = '105'
         count = '5'
 
         dev.send_rawip(interface=intf, mac_src=mac_src,
                        mac_dst=mac_dst, ip_src=ip_src,
-                       ip_dst=ip_dst, vlanid=vlan,
+                       ip_dst=ip_dst, pps=pps, vlanid=vlan,
                        count=count)
 
         dev.tg.execute.assert_has_calls([
@@ -111,6 +112,7 @@ class TestPagentAPIs(unittest.TestCase):
             call('tgn L3-src-addr 192.168.101.111'),
             call('tgn L3-dest-addr 239.1.101.3'),
             call('tgn data-length 18'),
+            call('tgn rate 100'),
             call('tgn send 5'),
             call('tgn on'),
             call('tgn clear all')
@@ -207,12 +209,13 @@ class TestPagentAPIs(unittest.TestCase):
         mac_src = 'aabb.0011.0018'
         ip_src = '192.168.101.113'
         ip_dst = '239.1.101.6'
+        pps = 100
         vlan = '105'
         count = '5'
 
         dev.send_rawip_mcast(interface=intf, mac_src=mac_src,
                              ip_src=ip_src, ip_dst=ip_dst,
-                             vlan=vlan, count=count)
+                             pps=pps, vlan=vlan, count=count)
 
         dev.tg.execute.assert_has_calls([
             call('tgn clear all'),
@@ -227,6 +230,7 @@ class TestPagentAPIs(unittest.TestCase):
             call('tgn L3-src-addr 192.168.101.113'),
             call('tgn L3-dest-addr 239.1.101.6'),
             call('tgn data-length 18'),
+            call('tgn rate 100'),
             call('tgn send 5'),
             call('tgn on'),
             call('tgn clear all')
@@ -240,12 +244,13 @@ class TestPagentAPIs(unittest.TestCase):
         mac_dst = 'aabb.0011.0021'
         ip_src = '5000::1'
         ip_dst = 'FF06::278'
+        pps = 100
         vlan = '105'
         count = '5'
 
         dev.send_rawipv6(interface=intf, mac_src=mac_src,
                        mac_dst=mac_dst, ipv6_src=ip_src,
-                       ipv6_dst=ip_dst, vlanid=vlan,
+                       ipv6_dst=ip_dst, pps=pps, vlanid=vlan,
                        count=count)
 
         dev.tg.execute.assert_has_calls([
@@ -261,6 +266,7 @@ class TestPagentAPIs(unittest.TestCase):
             call('tgn L3-src-addr 5000::1'),
             call('tgn L3-dest-addr FF06::278'),
             call('tgn data-length 18'),
+            call('tgn rate 100'),
             call('tgn send 5'),
             call('tgn on'),
             call('tgn clear all')
@@ -312,12 +318,13 @@ class TestPagentAPIs(unittest.TestCase):
         mac_src = '0051.a101.0011'
         ip_src = '192.168.101.11'
         ip_target = '192.168.101.12'
+        pps = 100
         vlan = '101'
         count = '5'
 
         dev.send_arp_request(interface=intf, mac_src=mac_src,
                              ip_src=ip_src, ip_target=ip_target,
-                             vlan_tag=vlan, count=count)
+                             pps=pps, vlan_tag=vlan, count=count)
 
         dev.tg.execute.assert_has_calls([
             call('tgn clear all'),
@@ -334,6 +341,7 @@ class TestPagentAPIs(unittest.TestCase):
             call('tgn L3-target-haddr FFFF.FFFF.FFFF'),
             call('tgn L3-target-paddr 192.168.101.12'),
             call('tgn data-length 18'),
+            call('tgn rate 100'),
             call('tgn send 5'),
             call('tgn on'),
             call('tgn clear all')
@@ -346,12 +354,13 @@ class TestPagentAPIs(unittest.TestCase):
         mac_src = '0051.a101.0011'
         ip_src = '192.168.101.11'
         ip_target = '192.168.101.11'
+        pps = 100
         vlan = '101'
         count = '5'
 
         dev.send_arp_request(interface=intf, mac_src=mac_src,
                              ip_src=ip_src, ip_target=ip_target,
-                             vlan_tag=vlan, count=count)
+                             pps=pps, vlan_tag=vlan, count=count)
 
         dev.tg.execute.assert_has_calls([
             call('tgn clear all'),
@@ -368,6 +377,7 @@ class TestPagentAPIs(unittest.TestCase):
             call('tgn L3-target-haddr 0000.0000.0000'),
             call('tgn L3-target-paddr 192.168.101.11'),
             call('tgn data-length 18'),
+            call('tgn rate 100'),
             call('tgn send 5'),
             call('tgn on'),
             call('tgn clear all')
@@ -380,12 +390,13 @@ class TestPagentAPIs(unittest.TestCase):
         mac_src = 'aabb.0011.0018'
         ip_src = '2001:105::11'
         ip_dst = '2001:105::12'
+        pps = 100
         vlan = '105'
         count = '5'
 
         dev.send_ndp_ns(interface=intf, mac_src=mac_src,
                         ip_src=ip_src, ip_dst=ip_dst,
-                        vlan_tag=vlan, count=count)
+                        pps=pps, vlan_tag=vlan, count=count)
 
         dev.tg.execute.assert_has_calls([
             call('tgn clear all'),
@@ -404,6 +415,7 @@ class TestPagentAPIs(unittest.TestCase):
             call('tgn L4-type 135'),
             call('tgn L4-code 0'),
             call('tgn data 0 00000000200101050000000000000000000000120101aabb00110018'),
+            call('tgn rate 100'),
             call('tgn send 5'),
             call('tgn on'),
             call('tgn clear all')
@@ -417,12 +429,13 @@ class TestPagentAPIs(unittest.TestCase):
         mac_dst = 'aabb.0011.0019'
         ip_src = '2001:105::11'
         ip_dst = '2001:105::12'
+        pps = 100
         vlan = '105'
         count = '5'
 
         dev.send_ndp_na(interface=intf, mac_src=mac_src,
                         mac_dst=mac_dst, ip_src=ip_src, ip_dst=ip_dst,
-                        vlan_tag=vlan, count=count)
+                        pps=pps, vlan_tag=vlan, count=count)
 
         dev.tg.execute.assert_has_calls([
             call('tgn clear all'),
@@ -441,6 +454,7 @@ class TestPagentAPIs(unittest.TestCase):
             call('tgn L4-type 136'),
             call('tgn L4-code 0'),
             call('tgn data 0 60000000200101050000000000000000000000110201aabb00110018'),
+            call('tgn rate 100'),
             call('tgn send 5'),
             call('tgn on'),
             call('tgn clear all')
@@ -454,12 +468,13 @@ class TestPagentAPIs(unittest.TestCase):
         mac_dst = 'aabb.0011.0019'
         ip_src = '2001:105::11'
         ip_dst = 'FF02::1'
+        pps = 100
         vlan = '105'
         count = '5'
 
         dev.send_ndp_na(interface=intf, mac_src=mac_src,
                         mac_dst=mac_dst, ip_src=ip_src, ip_dst=ip_dst,
-                        vlan_tag=vlan, count=count)
+                        pps=pps, vlan_tag=vlan, count=count)
 
         dev.tg.execute.assert_has_calls([
             call('tgn clear all'),
@@ -478,6 +493,7 @@ class TestPagentAPIs(unittest.TestCase):
             call('tgn L4-type 136'),
             call('tgn L4-code 0'),
             call('tgn data 0 10000000200101050000000000000000000000110201aabb00110018'),
+            call('tgn rate 100'),
             call('tgn send 5'),
             call('tgn on'),
             call('tgn clear all')
