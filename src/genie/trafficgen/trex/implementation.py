@@ -123,7 +123,7 @@ class Trex(TrafficGen):
         self._is_connected = self.isconnected()
 
     def send_rawip(self, interface, mac_src, mac_dst, ip_src, ip_dst,
-                   vlanid=0, count=1):
+                   vlanid=0, count=1, pps=100):
         '''Send rawip packet
            Args:
              interface ('str'): interface name
@@ -131,10 +131,11 @@ class Trex(TrafficGen):
              mac_dst ('str'): destination mac address, exaple aabb.bbcc.ccdd
              ip_src ('str'): source ip address
              ip_dst ('str'): destination ip address
-             vlanid ('int'): vlan id, default = 0
-             count ('int'): send packets count
+             vlanid ('int', optional): vlan id, default is 0
+             count ('int', optional): send packets count, default is 1
+             pps ('int', optional): packets per second, default 100
            Returns:
-             True
+             None
         '''
         mac_src = mac_to_colon_notation(mac_src)
         mac_dst = mac_to_colon_notation(mac_dst)
@@ -150,51 +151,55 @@ class Trex(TrafficGen):
                 scapy_pkt = ether_part / ip_part
             pkt = trex_ns.trex.stl.api.STLPktBuilder(pkt=scapy_pkt)
             bst_mode = trex_ns.trex.stl.api.STLTXSingleBurst(
-                total_pkts=count
+                pps=pps, total_pkts=count
             )
             flow = trex_ns.trex.stl.api.STLStream(packet=pkt,
-                                                        mode=bst_mode)
+                                                  mode=bst_mode)
             self._trex.get_stl_client().client.remove_all_streams(
                 ports=interface
             )
             self._trex.get_stl_client().client.add_streams(ports=interface,
-                                                        streams=flow)
+                                                           streams=flow)
             self._trex.get_stl_client().client.start(ports=interface)
             self._trex.get_stl_client().client.wait_on_traffic(
                 ports=interface
             )
             time.sleep(5)
-        return True
 
     def start_pkt_count_rawip(self, interface, mac_src, mac_dst,
                               ip_src, ip_dst, vlan_tag=0):
         '''Start ip packet count
            Args:
-             interface ('str'): interface name
+             interface ('str' or 'list'): interface name
+                                          or list of interface names
              mac_src ('str'): source mac address, example aabb.bbcc.ccdd
              mac_dst ('str'): destination mac address, example aabb.bbcc.ccdd
              ip_src ('str'): source ip address
              ip_dst ('str'): destination ip address
-             vlan_tag ('int'): vlan tag
+             vlan_tag ('int', optional): vlan tag, default is 0
            Returns:
-             True
+             None
         '''
-        self._trex.get_stl_client().client.set_service_mode(ports=interface)
+        ports = interface if isinstance(interface, list) else [interface]
+
+        self._trex.get_stl_client().client.set_port_attr(ports=ports,
+                                                         promiscuous=True)
+        self._trex.get_stl_client().client.set_service_mode(ports=ports)
         pfilter = "ether dst {} and ether src {} and vlan {} "\
                     "and dst host {} and src host {}".format(mac_dst, mac_src,
                                                             vlan_tag,
                                                             ip_dst, ip_src)
-        result = self._trex.get_stl_client().client.start_capture(
-            rx_ports=[interface],
-            limit=1,
-            bpf_filter=pfilter,
-        )
 
-        self.pktcnt_hdl[interface] = {'cap_id': result['id']}
-        return True
+        for port in ports:
+            result = self._trex.get_stl_client().client.start_capture(
+                rx_ports=[port],
+                limit=1,
+                bpf_filter=pfilter,
+            )
+            self.pktcnt_hdl[port] = {'cap_id': result['id']}
 
     def send_rawipv6(self, interface, mac_src, mac_dst, ipv6_src, ipv6_dst,
-                     vlanid=0, count=1, interval=5):
+                     vlanid=0, count=1, pps=100):
         '''Send rawipv6 packet
            Args:
              interface ('str'): interface name
@@ -202,9 +207,9 @@ class Trex(TrafficGen):
              mac_dst ('str'): destination mac address, exaple aabb.bbcc.ccdd
              ipv6_src ('str'): source ipv6 address
              ipv6_dst ('str'): destination ipv6 address
-             vlanid ('int'): vlan id, default = 0
-             count ('int'): send packets count, default = 1
-             interval ('int'): interval for sleep, default = 5
+             vlanid ('int', optional): vlan id, default = 0
+             count ('int', optional): send packets count, default = 1
+             pps ('int', optional): packets per second, default 100
            Returns:
              None
         '''
@@ -222,7 +227,7 @@ class Trex(TrafficGen):
                 scapy_pkt = ether_part / ip_part
             pkt = trex_ns.trex.stl.api.STLPktBuilder(pkt=scapy_pkt)
             bst_mode = trex_ns.trex.stl.api.STLTXSingleBurst(
-                total_pkts=count
+                pps=pps, total_pkts=count
             )
             flow = trex_ns.trex.stl.api.STLStream(packet=pkt,
                                                         mode=bst_mode)
@@ -235,47 +240,57 @@ class Trex(TrafficGen):
             self._trex.get_stl_client().client.wait_on_traffic(
                 ports=interface
             )
-            time.sleep(interval)
 
     def start_pkt_count_rawipv6(self, interface, mac_src, mac_dst,
                                 ipv6_src, ipv6_dst, vlan_tag=0):
         '''Start ipv6 packet count
            Args:
-             interface ('str'): interface name
+             interface ('str' or 'list'): interface name
+                                          or list of interface names
              mac_src ('str'): source mac address, example aabb.bbcc.ccdd
              mac_dst ('str'): destination mac address, example aabb.bbcc.ccdd
              ipv6_src ('str'): source ipv6 address
              ipv6_dst ('str'): destination ipv6 address
-             vlan_tag ('int'): vlan id, default = 0
+             vlan_tag ('int', optional): vlan id, default = 0
            Returns:
              None
         '''
-        self._trex.get_stl_client().client.set_service_mode(ports=interface)
+        ports = interface if isinstance(interface, list) else [interface]
+
+        self._trex.get_stl_client().client.set_port_attr(ports=ports,
+                                                         promiscuous=True)
+        self._trex.get_stl_client().client.set_service_mode(ports=ports)
         pfilter = "ether dst {} and ether src {} and vlan {} "\
                     "and dst host {} and src host {}".format(mac_dst, mac_src,
                                                             vlan_tag,
                                                             ipv6_dst, ipv6_src)
-        result = self._trex.get_stl_client().client.start_capture(
-            rx_ports=[interface],
-            limit=1,
-            bpf_filter=pfilter,
-        )
 
-        self.pktcnt_hdl[interface] = {'cap_id': result['id']}
+        for port in ports:
+            result = self._trex.get_stl_client().client.start_capture(
+                rx_ports=[port],
+                limit=1,
+                bpf_filter=pfilter,
+            )
+
+            self.pktcnt_hdl[port] = {'cap_id': result['id']}
 
     def stop_pkt_count(self, interface):
         '''Stop ip packet count
            Args:
-             interface ('str'): interface name
+             interface ('str' or 'list'): interface name
+                                  or list of interface names
+                                  shall be same as passed in start_pkt_count
            Returns:
-             True
+             None
         '''
-        self._trex.get_stl_client().client.stop_capture(
-            capture_id=self.pktcnt_hdl[interface]['cap_id']
-        )
-        self._trex.get_stl_client().client.set_service_mode(ports=interface,
-                                                            enabled=False)
-        return True
+        ports = interface if isinstance(interface, list) else [interface]
+
+        for intf in ports:
+            self._trex.get_stl_client().client.stop_capture(
+                capture_id=self.pktcnt_hdl[intf]['cap_id']
+            )
+            self._trex.get_stl_client().client.set_service_mode(ports=intf,
+                                                                enabled=False)
 
     def get_pkt_count(self, interface):
         '''Get ip packet count and stop pkt capture
@@ -285,49 +300,51 @@ class Trex(TrafficGen):
              count('int')
         '''
         stats = self._trex.get_stl_client().client.get_capture_status()
-        intf_caps = stats[self.pktcnt_hdl[interface]['cap_id']]
-        packet_stats = intf_caps['matched']
+        caps = stats[self.pktcnt_hdl[interface]['cap_id']]
+        packet_stats = caps['matched']
         return packet_stats
 
     def start_pkt_count_rawip_mcast(self, interface, mac_src,
-                                ip_src, ip_dst, vlan):
+                                    ip_src, ip_dst, vlan=0):
         '''Start ip packet count mcast
            Args:
+             interface ('str' or 'list'): interface name
+                                          or list of interface names
              mac_src ('str'): source mac address, example aabb.bbcc.ccdd
              ip_src ('str'): source ip address
              ip_dst ('str'): destination ip address
-             vlan ('int'): vlan id
+             vlan ('int', optional): vlan id, default is 0
            Returns:
-             True
+             None
         '''
         map_addr = int(ipaddress.ip_address(ip_dst))
         map_addr = map_addr & 0x7FFFFF
         mac_dst = '0100.5E%02X.%04X' % (map_addr >> 16, map_addr & 0xFFFF)
         self.start_pkt_count_rawip(interface, mac_src, mac_dst,
                                    ip_src, ip_dst, vlan)
-        return True
 
     def send_rawip_mcast(self, interface, mac_src, ip_src, ip_dst,
-                         vlan, count):
+                         vlan=0, count=1, pps=100):
         '''Start ip packet count mcast
            Args:
+             interface ('str'): interface name
              mac_src ('str'): source mac address, example aabb.bbcc.ccdd
              ip_src ('str'): source ip address
              ip_dst ('str'): destination ip address
-             vlan ('int'): vlan id
-             count ('int') : number of pkts send
+             vlan ('int', optional): vlan id, default is 0
+             count ('int', optional) : number of pkts send, default is 1
+             pps ('int', optional): packets per second, default 100
            Returns:
-             True
+             None
         '''
         map_addr = int(ipaddress.ip_address(ip_dst))
         map_addr = map_addr & 0x7FFFFF
         mac_dst = '0100.5E%02X.%04X' % (map_addr >> 16, map_addr & 0xFFFF)
         self.send_rawip(interface, mac_src, mac_dst, ip_src, ip_dst,
-                        vlan, count)
-        return True
+                        vlan, count, pps)
 
     def send_arp_request(self, interface, mac_src, ip_src, ip_target,
-                         vlan_tag=0, count=1):
+                         vlan_tag=0, count=1, pps=100):
         '''Send arp request packet
            Args:
              interface ('str'): interface name
@@ -336,6 +353,7 @@ class Trex(TrafficGen):
              ip_target ('str'): target ip address
              vlan_tag ('int', optional): vlan tag, default 0
              count ('int', optional): send packets count, default 1
+             pps ('int', optional): packets per second, default 100
            Returns:
              None
            Raises:
@@ -362,7 +380,7 @@ class Trex(TrafficGen):
 
             pkt = trex_ns.trex.stl.api.STLPktBuilder(pkt=scapy_pkt)
             bst_mode = trex_ns.trex.stl.api.STLTXSingleBurst(
-                total_pkts=count
+                pps=pps, total_pkts=count
             )
             flow = trex_ns.trex.stl.api.STLStream(packet=pkt,
                                                   mode=bst_mode)
@@ -377,7 +395,7 @@ class Trex(TrafficGen):
             )
 
     def send_ndp_ns(self, interface, mac_src, ip_src, ip_dst,
-                    vlan_tag=0, count=1):
+                    vlan_tag=0, count=1, pps=100):
         '''Send ndp neighbor solicitation packet
            Args:
              interface ('str'): interface name
@@ -386,6 +404,7 @@ class Trex(TrafficGen):
              ip_dst ('str'): destination ip address
              vlan_tag ('int', optional): vlan tag, default 0
              count ('int', optional): send packets count, default 1
+             pps ('int', optional): packets per second, default 100
            Returns:
              None
            Raises:
@@ -411,7 +430,7 @@ class Trex(TrafficGen):
 
             pkt = trex_ns.trex.stl.api.STLPktBuilder(pkt=scapy_pkt)
             bst_mode = trex_ns.trex.stl.api.STLTXSingleBurst(
-                total_pkts=count
+                pps=pps, total_pkts=count
             )
             flow = trex_ns.trex.stl.api.STLStream(packet=pkt,
                                                   mode=bst_mode)
@@ -426,7 +445,7 @@ class Trex(TrafficGen):
             )
 
     def send_ndp_na(self, interface, mac_src, mac_dst, ip_src, ip_dst,
-                    vlan_tag=0, count=1):
+                    vlan_tag=0, count=1, pps=100):
         '''Send ndp neighbor solicitation packet
            Args:
              interface ('str'): interface name
@@ -436,6 +455,7 @@ class Trex(TrafficGen):
              ip_dst ('str'): destination ip address
              vlan_tag ('int', optional): vlan tag, default 0
              count ('int', optional): send packets count, default 1
+             pps ('int', optional): packets per second, default 100
            Returns:
              None
            Raises:
@@ -469,7 +489,7 @@ class Trex(TrafficGen):
 
             pkt = trex_ns.trex.stl.api.STLPktBuilder(pkt=scapy_pkt)
             bst_mode = trex_ns.trex.stl.api.STLTXSingleBurst(
-                total_pkts=count
+                pps=pps, total_pkts=count
             )
             flow = trex_ns.trex.stl.api.STLStream(packet=pkt,
                                                   mode=bst_mode)
@@ -775,8 +795,8 @@ class Trex(TrafficGen):
 
         self._traffic_profile_configured = True
 
-    def configure_ipv4_data_traffic(self, interface, src_ip, dst_ip, 
-                                    l4_protocol, payload, transmit_mode='single_burst', 
+    def configure_ipv4_data_traffic(self, interface, src_ip, dst_ip,
+                                    l4_protocol, payload, transmit_mode='single_burst',
                                     pkts_per_burst=1, pps=100):
         '''Method to configure ipv4 data traffic stream'''
         try:
@@ -787,7 +807,7 @@ class Trex(TrafficGen):
                 ignore_macs=True,
                 ip_src_addr=src_ip,
                 ip_dst_addr=dst_ip,
-                
+
                 l3_protocol='ipv4',
                 l4_protocol=l4_protocol,
                 payload=bytes(str.encode(payload)),
@@ -805,8 +825,8 @@ class Trex(TrafficGen):
 
         self._traffic_profile_configured = True
 
-    def configure_ipv6_data_traffic(self, interface, src_ip, dst_ip, 
-                                    l4_protocol, payload, transmit_mode='single_burst', 
+    def configure_ipv6_data_traffic(self, interface, src_ip, dst_ip,
+                                    l4_protocol, payload, transmit_mode='single_burst',
                                     pkts_per_burst=1, pps=100):
         '''Method to configure ipv6 data traffic stream'''
 

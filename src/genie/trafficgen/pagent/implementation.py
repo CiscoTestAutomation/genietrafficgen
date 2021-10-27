@@ -124,7 +124,7 @@ class Pagent(TrafficGen):
         return self.tg.expect(*args, **kwargs)
 
     def send_rawip(self, interface, mac_src, mac_dst, ip_src, ip_dst,
-                   vlanid=0, count=1):
+                   vlanid=0, count=1, pps=100):
         '''Send rawip packet
            Args:
              interface ('str'): interface name
@@ -132,16 +132,15 @@ class Pagent(TrafficGen):
              mac_dst ('str'): destination mac address, exaple aabb.bbcc.ccdd
              ip_src ('str'): source ip address
              ip_dst ('str'): destination ip address
-             vlanid ('int'): vlan id
-             count ('int'): send packets count
+             vlanid ('int', optional): vlan id, default is 0
+             count ('int', optional): send packets count, default is 1
+             pps ('int', optional): packets per second, default 100
            Returns:
-             True/False
+             None
         '''
         flow = PG_flow_rawip('tg_ip', mac_src, mac_dst,
                              ip_src, ip_dst, vlanid)
-        if not flow:
-          return False
-        self.pg.send_traffic(flow, interface, count)
+        self.pg.send_traffic(flow, interface, pps, count)
         self.pg.clear_tgn()
         return True
 
@@ -149,26 +148,29 @@ class Pagent(TrafficGen):
                               ip_src, ip_dst, vlan_tag=0):
         '''Start packet count rawip
            Args:
-             interface ('str'): interface name
+             interface ('str' or 'list'): interface name
+                                          or list of interface names
              mac_src ('str'): source mac address, example aabb.bbcc.ccdd
              mac_dst ('str'): destination mac address, example aabb.bbcc.ccdd
              ip_src ('str'): source ip address
              ip_dst ('str'): destination ip address
-             vlan_tag ('int'): vlan tag
+             vlan_tag ('int', optional): vlan tag, default is 0
            Returns:
-             True/False
+             None
         '''
         self.pg.clear_pkts()
         expected_flow = PG_flow_rawip(self.pg_flow_name, mac_src, mac_dst,
                                       ip_src, ip_dst, vlan_tag)
-        if not expected_flow:
-          return False
-        self.pg.add_fastcount_filter(expected_flow, interface)
+
+        ports = interface if isinstance(interface, list) else [interface]
+
+        for intf in ports:
+            self.pg.add_fastcount_filter(expected_flow, intf)
+
         self.pg.start_pkts_count()
-        return True
 
     def send_rawipv6(self, interface, mac_src, mac_dst, ipv6_src, ipv6_dst,
-                     vlanid=0, count=1):
+                     vlanid=0, count=1, pps=100):
         '''Send rawipv6 packet
            Args:
              interface ('str'): interface name
@@ -176,43 +178,50 @@ class Pagent(TrafficGen):
              mac_dst ('str'): destination mac address, example aabb.bbcc.ccdd
              ipv6_src ('str'): source ipv6 address
              ipv6_dst ('str'): destination ipv6 address
-             vlanid ('int'): vlan id, default = 0
-             count ('int'): send packets count, default = 1
+             vlanid ('int', optional): vlan id, default = 0
+             count ('int', optional): send packets count, default = 1
+             pps ('int', optional): packets per second, default 100
            Returns:
              None
         '''
         flow = PG_flow_rawipv6('ipv6', mac_src, mac_dst, ipv6_src, ipv6_dst, vlanid)
-        self.pg.send_traffic(flow, interface, count)
+        self.pg.send_traffic(flow, interface, pps, count)
         self.pg.clear_tgn()
 
     def start_pkt_count_rawipv6(self, interface, mac_src, mac_dst,
                                 ipv6_src, ipv6_dst, vlan_tag=0):
         '''Start packet count rawip
            Args:
-             interface ('str'): interface name
+             interface ('str' or 'list'): interface name
+                                          or list of interface names
              mac_src ('str'): source mac address, example aabb.bbcc.ccdd
              mac_dst ('str'): destination mac address, example aabb.bbcc.ccdd
              ipv6_src ('str'): source ipv6 address
              ipv6_dst ('str'): destination ipv6 address
-             vlan_tag ('int'): vlan id, default = 0
+             vlan_tag ('int', optional): vlan id, default = 0
            Returns:
              None
         '''
         self.pg.clear_pkts()
         expected_flow = PG_flow_rawipv6(self.pg_flow_name, mac_src, mac_dst,
                                         ipv6_src, ipv6_dst, vlan_tag)
-        self.pg.add_fastcount_filter(expected_flow, interface)
+
+        ports = interface if isinstance(interface, list) else [interface]
+
+        for intf in ports:
+            self.pg.add_fastcount_filter(expected_flow, intf)
         self.pg.start_pkts_count()
 
     def stop_pkt_count(self, interface):
         '''Stop ip packet count
            Args:
-             interface ('str'): interface name
+             interface ('str' or 'list'): interface name
+                                  or list of interface names
+                                  shall be same as passed in start_pkt_count
            Returns:
-             True
+             None
         '''
         self.pg.stop_pkts_count()
-        return True
 
     def get_pkt_count(self, interface):
         '''Get ip packet count
@@ -225,44 +234,43 @@ class Pagent(TrafficGen):
         return packet_count
 
     def start_pkt_count_rawip_mcast(self, interface, mac_src,
-                                    ip_src, ip_dst, vlan):
+                                    ip_src, ip_dst, vlan=0):
         '''Start ip packet count mcast
            Args:
              mac_src ('str'): source mac address, example aabb.bbcc.ccdd
              ip_src ('str'): source ip address
              ip_dst ('str'): destination ip address
-             vlan ('int'): vlan id
+             vlan ('int', optional): vlan id, default is 0
            Returns:
-             True
+             None
         '''
         map_addr = int(ipaddress.ip_address(ip_dst))
         map_addr = map_addr & 0x7FFFFF
         mac_dst = '0100.5E%02X.%04X' % (map_addr >> 16, map_addr & 0xFFFF)
         self.start_pkt_count_rawip(interface, mac_src,
                                    mac_dst, ip_src, ip_dst, vlan)
-        return True
 
-    def send_rawip_mcast(self, interface, mac_src, ip_src,
-                         ip_dst, vlan, count):
+    def send_rawip_mcast(self, interface, mac_src, ip_src, ip_dst,
+                         vlan=0, count=1, pps=100):
         '''Start ip packet count mcast
            Args:
              mac_src ('str'): source mac address, example aabb.bbcc.ccdd
              ip_src ('str'): source ip address
              ip_dst ('str'): destination ip address
-             vlan ('int'): vlan id
-             count ('int'): number of ip pkt send
+             vlan ('int', optional): vlan id, default is 0
+             count ('int', optional): number of ip pkt send, default is 1
+             pps ('int', optional): packets per second, default 100
            Returns:
-             True
+             None
         '''
         map_addr = int(ipaddress.ip_address(ip_dst))
         map_addr = map_addr & 0x7FFFFF
         mac_dst = '0100.5E%02X.%04X' % (map_addr >> 16, map_addr & 0xFFFF)
         self.send_rawip(interface, mac_src, mac_dst, ip_src, ip_dst,
-                        vlan, count)
-        return True
+                        vlan, count, pps)
 
     def send_arp_request(self, interface, mac_src, ip_src, ip_target,
-                         vlan_tag=0, count=1):
+                         vlan_tag=0, count=1, pps=100):
         '''Send arp request packet
            Args:
              interface ('str'): interface name
@@ -271,6 +279,7 @@ class Pagent(TrafficGen):
              ip_target ('str'): target ip address
              vlan_tag ('int', optional): vlan tag, default 0
              count ('int', optional): send packets count, default 1
+             pps ('int', optional): packets per second, default 100
            Returns:
              None
            Raises:
@@ -278,11 +287,11 @@ class Pagent(TrafficGen):
         '''
         flow = PG_flow_arp_request('arpreq', mac_src, ip_src, ip_target,
                                    vlan_tag=vlan_tag)
-        self.pg.send_traffic(flow, interface, count)
+        self.pg.send_traffic(flow, interface, pps, count)
         self.pg.clear_tgn()
 
     def send_ndp_ns(self, interface, mac_src, ip_src, ip_dst,
-                    vlan_tag=0, count=1):
+                    vlan_tag=0, count=1, pps=100):
         '''Send ndp neighbor solicitation packet
            Args:
              interface ('str'): interface name
@@ -291,6 +300,7 @@ class Pagent(TrafficGen):
              ip_dst ('str'): destination ip address
              vlan_tag ('int', optional): vlan tag, default 0
              count ('int', optional): send packets count, default 1
+             pps ('int', optional): packets per second, default 100
            Returns:
              None
            Raises:
@@ -298,11 +308,11 @@ class Pagent(TrafficGen):
         '''
         flow = PG_flow_ndp_ns('ndpns', mac_src, ip_src, ip_dst,
                               vlan_tag=vlan_tag)
-        self.pg.send_traffic(flow, interface, count)
+        self.pg.send_traffic(flow, interface, pps, count)
         self.pg.clear_tgn()
 
     def send_ndp_na(self, interface, mac_src, mac_dst, ip_src, ip_dst,
-                    vlan_tag=0, count=1):
+                    vlan_tag=0, count=1, pps=100):
         '''Send ndp neighbor advertisement packet
            Args:
              interface ('str'): interface name
@@ -312,6 +322,7 @@ class Pagent(TrafficGen):
              ip_dst ('str'): destination ip address
              vlan_tag ('int', optional): vlan tag, default 0
              count ('int', optional): send packets count, default 1
+             pps ('int', optional): packets per second, default 100
            Returns:
              None
            Raises:
@@ -319,7 +330,7 @@ class Pagent(TrafficGen):
         '''
         flow = PG_flow_ndp_na('ndpna', mac_src, mac_dst, ip_src, ip_dst,
                               vlan_tag=vlan_tag)
-        self.pg.send_traffic(flow, interface, count)
+        self.pg.send_traffic(flow, interface, pps, count)
         self.pg.clear_tgn()
 
     # Multicast APIs
@@ -552,7 +563,7 @@ class Pagent(TrafficGen):
 
         flow = PG_flow_igmpv3_report(c_name, smac, client_ip, group,
                                      src_num, src_list, mode, vlan)
-        self.pg.send_traffic(flow, interface, 1)
+        self.pg.send_traffic(flow, interface, 1, 1)
         self.pg.clear_tgn()
 
         return handler
@@ -756,7 +767,7 @@ class Pagent(TrafficGen):
 
         flow = PG_flow_mldv2_report(c_name, smac, client_ip, group,
                                     src_num, src_list, mode, vlan)
-        self.pg.send_traffic(flow, interface, 1)
+        self.pg.send_traffic(flow, interface, 1, 1)
         self.pg.clear_tgn()
 
         return handler
@@ -1265,7 +1276,7 @@ class Pagent(TrafficGen):
         vlan = self._get_igmpclient_field(hkey, 'vlan')
 
         flow = PG_flow_igmpv2_report(c_name, smac, client_ip, group, vlan)
-        self.pg.send_traffic(flow, interface, 1)
+        self.pg.send_traffic(flow, interface, 1, 1)
         self.pg.clear_tgn()
 
     def _tgn_send_igmpv2leave(self, hkey, gkey):
@@ -1284,7 +1295,7 @@ class Pagent(TrafficGen):
         vlan = self._get_igmpclient_field(hkey, 'vlan')
 
         flow = PG_flow_igmp_leave(c_name, smac, client_ip, group, vlan)
-        self.pg.send_traffic(flow, interface, 1)
+        self.pg.send_traffic(flow, interface, 1, 1)
         self.pg.clear_tgn()
 
     def _tgn_send_igmpv3join(self, hkey, gkey, skey):
@@ -1321,7 +1332,7 @@ class Pagent(TrafficGen):
 
         flow = PG_flow_igmpv3_report(c_name, smac, client_ip, group,
                                      src_num, src_list, mode, vlan)
-        self.pg.send_traffic(flow, interface, 1)
+        self.pg.send_traffic(flow, interface, 1, 1)
         self.pg.clear_tgn()
 
     def _tgn_send_igmpv3leave(self, hkey, gkey, skey):
@@ -1356,7 +1367,7 @@ class Pagent(TrafficGen):
 
         flow = PG_flow_igmpv3_report(c_name, smac, client_ip, group,
                                      src_num, src_list, mode, vlan)
-        self.pg.send_traffic(flow, interface, 1)
+        self.pg.send_traffic(flow, interface, 1, 1)
         self.pg.clear_tgn()
 
     def _tgn_send_mldv1join(self, hkey, gkey):
@@ -1376,7 +1387,7 @@ class Pagent(TrafficGen):
         vlan = self._get_mldclient_field(hkey, 'vlan')
 
         flow = PG_flow_mldv1_report(c_name, smac, client_ip, group, group, vlan)
-        self.pg.send_traffic(flow, interface, 1)
+        self.pg.send_traffic(flow, interface, 1, 1)
         self.pg.clear_tgn()
 
     def _tgn_send_mldv1leave(self, hkey, gkey):
@@ -1395,7 +1406,7 @@ class Pagent(TrafficGen):
         vlan = self._get_mldclient_field(hkey, 'vlan')
 
         flow = PG_flow_mldv1_done(c_name, smac, client_ip, group, vlan)
-        self.pg.send_traffic(flow, interface, 1)
+        self.pg.send_traffic(flow, interface, 1, 1)
         self.pg.clear_tgn()
 
     def _tgn_send_mldv2join(self,  hkey, gkey, skey):
@@ -1432,7 +1443,7 @@ class Pagent(TrafficGen):
 
         flow = PG_flow_mldv2_report(c_name, smac, client_ip, group,
                                      src_num, src_list, mode, vlan)
-        self.pg.send_traffic(flow, interface, 1)
+        self.pg.send_traffic(flow, interface, 1, 1)
         self.pg.clear_tgn()
 
     def _tgn_send_mldv2leave(self, hkey, gkey, skey):
@@ -1467,5 +1478,5 @@ class Pagent(TrafficGen):
 
         flow = PG_flow_mldv2_report(c_name, smac, client_ip, group,
                                      src_num, src_list, mode, vlan)
-        self.pg.send_traffic(flow, interface, 1)
+        self.pg.send_traffic(flow, interface, 1, 1)
         self.pg.clear_tgn()
