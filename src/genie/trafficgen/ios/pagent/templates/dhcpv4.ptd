@@ -1,0 +1,170 @@
+/* ========== MACROS ========== */
+
+/* MAC address */
+
+struct tgn_mprint MACADDR {
+    UINT16  addr[3];
+}
+
+method MACADDR.display() {
+    dprintf("%04X.%04X.%04X", addr[0], addr[1], addr[2]);
+}
+
+method MACADDR.display_short() {
+    printf("%04X.%04X.%04X", addr[0], addr[1], addr[2]);
+}
+
+/* IP address, v4 */
+
+struct tgn_mprint IPADDR {
+    UINT8  addr[4];
+}
+
+method IPADDR.display() {
+    dprintf("%d.%d.%d.%d", addr[0], addr[1], addr[2], addr[3]);
+}
+
+method IPADDR.display_short() {
+    printf("%d.%d.%d.%d", addr[0], addr[1], addr[2], addr[3]);
+}
+
+/* ========== LAN ENCAPSULATIONS ========== */
+
+/* Ethernet/IEEE 802.3 encapsulation */
+
+struct tag ethernet {
+    /* 'tag' means the structure can only occur once in a packet */
+    MACADDR dst_addr;
+    MACADDR src_addr;
+    UINT16  type;
+    UINT8   data[rest()/8];
+}
+
+method ethernet.initialize() {
+    type = 0x0800;
+}
+
+/* ========== NETWORK PROTOCOLS ========== */
+
+/* IP (RFC 791) */
+
+struct tag ip {
+    struct {
+        UBIT4     version;
+        UBIT4     len;
+    } header;
+
+    struct {
+        UBIT3    precedence;
+        UBIT1    delay;
+        UBIT1    throughput;
+        UBIT1    reliability;
+        UBIT1    cost;
+        UBIT1    pad;
+    } tos;
+
+    UINT16    length;
+    UINT16    id;
+
+    struct {
+        UBIT1     pad;
+        UBIT1     dont;
+        UBIT1     more;
+        UBIT13    offset;
+    } frag;
+
+    UINT8    ttl;
+    UINT8    proto;
+    UINT16   checksum;
+
+    IPADDR   src_addr;
+    IPADDR   dst_addr;
+
+    UINT8    data[rest()/8];
+
+    AUTO_LENGTH(header.len, 0, foffset(data), 32);
+    AUTO_LENGTH(length, 0, END, 8);
+    AUTO_CHECKSUM(checksum, 0, foffset(data));
+}
+
+method ip.initialize() {
+    header.version = 4;
+    ttl = 255;
+    proto = 17;
+}
+
+struct tag udp {
+    UINT16 src;
+    UINT16 dst;
+    UINT16 length;
+    UINT16 checksum;
+
+    UINT8 data[rest()/8];
+
+    AUTO_LENGTH(length, foffset(src), END, 8);
+
+    AUTO_CHECKSUM(checksum, foffset(#ip.src_addr), foffset(#ip.data));
+    AUTO_CHECKSUM(checksum, foffset(#ip.proto), foffset(#ip.checksum));
+    AUTO_CHECKSUM(checksum, foffset(length), foffset(checksum));
+    AUTO_CHECKSUM(checksum, 0, END);
+}
+
+method udp.initialize() {
+    src = 0x0044;
+    dst = 0x0043;
+}
+
+struct dhcpv4_options {
+    UINT8 code;
+    UINT8 length;
+    UINT8 data[length];
+
+    if(code==255) {
+        END;
+    }
+    else if(length==0) {
+        NIL;
+    }
+}
+struct tag dhcpv4 {
+    UINT8 op;
+    UINT8 htype;
+    UINT8 hlen;
+    UINT8 hops;
+
+    UINT32 xid;
+    UINT16 secs;
+    UINT16 flags;
+
+    IPADDR ciaddr;
+    IPADDR yiaddr;
+    IPADDR siaddr;
+    IPADDR giaddr;
+
+    UINT8 chaddr[16];
+    UINT8 sname[64];
+    UINT8 fname[128];
+    UINT32 magic_cookie;
+    dhcpv4_options options[];
+}
+
+method dhcpv4.initialize() {
+    htype = 1;
+    hlen = 6;
+    hops = 255;
+
+    magic_cookie = 0x63825363;
+}
+
+extension ethernet{
+    DECODE(data, ip);
+}
+
+extension ip {
+     DECODE(data, udp);
+}
+
+extension udp {
+    DECODE(data, dhcpv4);
+}
+

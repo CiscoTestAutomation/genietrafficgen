@@ -1,0 +1,41 @@
+
+enable:
+  prompt: "%N#"
+  commands:
+    "term length 0": ""
+    "term width 0": ""
+    "show version": ""
+    "config term":
+        new_state: config
+    "tgn Gi0/0": ""
+    "tgn add ip": ""
+    "tgn name tg_ip": ""
+    "tgn L2-src-addr 00:de:ad:be:ef:ff": ""
+    "tgn L2-dest-addr": ""
+    "tgn L3-src-addr": ""
+    "tgn L3-dest-addr": ""
+    "tgn data-length 18": ""
+    "tgn clear all": ""
+    "tgn on": ""
+    "tgn rate 100": ""
+    "tgn send 1": ""
+    "tgn start send":
+      response: |
+           pagent#
+
+              Send process complete.
+      timing:
+        - 0:,5
+
+
+config:
+  prompt: "%N(config)#"
+  commands:
+    "no logging console": ""
+    "line console 0": ""
+    "exec-timeout 0": ""
+    "end":
+        new_state: enable
+
+    "interface Gi0/0": ""
+    "no shutdown": ""

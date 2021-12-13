@@ -1,28 +1,8 @@
-December 2021
-==========
-
-December 13 - Genietrafficgen v21.12
-------------------------
-
-
-
-+-------------------------------+-------------------------------+
-| Module                        | Versions                      |
-+===============================+===============================+
-| ``genie.trafficgen``          | 21.12                         |
-+-------------------------------+-------------------------------+
-
-
-
-
-Changelogs
-^^^^^^^^^^
 --------------------------------------------------------------------------------
                                       New                                       
 --------------------------------------------------------------------------------
 
 * pagent
-    * added API to configure dhcpv4 request/reply packets on pagent
     * Add clear_traffics
         * Add API to support clear streams
     * Add modify_trafic
@@ -31,6 +11,7 @@ Changelogs
         * Add API to support raw ip stream configure
     * Add configure_rawipv6
         * Add API to support raw ipv6 stream configure
+    * added API to configure dhcpv4 request/reply packets on pagent
     * configure_dhcpv6_request
         * Added API to configure_dhcpv6_request through pagent
     * configure_dhcpv6_reply
