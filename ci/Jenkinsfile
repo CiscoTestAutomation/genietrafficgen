@@ -47,8 +47,18 @@ pipeline {
                 sh """
                 . genietrafficgen-env/bin/activate
                 cd tests
-                py.test -v .
+                coverage run --source='..' --omit='*/tests/*' -m pytest
+                coverage report
+                coverage html
                 """
+                publishHTML (target: [
+                    allowMissing: true,
+                    alwaysLinkToLastBuild: false,
+                    keepAll: true,
+                    reportDir: 'tests/htmlcov',
+                    reportFiles: "index.html",
+                    reportName: 'Coverage report'
+                ])
             }
         }
     }

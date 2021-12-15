@@ -1,0 +1,136 @@
+/* ========== MACROS ========== */
+
+/* MAC address */
+struct tgn_mprint MACADDR {
+    UINT16  addr[3];
+}
+
+method MACADDR.display() {
+    dprintf("%04X.%04X.%04X", addr[0], addr[1], addr[2]);
+}
+
+method MACADDR.display_short() {
+    printf("%04X.%04X.%04X", addr[0], addr[1], addr[2]);
+}
+
+/* IPv6 address */
+struct tgn_mprint IPv6ADDR {
+    UINT16 addr_16[8];
+}
+
+method IPv6ADDR.display() {
+    dprintf("%04X:%04X:%04X:%04X:%04X:%04X:%04X:%04X",
+            addr_16[0], addr_16[1], addr_16[2], addr_16[3],
+            addr_16[4], addr_16[5], addr_16[6], addr_16[7]);
+}
+
+method IPv6ADDR.display_short() {
+    printf("%04X:%04X:%04X:%04X:%04X:%04X:%04X:%04X",
+           addr_16[0], addr_16[1], addr_16[2], addr_16[3],
+           addr_16[4], addr_16[5], addr_16[6], addr_16[7]);
+}
+
+/* ========== LAN ENCAPSULATIONS ========== */
+
+/* Ethernet/IEEE 802.3 encapsulation */
+
+struct tag ethernet {
+    /* 'tag' means the structure can only occur once in a packet */
+    MACADDR dst_addr;
+    MACADDR src_addr;
+    UINT16 type;
+    if(type==0x8100){
+        UINT16 vlan_tpid;
+        UBIT3 vlan_priority;
+        UBIT1 vlan_cfi;
+        UBIT12 vlan_id;
+    }
+    UINT8 data[rest()/8];
+}
+
+
+method ethernet.initialize() {
+    type = 0x86DD;
+}
+
+/* IP Header, v6 */
+
+struct IPv6HEADER {
+    UBIT4   version;
+    UBIT8   traffic_class;
+    UBIT20  flow_label;
+    UINT16  payload_length;
+    UINT8   next_header;
+    UINT8   hop_limit;
+
+    IPv6ADDR src_addr;
+    IPv6ADDR dst_addr;
+}
+
+struct tag ipv6 {
+    IPv6HEADER header;
+
+    UINT8     data[rest()/8];
+    COMPUTE last_header = foffset(header.next_header) - foffset(data);
+    COMPUTE dst_address = foffset(header.dst_addr) - foffset(data);
+    AUTO_LENGTH(header.payload_length, foffset(data), END, 8);
+}
+
+method ipv6.initialize() {
+    header.version = 6;
+    header.next_header = 17;
+    header.hop_limit = 255;
+}
+
+/* UDP Header */
+
+struct tag udp {
+    UINT16 src;
+    UINT16 dst;
+    UINT16 length;
+    UINT16 checksum;
+
+    UINT8 data[rest()/8];
+
+    AUTO_LENGTH(length, foffset(src), END, 8);
+    AUTO_CHECKSUM(checksum, back_compute("last_header"),
+                    back_compute("last_header") + 8);
+    AUTO_CHECKSUM(checksum,
+                    back_compute("dst_address"),
+                    back_compute("dst_address") + sizeof(IPv6ADDR));
+    AUTO_CHECKSUM(checksum, foffset(length),
+                    foffset(checksum));
+    AUTO_CHECKSUM(checksum, foffset(#ipv6.header.src_addr),
+                    foffset(#ipv6.header.dst_addr));
+    AUTO_CHECKSUM(checksum, 0, END);
+}
+
+/* DHCPv6 */
+
+struct dhcpv6_options {
+    UINT16 code;
+    UINT16 length;
+    UINT8 data[length];
+    if(length==0){
+        NIL;
+    }
+}
+
+struct tag dhcpv6 {
+    UINT8 message_type;
+
+    UINT8 transaction_id[3];
+    dhcpv6_options options[];
+}
+
+extension ethernet{
+    DECODE(data, ipv6);
+}
+
+extension ipv6 {
+     DECODE(data, udp);
+}
+
+extension udp {
+    DECODE(data, dhcpv6);
+}

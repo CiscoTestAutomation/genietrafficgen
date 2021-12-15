@@ -141,3 +141,13 @@ devices:
         connections:
             tgn:
                 class: genie.trafficgen.TrafficGen
+
+    ioltraffic_gen:
+        os: ios
+        platform: pagent
+        connections:
+          a:
+            class: genie.trafficgen.TrafficGen
+            command: mock_device_cli --os iosxe --state enable --mock_data_dir mock_data --hostname ioltraffic_gen
+
+

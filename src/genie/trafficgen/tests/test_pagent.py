@@ -112,11 +112,10 @@ class TestPagentAPIs(unittest.TestCase):
             call('tgn L3-src-addr 192.168.101.111'),
             call('tgn L3-dest-addr 239.1.101.3'),
             call('tgn data-length 18'),
+            call('tgn on'),
             call('tgn rate 100'),
             call('tgn send 5'),
-            call('tgn on'),
-            call('tgn clear all')
-        ])
+            call('tgn clear all')])
 
     def test_start_pkt_count_rawip(self):
         dev = self.dev
@@ -230,11 +229,10 @@ class TestPagentAPIs(unittest.TestCase):
             call('tgn L3-src-addr 192.168.101.113'),
             call('tgn L3-dest-addr 239.1.101.6'),
             call('tgn data-length 18'),
+            call('tgn on'),
             call('tgn rate 100'),
             call('tgn send 5'),
-            call('tgn on'),
-            call('tgn clear all')
-        ])
+            call('tgn clear all')])
 
     def test_send_rawipv6(self):
         dev = self.dev
@@ -266,11 +264,10 @@ class TestPagentAPIs(unittest.TestCase):
             call('tgn L3-src-addr 5000::1'),
             call('tgn L3-dest-addr FF06::278'),
             call('tgn data-length 18'),
+            call('tgn on'),
             call('tgn rate 100'),
             call('tgn send 5'),
-            call('tgn on'),
-            call('tgn clear all')
-        ])
+            call('tgn clear all')])
 
     def test_start_pkt_count_rawipv6(self):
         dev = self.dev
@@ -341,11 +338,10 @@ class TestPagentAPIs(unittest.TestCase):
             call('tgn L3-target-haddr FFFF.FFFF.FFFF'),
             call('tgn L3-target-paddr 192.168.101.12'),
             call('tgn data-length 18'),
+            call('tgn on'),
             call('tgn rate 100'),
             call('tgn send 5'),
-            call('tgn on'),
-            call('tgn clear all')
-        ])
+            call('tgn clear all')])
 
     def test_send_garp(self):
         dev = self.dev
@@ -375,13 +371,13 @@ class TestPagentAPIs(unittest.TestCase):
             call('tgn L3-sender-haddr 0051.a101.0011'),
             call('tgn L3-sender-paddr 192.168.101.11'),
             call('tgn L3-target-haddr 0000.0000.0000'),
+            call('tgn L3-operation 2'),
             call('tgn L3-target-paddr 192.168.101.11'),
             call('tgn data-length 18'),
+            call('tgn on'),
             call('tgn rate 100'),
             call('tgn send 5'),
-            call('tgn on'),
-            call('tgn clear all')
-        ])
+            call('tgn clear all')])
 
     def test_send_ndp_ns(self):
         dev = self.dev
@@ -398,11 +394,11 @@ class TestPagentAPIs(unittest.TestCase):
                         ip_src=ip_src, ip_dst=ip_dst,
                         pps=pps, vlan_tag=vlan, count=count)
 
-        dev.tg.execute.assert_has_calls([
-            call('tgn clear all'),
+        dev.tg.execute.assert_has_calls([call('tgn clear all'),
             call('tgn eth0'),
             call('tgn add icmpv6'),
             call('tgn name ndpns'),
+            call('tgn length auto'),
             call('tgn layer 2 ethernet'),
             call('tgn l2-shim is dot1q'),
             call('tgn l2-shim vlan-id 105'),
@@ -412,14 +408,13 @@ class TestPagentAPIs(unittest.TestCase):
             call('tgn L3-src-addr 2001:105::11'),
             call('tgn L3-dest-addr ff02::1:ff00:0012'),
             call('tgn L3-hop-limit 255'),
+            call('tgn data 0 00000000200101050000000000000000000000120101aabb00110018'),
             call('tgn L4-type 135'),
             call('tgn L4-code 0'),
-            call('tgn data 0 00000000200101050000000000000000000000120101aabb00110018'),
+            call('tgn on'),
             call('tgn rate 100'),
             call('tgn send 5'),
-            call('tgn on'),
-            call('tgn clear all')
-        ])
+            call('tgn clear all')])
 
     def test_send_ndp_na_solicited(self):
         dev = self.dev
@@ -442,6 +437,7 @@ class TestPagentAPIs(unittest.TestCase):
             call('tgn eth0'),
             call('tgn add icmpv6'),
             call('tgn name ndpna'),
+            call('tgn length auto'),
             call('tgn layer 2 ethernet'),
             call('tgn l2-shim is dot1q'),
             call('tgn l2-shim vlan-id 105'),
@@ -454,11 +450,10 @@ class TestPagentAPIs(unittest.TestCase):
             call('tgn L4-type 136'),
             call('tgn L4-code 0'),
             call('tgn data 0 60000000200101050000000000000000000000110201aabb00110018'),
+            call('tgn on'),
             call('tgn rate 100'),
             call('tgn send 5'),
-            call('tgn on'),
-            call('tgn clear all')
-        ])
+            call('tgn clear all')])
 
     def test_send_ndp_na_unsolicited(self):
         dev = self.dev
@@ -481,6 +476,7 @@ class TestPagentAPIs(unittest.TestCase):
             call('tgn eth0'),
             call('tgn add icmpv6'),
             call('tgn name ndpna'),
+            call('tgn length auto'),
             call('tgn layer 2 ethernet'),
             call('tgn l2-shim is dot1q'),
             call('tgn l2-shim vlan-id 105'),
@@ -493,13 +489,32 @@ class TestPagentAPIs(unittest.TestCase):
             call('tgn L4-type 136'),
             call('tgn L4-code 0'),
             call('tgn data 0 10000000200101050000000000000000000000110201aabb00110018'),
+            call('tgn on'),
             call('tgn rate 100'),
             call('tgn send 5'),
-            call('tgn on'),
-            call('tgn clear all')
-        ])
+            call('tgn clear all')])
 
     @classmethod
     def tearDownClass(cls):
         cls.dev.disconnect()
         cls.md.stop()
+
+class TestIolPagent(unittest.TestCase):
+
+    def test_iol_pagent_start_send(self):
+        md = MockDeviceTcpWrapperIOSXE(port=0, state='enable', mock_data_dir='mock_data', hostname='pagent')
+        md.start()
+        telnet_port = md.ports[0]
+
+        tb_file = os.path.join(os.path.dirname(__file__), 'testbed.yaml')
+        tb = loader.load(tb_file)
+
+        tb.devices.pagent.connections.tgn['ip'] = '127.0.0.1'
+        tb.devices.pagent.connections.tgn['port'] = telnet_port
+
+        dev = tb.devices.pagent
+        try:
+            dev.connect()
+            dev.send_rawip(interface='Gi0/0', mac_src='00:de:ad:be:ef:ff', mac_dst='', ip_src='', ip_dst='')
+        finally:
+            md.stop()

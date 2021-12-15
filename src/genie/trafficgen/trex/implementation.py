@@ -365,8 +365,9 @@ class Trex(TrafficGen):
         with trex_ns.trex_client_context():
             from scapy.all import IP, Ether, Dot1Q, ARP
             ether_part = Ether(src=mac_src, dst='ff:ff:ff:ff:ff:ff')
+            #Op=1 indicates ARP request and OP=2 indicates ARP reply
             if ip_src == ip_target:
-                arp_part = ARP(op=1, hwsrc=mac_src, psrc=ip_src,
+                arp_part = ARP(op=2, hwsrc=mac_src, psrc=ip_src,
                                 hwdst='ff:ff:ff:ff:ff:ff',
                                 pdst=ip_target)
             else:
@@ -648,8 +649,8 @@ class Trex(TrafficGen):
                 dhcp6_opt_ia_address=requested_ip,
                 dhcp6_message_type=Dhcpv6MessageType.REQUEST,
                 dhcp6_transaction_id=xid,
-                dhcp6_opt_server_id_duid=cid,
-                dhcp6_opt_client_id_duid=sid,
+                dhcp6_opt_server_id_duid=sid,
+                dhcp6_opt_client_id_duid=cid,
                 dhcp6_opt_req_opts=[
                     Dhcpv6OptCode.DNS_SERRVERS,
                     Dhcpv6OptCode.DNS_DOMAINS,
@@ -2005,3 +2006,30 @@ class Trex(TrafficGen):
         self.mld_clients[client_handler]['filters'][grp_hdl] = None
         return True
 
+    def enable_subinterface_emulation(self, port, ip, mac):
+        '''Enables subinterface emulation on the traffic generator's specified port
+            Args:
+             port ('int'): Traffic generator's port handle
+             ip ('str'): ipv6 address
+             mac ('str'): mac address
+            Returns:
+             Handle of subinterface group
+        '''
+        status = self._trex.emulation_subinterface_control(
+            port_handle=port,
+            ip_start = ip,
+            mac_start = mac,
+        )
+        return status.handle
+
+    def disable_subinterface_emulation(self, handle):
+        '''Disables subinterface emulation on the traffic generator's specified port
+            Args:
+             handle ('obj'): Handle of previously created subinterface group
+            Returns:
+             None
+        '''
+        self._trex.emulation_subinterface_control(
+            mode='remove',
+            handle=handle
+        )

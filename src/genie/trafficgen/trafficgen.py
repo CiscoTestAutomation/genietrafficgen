@@ -15,9 +15,16 @@ class TrafficGen(BaseConnection):
     def __new__(cls, device, *args, **kwargs):
         if '.'.join([cls.__module__, cls.__name__]) == \
                 'genie.trafficgen.trafficgen.TrafficGen':
-            tgen_abstract = Lookup.from_device(
-                device, packages={'tgn': trafficgen}, default_tokens=['os'])
-            new_cls = tgen_abstract.tgn.TrafficGen
+            if hasattr(device, 'platform') and device.platform:
+                tgen_abstract = Lookup.from_device(device, packages={'tgn': trafficgen}, default_tokens=['os', 'platform'])
+                try:
+                  new_cls = getattr(tgen_abstract.tgn, device.platform).TrafficGen
+                except LookupError:
+                  new_cls = tgen_abstract.tgn.TrafficGen
+            else:
+                tgen_abstract = Lookup.from_device(device, packages={'tgn': trafficgen}, default_tokens=['os'])
+                new_cls = tgen_abstract.tgn.TrafficGen
+
             return super().__new__(new_cls)
         else:
             return super().__new__(cls)
@@ -68,6 +75,10 @@ class TrafficGen(BaseConnection):
              transmit_mode ('str', optional): ('continuous', 'multi_burst', 'single_burst'), default single_burst
              pkts_per_burst ('int', optional): packets per burst, default 1
              pps ('int', optional): packets per second, default 100
+           Returns:
+             None
+           Raises:
+             GenieTgnError
         '''
         raise NotImplementedError
 
@@ -85,6 +96,10 @@ class TrafficGen(BaseConnection):
              transmit_mode ('str', optional): ('continuous', 'multi_burst', 'single_burst'), default single_burst
              pkts_per_burst ('int', optional): packets per burst, default 1
              pps ('int', optional): packets per second, default 100
+           Returns:
+             None
+           Raises:
+             GenieTgnError
         '''
         raise NotImplementedError
 
@@ -105,6 +120,10 @@ class TrafficGen(BaseConnection):
             transmit_mode ('str', optional): ('continuous', 'multi_burst', 'single_burst'), default single_burst
             pkts_per_burst ('int', optional): packets per burst, default 1
             pps ('int', optional): packets per second, default 100
+          Returns:
+            None
+          Raises:
+            GenieTgnError
         '''
 
     def configure_arp_request(self, port, mac_src, ip_src, ip_dst, frame_size=60,
@@ -767,5 +786,25 @@ class TrafficGen(BaseConnection):
              True/False
            Raises:
              NotImplementedError
+        '''
+        raise NotImplementedError
+
+    def enable_subinterface_emulation(self, port, ip, mac):
+        '''Enables subinterface emulation on the traffic generator's specified port
+            Args:
+             port ('int'): Traffic generator's port handle
+             ip ('str'): ipv6 address
+             mac ('str'): mac address
+            Returns:
+             Handle of subinterface group
+        '''
+        raise NotImplementedError
+
+    def disable_subinterface_emulation(self, handle):
+        '''Disables subinterface emulation on the traffic generator's specified port
+            Args:
+             handle ('obj'): Handle of previously created subinterface group
+            Returns:
+             None
         '''
         raise NotImplementedError
