@@ -19,9 +19,11 @@ from .pagentflow import PG_flow_rawip
 from .pagentflow import PG_flow_rawipv6
 from .pagentflow import PG_flow_igmpv2_report
 from .pagentflow import PG_flow_igmpv3_report
+from .pagentflow import PG_flow_igmpv2_query_general
 from .pagentflow import PG_flow_igmp_leave
 from .pagentflow import PG_flow_mldv1_report
 from .pagentflow import PG_flow_mldv1_done
+from .pagentflow import PG_flow_mldv1_query_general
 from .pagentflow import PG_flow_mldv2_report
 from .pagentflow import PG_flow_arp_request
 from .pagentflow import PG_flow_acd_request
@@ -593,7 +595,7 @@ class Pagent(TrafficGen):
 
     def start_pkt_count_rawip_mcast(self, interface, mac_src,
                                     ip_src, ip_dst, vlan=0):
-        '''Start ip packet count mcast
+        '''Start ipv4 multicast packet count
            Args:
              mac_src ('str'): source mac address, example aabb.bbcc.ccdd
              ip_src ('str'): source ip address
@@ -608,9 +610,28 @@ class Pagent(TrafficGen):
         self.start_pkt_count_rawip(interface, mac_src,
                                    mac_dst, ip_src, ip_dst, vlan)
 
+    def start_pkt_count_rawipv6_mcast(self, interface, mac_src,
+                                      ipv6_src, ipv6_dst, vlan=0):
+        '''Start ipv6 multicast packet count
+           Args:
+             interface ('str' or 'list'): interface name
+                                          or list of interface names
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             ipv6_src ('str'): source ipv6 address
+             ipv6_dst ('str'): destination ipv6 address
+             vlan ('int', optional): vlan id, default = 0
+           Returns:
+             None
+        '''
+        map_addr = int(ipaddress.IPv6Address(ipv6_dst))
+        map_addr = map_addr & 0xFFFFFFFF
+        mac_dst = '3333.%04X.%04X' %(map_addr >> 16, map_addr & 0xFFFF)
+        self.start_pkt_count_rawipv6(interface, mac_src, mac_dst,
+                                     ipv6_src, ipv6_dst, vlan)
+
     def send_rawip_mcast(self, interface, mac_src, ip_src, ip_dst,
                          vlan=0, count=1, pps=100):
-        '''Start ip packet count mcast
+        '''Send ipv4 multicast packet
            Args:
              mac_src ('str'): source mac address, example aabb.bbcc.ccdd
              ip_src ('str'): source ip address
@@ -626,6 +647,26 @@ class Pagent(TrafficGen):
         mac_dst = '0100.5E%02X.%04X' % (map_addr >> 16, map_addr & 0xFFFF)
         self.send_rawip(interface, mac_src, mac_dst, ip_src, ip_dst,
                         vlan, count, pps)
+
+    def send_rawipv6_mcast(self, interface, mac_src, ipv6_src, ipv6_dst,
+                         vlan=0, count=1, pps=100):
+        '''Send ipv6 multicast packet
+           Args:
+             interface ('str'): interface name
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             ipv6_src ('str'): source ip address
+             ipv6_dst ('str'): destination ip address
+             vlan ('int', optional): vlan id, default is 0
+             count ('int', optional) : number of pkts send, default is 1
+             pps ('int', optional): packets per second, default 100
+           Returns:
+             None
+        '''
+        map_addr = int(ipaddress.IPv6Address(ipv6_dst))
+        map_addr = map_addr & 0xFFFFFFFF
+        mac_dst = '3333.%04X.%04X' %(map_addr >> 16, map_addr & 0xFFFF)
+        self.send_rawipv6(interface, mac_src, mac_dst, ipv6_src, ipv6_dst,
+                          vlan, count, pps)
 
     def send_arp_request(self, interface, mac_src, ip_src, ip_target,
                          vlan_tag=0, count=1, pps=100):
@@ -688,6 +729,44 @@ class Pagent(TrafficGen):
         '''
         flow = PG_flow_ndp_na('ndpna', mac_src, mac_dst, ip_src, ip_dst,
                               vlan_tag=vlan_tag)
+        self.pg.send_traffic(flow, interface, pps, count)
+        self.pg.clear_tgn()
+
+    def send_igmpv2_query_general(self, interface, mac_src, ip_src,
+                                  max_resp=10, vlan_tag=0, count=1, pps=100):
+        '''Send igmpv2 general query packet
+           Args:
+             interface ('str'): interface name
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             ip_src ('str'): source ip address
+             max_resp ('int', optional): maximum response time, default is 10
+             vlan_tag ('int', optional): vlan tag, default 0
+             count ('int', optional): send packets count, default 1
+             pps ('int', optional): packets per second, default 100
+           Returns:
+             None
+        '''
+        flow = PG_flow_igmpv2_query_general('igmpq', mac_src, ip_src, max_resp,
+                                            vlan_tag=vlan_tag)
+        self.pg.send_traffic(flow, interface, pps, count)
+        self.pg.clear_tgn()
+
+    def send_mldv1_query_general(self, interface, mac_src, ip_src,
+                                 max_resp=10, vlan_tag=0, count=1, pps=100):
+        '''Send mldv1 general query packet
+           Args:
+             interface ('str'): interface name
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             ip_src ('str'): source ip address
+             max_resp ('int', optional): maximum response time, default is 10
+             vlan_tag ('int', optional): vlan tag, default 0
+             count ('int', optional): send packets count, default 1
+             pps ('int', optional): packets per second, default 100
+           Returns:
+             None
+        '''
+        flow = PG_flow_mldv1_query_general('mldv1gq', mac_src, ip_src,
+                                           max_resp, vlan_tag=vlan_tag)
         self.pg.send_traffic(flow, interface, pps, count)
         self.pg.clear_tgn()
 

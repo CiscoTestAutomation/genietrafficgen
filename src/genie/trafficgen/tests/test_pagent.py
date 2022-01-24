@@ -269,6 +269,40 @@ class TestPagentAPIs(unittest.TestCase):
             call('tgn send 5'),
             call('tgn clear all')])
 
+    def test_send_rawipv6_mcast(self):
+        dev = self.dev
+
+        intf = 'eth0'
+        mac_src = 'aabb.0011.0015'
+        ip_src = '5000::1'
+        ip_dst = 'FF06::278'
+        pps = 100
+        vlan = '105'
+        count = '5'
+
+        dev.send_rawipv6_mcast(interface=intf, mac_src=mac_src,
+                               ipv6_src=ip_src, ipv6_dst=ip_dst,
+                               pps=pps, vlan=vlan,
+                               count=count)
+
+        dev.tg.execute.assert_has_calls([
+            call('tgn clear all'),
+            call('tgn eth0'),
+            call('tgn add ipv6'),
+            call('tgn name ipv6'),
+            call('tgn layer 2 ethernet'),
+            call('tgn l2-shim is dot1q'),
+            call('tgn l2-shim vlan-id 105'),
+            call('tgn L2-src-addr aabb.0011.0015'),
+            call('tgn L2-dest-addr 3333.0000.0278'),
+            call('tgn L3-src-addr 5000::1'),
+            call('tgn L3-dest-addr FF06::278'),
+            call('tgn data-length 18'),
+            call('tgn on'),
+            call('tgn rate 100'),
+            call('tgn send 5'),
+            call('tgn clear all')])
+
     def test_start_pkt_count_rawipv6(self):
         dev = self.dev
 
@@ -298,6 +332,44 @@ class TestPagentAPIs(unittest.TestCase):
             call('pkts filter l2-shim vlan-id 105'),
             call('pkts filter L2-src-addr aabb.0011.0016'),
             call('pkts filter L2-dest-addr aabb.0011.0021'),
+            call('pkts filter L3-src-addr 5000::1'),
+            call('pkts filter L3-dest-addr FF06::277'),
+            call('pkts filter data-length 18'),
+            call('pkts filter match start-at packet-start offset 0 length 74'),
+            call('pkts filter match mask-start L3-hop-limit offset 0 length 1'),
+            call('pkts filter match mask-data 0 00'),
+            call('pkts filter active'),
+            call('pkts start')
+        ])
+
+    def test_start_pkt_count_rawipv6_mcast(self):
+        dev = self.dev
+
+        intf = 'eth0'
+        mac_src = 'aabb.0011.0016'
+        ip_src = '5000::1'
+        ip_dst = 'FF06::277'
+        vlan = '105'
+
+        dev.start_pkt_count_rawipv6_mcast(interface=intf, mac_src=mac_src,
+                                          ipv6_src=ip_src, ipv6_dst=ip_dst,
+                                          vlan=vlan)
+
+        dev.tg.execute.assert_has_calls([
+            call('pkts clear all'),
+            call('pkts filter clear filters'),
+            call('pkts eth0 promiscuous off'),
+            call('pkts eth0 fast-count off'),
+            call('pkts eth0 promiscuous on'),
+            call('pkts eth0 fast-count on'),
+            call('pkts filter eth0'),
+            call('pkts filter add ipv6 fast-count in'),
+            call('pkts filter name eth0_pgf'),
+            call('pkts filter layer 2 ethernet'),
+            call('pkts filter l2-shim is dot1q'),
+            call('pkts filter l2-shim vlan-id 105'),
+            call('pkts filter L2-src-addr aabb.0011.0016'),
+            call('pkts filter L2-dest-addr 3333.0000.0277'),
             call('pkts filter L3-src-addr 5000::1'),
             call('pkts filter L3-dest-addr FF06::277'),
             call('pkts filter data-length 18'),
@@ -489,6 +561,83 @@ class TestPagentAPIs(unittest.TestCase):
             call('tgn L4-type 136'),
             call('tgn L4-code 0'),
             call('tgn data 0 10000000200101050000000000000000000000110201aabb00110018'),
+            call('tgn on'),
+            call('tgn rate 100'),
+            call('tgn send 5'),
+            call('tgn clear all')])
+
+    def test_send_igmpv2_query_general(self):
+        dev = self.dev
+
+        intf = 'eth0'
+        mac_src = 'aabb.0011.0018'
+        ip_src = '192.168.1.11'
+        max_resp = 100
+        pps = 100
+        vlan = '105'
+        count = '5'
+
+        dev.send_igmpv2_query_general(interface=intf, mac_src=mac_src,
+                                      ip_src=ip_src, max_resp=max_resp,
+                                      pps=pps, vlan_tag=vlan, count=count)
+
+        dev.tg.execute.assert_has_calls([
+            call('tgn clear all'),
+            call('tgn eth0'),
+            call('tgn add igmp'),
+            call('tgn name igmpq'),
+            call('tgn layer 2 ethernet'),
+            call('tgn l2-shim is dot1q'),
+            call('tgn l2-shim vlan-id 105'),
+            call('tgn L2-src-addr aabb.0011.0018'),
+            call('tgn L2-dest-addr 0100.5E00.0001'),
+            call('tgn L3-src-addr 192.168.1.11'),
+            call('tgn L3-dest-addr 224.0.0.1'),
+            call('tgn L4-version 1'),
+            call('tgn L4-type 1'),
+            call('tgn L4-max-resp 100'),
+            call('tgn L4-group-address 0.0.0.0'),
+            call('tgn data-length 0'),
+            call('tgn on'),
+            call('tgn rate 100'),
+            call('tgn send 5'),
+            call('tgn clear all')])
+
+    def test_send_mldv1_query_general(self):
+        dev = self.dev
+
+        intf = 'eth0'
+        mac_src = 'aabb.0011.0018'
+        ip_src = '2001:105::11'
+        max_resp = 100
+        pps = 100
+        vlan = '105'
+        count = '5'
+
+        dev.send_mldv1_query_general(interface=intf, mac_src=mac_src,
+                                      ip_src=ip_src, max_resp=max_resp,
+                                      pps=pps, vlan_tag=vlan, count=count)
+
+        dev.tg.execute.assert_has_calls([
+            call('tgn clear all'),
+            call('tgn eth0'),
+            call('tgn add icmpv6'),
+            call('tgn name mldv1gq'),
+            call('tgn layer 2 ethernet'),
+            call('tgn l2-shim is dot1q'),
+            call('tgn l2-shim vlan-id 105'),
+            call('tgn L2-src-addr aabb.0011.0018'),
+            call('tgn L2-dest-addr 3333.0000.0001'),
+            call('tgn L3-src-addr 2001:105::11'),
+            call('tgn L3-dest-addr FF02::1'),
+            call('tgn L3-hop-limit 1'),
+            call('tgn L3-next-header 0'),
+            call('tgn L3-header total 1 modules'),
+            call('tgn L3-header 0 is hop_by_hop'),
+            call('tgn L3-header 0 next-header 58'),
+            call('tgn L3-header 0 option 0 0 0502'),
+            call('tgn L4-type 130'),
+            call('tgn L4-message 0 0064000000000000000000000000000000000000'),
             call('tgn on'),
             call('tgn rate 100'),
             call('tgn send 5'),
