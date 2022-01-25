@@ -5,7 +5,9 @@ Changelog
    :maxdepth: 1
 
    2022/january
+   2021/december
    2021/october
+   2021/september
    2021/july
    2021/june
    2021/may
