@@ -23,6 +23,7 @@ igmp_query_dstip = '224.0.0.1'
 igmp_leave_dstip = '224.0.0.2'
 igmpv3_report_dstip = '224.0.0.22'
 
+mldv1_query_dstip = 'FF02::1'
 
 class PG_flow_t(object):
     def __init__(self, template, name):
@@ -285,13 +286,12 @@ class PG_flow_igmp(PG_flow_t):
         return self.__config
 
 
-class PG_flow_igmp_query(PG_flow_igmp):
+class PG_flow_igmpv2_query_general(PG_flow_igmp):
     def __init__(self, name, smac, sip, max_resp, vlan_tag=0):
-        super(PG_flow_igmp_query, self).__init__(name, smac, sip,
-                                                 igmp_query_dstip,
-                                                 0x11, max_resp,
-                                                 '0.0.0.0', vlan_tag)
-
+        super(PG_flow_igmpv2_query_general, self).__init__(name, smac, sip,
+                                                           igmp_query_dstip,
+                                                           0x11, max_resp,
+                                                           '0.0.0.0', vlan_tag)
 
 class PG_flow_igmp_leave(PG_flow_igmp):
     def __init__(self, name, smac, sip, grpip, vlan_tag=0):
@@ -1120,6 +1120,11 @@ class PG_flow_mldv1_query(PG_flow_mldv1):
     def __init__(self, name, smac, sip, dip, max_resp, grpip, vlan_tag=0):
         super(PG_flow_mldv1_query, self).__init__(name, smac, sip,
                     dip, 130, max_resp, grpip, vlan_tag)
+
+class PG_flow_mldv1_query_general(PG_flow_mldv1_query):
+    def __init__(self, name, smac, sip, max_resp, vlan_tag=0):
+        super(PG_flow_mldv1_query_general, self).__init__(name, smac, sip,
+                    mldv1_query_dstip, max_resp, '::', vlan_tag)
 
 class PG_flow_mldv1_report(PG_flow_mldv1):
     def __init__(self, name, smac, sip, dip, grpip, vlan_tag=0):

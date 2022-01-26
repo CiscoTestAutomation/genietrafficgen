@@ -65,13 +65,14 @@ class Trex(TrafficGen):
                                     .format(k=key, d=self.device.name))
 
     def configure_interface(self, arp_send_req=False, arp_req_retries=3,
-                            multicast=False, vlan=False):
+                            multicast=False, vlan=False, promiscuous=False):
         ''' Method to configure the interfaces on the TRex device.
             This needs to be configured before starting traffic. '''
 
         try:
             self._trex.interface_config(
                     port_handle=self.port_list,
+                    promiscuous=promiscuous,
                     arp_send_req=arp_send_req,
                     arp_req_retries=arp_req_retries,
                     intf_ip_addr=self.intf_ip_list,
@@ -323,9 +324,30 @@ class Trex(TrafficGen):
         self.start_pkt_count_rawip(interface, mac_src, mac_dst,
                                    ip_src, ip_dst, vlan)
 
+    def start_pkt_count_rawipv6_mcast(self, interface, mac_src,
+                                      ipv6_src, ipv6_dst, vlan=0):
+        '''Start ipv6 multicast packet count
+           Args:
+             interface ('str' or 'list'): interface name
+                                          or list of interface names
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             ipv6_src ('str'): source ipv6 address
+             ipv6_dst ('str'): destination ipv6 address
+             vlan ('int', optional): vlan id, default = 0
+           Returns:
+             None
+           Raises:
+             NotImplementedError
+        '''
+        map_addr = int(ipaddress.IPv6Address(ipv6_dst))
+        map_addr = map_addr & 0xFFFFFFFF
+        mac_dst = '3333.%04X.%04X' %(map_addr >> 16, map_addr & 0xFFFF)
+        self.start_pkt_count_rawipv6(interface, mac_src, mac_dst,
+                                     ipv6_src, ipv6_dst, vlan)
+
     def send_rawip_mcast(self, interface, mac_src, ip_src, ip_dst,
                          vlan=0, count=1, pps=100):
-        '''Start ip packet count mcast
+        '''Send ipv4 multicast packet
            Args:
              interface ('str'): interface name
              mac_src ('str'): source mac address, example aabb.bbcc.ccdd
@@ -342,6 +364,26 @@ class Trex(TrafficGen):
         mac_dst = '0100.5E%02X.%04X' % (map_addr >> 16, map_addr & 0xFFFF)
         self.send_rawip(interface, mac_src, mac_dst, ip_src, ip_dst,
                         vlan, count, pps)
+
+    def send_rawipv6_mcast(self, interface, mac_src, ipv6_src, ipv6_dst,
+                         vlan=0, count=1, pps=100):
+        '''Send ipv6 multicast packet
+           Args:
+             interface ('str'): interface name
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             ipv6_src ('str'): source ip address
+             ipv6_dst ('str'): destination ip address
+             vlan ('int', optional): vlan id, default is 0
+             count ('int', optional) : number of pkts send, default is 1
+             pps ('int', optional): packets per second, default 100
+           Returns:
+             None
+        '''
+        map_addr = int(ipaddress.IPv6Address(ipv6_dst))
+        map_addr = map_addr & 0xFFFFFFFF
+        mac_dst = '3333.%04X.%04X' %(map_addr >> 16, map_addr & 0xFFFF)
+        self.send_rawipv6(interface, mac_src, mac_dst, ipv6_src, ipv6_dst,
+                          vlan, count, pps)
 
     def send_arp_request(self, interface, mac_src, ip_src, ip_target,
                          vlan_tag=0, count=1, pps=100):
@@ -487,6 +529,106 @@ class Trex(TrafficGen):
                   ether_p / Dot1Q(vlan=vlan_tag) / ipv6_p / icmpv6_p / icmpv6_opt
             else:
                 scapy_pkt = ether_p / ipv6_p / icmpv6_p / icmpv6_opt
+
+            pkt = trex_ns.trex.stl.api.STLPktBuilder(pkt=scapy_pkt)
+            bst_mode = trex_ns.trex.stl.api.STLTXSingleBurst(
+                pps=pps, total_pkts=count
+            )
+            flow = trex_ns.trex.stl.api.STLStream(packet=pkt,
+                                                  mode=bst_mode)
+            self._trex.get_stl_client().client.remove_all_streams(
+                ports=interface
+            )
+            self._trex.get_stl_client().client.add_streams(ports=interface,
+                                                           streams=flow)
+            self._trex.get_stl_client().client.start(ports=interface)
+            self._trex.get_stl_client().client.wait_on_traffic(
+                ports=interface
+            )
+
+    def send_igmpv2_query_general(self, interface, mac_src, ip_src,
+                                  max_resp=10, vlan_tag=0, count=1, pps=100):
+        '''Send igmpv2 general query packet
+           Args:
+             interface ('str'): interface name
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             ip_src ('str'): source ip address
+             max_resp ('int', optional): maximum response time, default is 10
+             vlan_tag ('int', optional): vlan tag, default 0
+             count ('int', optional): send packets count, default 1
+             pps ('int', optional): packets per second, default 100
+           Returns:
+             None
+        '''
+        mac_src = mac_to_colon_notation(mac_src)
+
+        trex_ns = self._trex.get_trex_namespace().ns
+        with trex_ns.trex_client_context():
+            from scapy.all import Ether, Dot1Q
+            from scapy.all import IP
+            from scapy.contrib.igmp import IGMP
+
+            ether_p = Ether(src=mac_src)
+
+            ip_p = IP(src=ip_src, dst='224.0.0.1')
+            igmp_p = IGMP(type=0x11, mrtime=max_resp)
+            igmp_p.igmpize(ether=ether_p, ip=ip_p)
+
+            if vlan_tag:
+                scapy_pkt = \
+                  ether_p / Dot1Q(vlan=vlan_tag) / ip_p / igmp_p
+            else:
+                scapy_pkt = ether_p / ip_p / igmp_p
+
+            pkt = trex_ns.trex.stl.api.STLPktBuilder(pkt=scapy_pkt)
+            bst_mode = trex_ns.trex.stl.api.STLTXSingleBurst(
+                pps=pps, total_pkts=count
+            )
+            flow = trex_ns.trex.stl.api.STLStream(packet=pkt,
+                                                  mode=bst_mode)
+            self._trex.get_stl_client().client.remove_all_streams(
+                ports=interface
+            )
+            self._trex.get_stl_client().client.add_streams(ports=interface,
+                                                           streams=flow)
+            self._trex.get_stl_client().client.start(ports=interface)
+            self._trex.get_stl_client().client.wait_on_traffic(
+                ports=interface
+            )
+
+    def send_mldv1_query_general(self, interface, mac_src, ip_src,
+                                 max_resp=10, vlan_tag=0, count=1, pps=100):
+        '''Send mldv1 general query packet
+           Args:
+             interface ('str'): interface name
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             ip_src ('str'): source ip address
+             max_resp ('int', optional): maximum response time, default is 10
+             vlan_tag ('int', optional): vlan tag, default 0
+             count ('int', optional): send packets count, default 1
+             pps ('int', optional): packets per second, default 100
+           Returns:
+             None
+        '''
+        mac_src = mac_to_colon_notation(mac_src)
+        ip_dst = 'FF02::1'
+        mac_dst = make_multicast_mac(ip_dst)
+        mac_dst = mac_to_colon_notation(mac_dst)
+
+        trex_ns = self._trex.get_trex_namespace().ns
+        with trex_ns.trex_client_context():
+            from scapy.all import Ether, Dot1Q
+            from scapy.all import IPv6, ICMPv6MLQuery
+
+            ether_p = Ether(src=mac_src, dst=mac_dst)
+
+            ipv6_p = IPv6(src=ip_src, dst=ip_dst)
+            icmpv6_p = ICMPv6MLQuery(mrd=max_resp)
+            if vlan_tag:
+                scapy_pkt = \
+                  ether_p / Dot1Q(vlan=vlan_tag) / ipv6_p / icmpv6_p
+            else:
+                scapy_pkt = ether_p / ipv6_p / icmpv6_p
 
             pkt = trex_ns.trex.stl.api.STLPktBuilder(pkt=scapy_pkt)
             bst_mode = trex_ns.trex.stl.api.STLTXSingleBurst(
