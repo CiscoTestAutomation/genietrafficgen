@@ -1543,3 +1543,41 @@ class PG_Manager(object):
             return int(mo.group(1))
         else:
             return -1
+
+class PG_flow_caputre_l2(PG_flow_t):
+    def __init__(self, name, smac, dmac, vlan_tag=0,
+                 vlan_header_len=2, l2_header_len=14,
+                 offset_start=0, **kwargs):
+        super(PG_flow_caputre_l2, self).__init__('arp', name)
+        cmds = [
+        ]
+
+        pkt_len = 0
+        if 0 != vlan_tag:
+            cmds.extend([
+                'layer 2 ethernet',
+                'l2-shim is dot1q',
+                'l2-shim vlan-id {}'.format(vlan_tag),
+            ])
+            pkt_len = pkt_len + vlan_header_len
+
+        cmds.extend([
+            'L2-src-addr {}'.format(smac),
+            'L2-dest-addr {}'.format(dmac),
+        ])
+        pkt_len = pkt_len + l2_header_len
+
+        self.__config = cmds
+        self.__pkt_len = pkt_len
+
+        mask_cmds = [
+            'match start-at packet-start offset {offset_start} length {pkt_len}'.format(
+                offset_start=offset_start, pkt_len=pkt_len),
+        ]
+
+        self.__mask_cmds = mask_cmds
+    def get_mask_cmds(self):
+        return self.__mask_cmds
+
+    def get_config(self):
+        return self.__config

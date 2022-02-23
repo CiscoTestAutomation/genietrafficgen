@@ -83,7 +83,9 @@ setup(
     },
 
     # additional package data files that goes into the package itself
-    package_data = {},
+    package_data = {
+        '': ['ios/pagent/templates/*.ptd'],
+    },
 
     # console entry point
     entry_points = {
