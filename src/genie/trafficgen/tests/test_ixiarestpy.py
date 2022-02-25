@@ -49,11 +49,11 @@ class TestIxiaIxNetworkRestPy(unittest.TestCase):
         self.assertEqual(dev.default.via, 'tgn')
         dev.connect()
         called_args = session_mock.called_args[1]
-        called_args.pop('Password')
         self.assertEqual(called_args,
                          dict(IpAddress='192.0.0.1',
                               RestPort=11009,
                               UserName='test',
+                              Password='test',
                               SessionName=None,
                               SessionId=None,
                               ApiKey=None,

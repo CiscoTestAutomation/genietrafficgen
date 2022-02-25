@@ -643,6 +643,40 @@ class TestPagentAPIs(unittest.TestCase):
             call('tgn send 5'),
             call('tgn clear all')])
 
+
+    def test_start_pkt_count_arp(self):
+        dev = self.dev
+
+
+        intf = 'eth0'
+        mac_src = 'aabb.0011.0111'
+        mac_dst = 'aabb.0011.0222'
+        vlan = '105'
+
+        dev.start_pkt_count_arp(interface=intf,
+                                 mac_src=mac_src, mac_dst=mac_dst,
+                                 vlan_tag=vlan)
+
+        dev.tg.execute.assert_has_calls([
+            call('pkts clear all'),
+            call('pkts filter clear filters'),
+            call('pkts eth0 promiscuous off'),
+            call('pkts eth0 fast-count off'),
+            call('pkts eth0 promiscuous on'),
+            call('pkts eth0 fast-count on'),
+            call('pkts filter eth0'),
+            call('pkts filter add arp fast-count in'),
+            call('pkts filter name eth0_pgf'),
+            call('pkts filter layer 2 ethernet'),
+            call('pkts filter l2-shim is dot1q'),
+            call('pkts filter l2-shim vlan-id 105'),
+            call('pkts filter L2-src-addr aabb.0011.0111'),
+            call('pkts filter L2-dest-addr aabb.0011.0222'),
+            call('pkts filter match start-at packet-start offset 0 length 16'),
+            call('pkts filter active'),
+            call('pkts start')
+        ])
+
     @classmethod
     def tearDownClass(cls):
         cls.dev.disconnect()

@@ -32,6 +32,7 @@ from .pagentflow import PG_flow_ndp_na
 from .pagentflow import PG_flow_acd_request
 from .pagentflow import PG_flow_dhcpv6
 from .pagentflow import PG_flow_dhcpv4
+from .pagentflow import PG_flow_caputre_l2
 
 # Unicon
 from unicon import Connection
@@ -1917,3 +1918,31 @@ class Pagent(TrafficGen):
                                      src_num, src_list, mode, vlan)
         self.pg.send_traffic(flow, interface, 1, 1)
         self.pg.clear_tgn()
+
+    def start_pkt_count_arp(self, interface, mac_src, mac_dst,
+                              vlan_tag=0, vlan_header_len=2, l2_header_len=14,
+                              offset_start=0):
+        '''Start packet count arp
+           Args:
+             interface ('str' or 'list'): interface name
+                                          or list of interface names
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             mac_dst ('str'): destination mac address, example aabb.bbcc.ccdd
+             vlan_tag ('int', optional): vlan tag, default is 0
+             vlan_header_len ('int', optional): vlan header length in the packet
+             l2_header_len ('int', optional): l2 header length in the packet
+             offset_start ('int', optional): offset in the packet to start matching
+           Returns:
+             None
+        '''
+        self.pg.clear_pkts()
+        expected_flow = PG_flow_caputre_l2(self.pg_flow_name, mac_src, mac_dst,
+                                           vlan_tag, vlan_header_len, l2_header_len,
+                                           offset_start)
+
+        ports = interface if isinstance(interface, list) else [interface]
+
+        for intf in ports:
+            self.pg.add_fastcount_filter(expected_flow, intf)
+
+        self.pg.start_pkts_count()

@@ -3,6 +3,8 @@ import logging
 from ixnetwork_restpy import SessionAssistant
 from genie.trafficgen.trafficgen import TrafficGen
 
+from pyats.utils.secret_strings import SecretString, to_plaintext
+
 logger = logging.getLogger(__name__)
 
 
@@ -23,6 +25,8 @@ class IxiaRestPy(TrafficGen):
         creds = self.device.credentials
         self.username = creds.get('default', {}).get('username', 'admin')
         self.password = creds.get('default', {}).get('password', 'admin')
+        if isinstance(self.password, SecretString):
+            self.password = to_plaintext(self.password)
 
         self.rest_server_ip = str(connection_args.get('ip', ''))
         self.port = connection_args.get('port')
