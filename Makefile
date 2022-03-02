@@ -26,10 +26,6 @@
 PKG_NAME      = genie.trafficgen
 BUILD_DIR     = $(shell pwd)/__build__
 DIST_DIR      = $(BUILD_DIR)/dist
-PROD_USER     = pyadm@pyats-ci
-PROD_PKGS     = /auto/pyats/packages
-STAGING_PKGS  = /auto/pyats/staging/packages
-STAGING_EXT_PKGS  = /auto/pyats/staging/packages_external
 PYTHON        = python3
 TESTCMD       = $(PYTHON) setup.py test
 BUILD_CMD     = $(PYTHON) setup.py bdist_wheel --dist-dir=$(DIST_DIR)
