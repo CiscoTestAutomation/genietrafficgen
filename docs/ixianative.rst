@@ -123,6 +123,34 @@ as shown below including ``ip`` and ``port_list``.
               port_list: ['2/1', '2/2']
 
 
+Credentials support
+-------------------
+
+To use credentials with the connection to the API server, specify
+the `default` credentials for the device:
+
+
+.. code-block:: yaml
+
+    devices:
+      IXIA:
+        type: tgn
+        os: 'ixianative'
+        credentials:
+            default:
+                username: test
+                password: test123
+        connections:
+          tgn:
+            class: genie.trafficgen.TrafficGen
+            ixnetwork_api_server_ip: 172.25.195.91
+            ixnetwork_tcl_port: 443
+            ixnetwork_version: '8.10'
+            ixia_chassis_ip: 172.27.101.96
+            ixia_license_server_ip: 172.27.101.96
+            ixia_port_list: ['9/6', '9/7']
+
+
 Genie Trafficgen Use Cases
 --------------------------
 
