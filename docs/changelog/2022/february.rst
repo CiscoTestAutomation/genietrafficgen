@@ -1,7 +1,7 @@
 February 2022
 ==========
 
-February 24 - Genietrafficgen v22.3 
+February 24 - Genietrafficgen v22.2
 ------------------------
 
 
