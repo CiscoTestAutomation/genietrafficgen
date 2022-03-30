@@ -774,7 +774,7 @@ class Trex(TrafficGen):
                             transmit_mode='single_burst',
                             pkts_per_burst=1, pps=100):
         ''' Method to configure a DHCPv6 REQUEST stream '''
-
+        time_infinite = 0xffffffff
         try:
             config_status = self._trex.traffic_config(
                 mode='create',
@@ -793,6 +793,11 @@ class Trex(TrafficGen):
                 dhcp6_transaction_id=xid,
                 dhcp6_opt_server_id_duid=sid,
                 dhcp6_opt_client_id_duid=cid,
+                dhcp6_opt_ia_id=xid,
+                dhcp6_opt_ia_na_t1=time_infinite,
+                dhcp6_opt_ia_na_t2=time_infinite,
+                dhcp6_opt_ia_address_preferred_lifetime=time_infinite,
+                dhcp6_opt_ia_address_valid_lifetime=time_infinite,
                 dhcp6_opt_req_opts=[
                     Dhcpv6OptCode.DNS_SERRVERS,
                     Dhcpv6OptCode.DNS_DOMAINS,
@@ -900,6 +905,7 @@ class Trex(TrafficGen):
                           transmit_mode='single_burst',
                           pkts_per_burst=1, pps=100):
         ''' Method to configure a DHCPv6 REPLY stream '''
+        time_infinite = 0xffffffff
         try:
             config_status = self._trex.traffic_config(
                 mode='create',
@@ -921,6 +927,9 @@ class Trex(TrafficGen):
                 dhcp6_opt_ia_id=xid,
                 dhcp6_opt_ia_address=assigned_ip,
                 dhcp6_opt_ia_address_valid_lifetime=lease_time,
+                dhcp6_opt_ia_na_t1=time_infinite,
+                dhcp6_opt_ia_na_t2=time_infinite,
+                dhcp6_opt_ia_address_preferred_lifetime=lease_time,
 
                 vlan_id=vlan_id,
                 transmit_mode=transmit_mode,
@@ -1347,23 +1356,27 @@ class Trex(TrafficGen):
                                      'Packet Byte Count',
                                      'Packet Count', 'Packet Rate',
                                      'Total_pkt_bytes', 'Total Packet Rate',
+                                     'Control Packet Byte Count', 'Control Packet Count',
                                      'Total Packets']
+
+        # Aggregated stat keys on Trex mapping to traffic_table.field_names index
+        trex_stat_names = {'pkt_bit_rate': 2, 'pkt_byte_count': 3, 'pkt_count': 4, 'pkt_rate': 5,
+                            'total_pkt_rate': 6, 'ctl_pkt_byte_count': 7, 'ctl_pkt_count': 8,
+                            'total_pkt_bytes': 9,  'total_pkts': 10}
 
         stat = self._trex.traffic_stats(mode = 'aggregate',
                                         port_handle = self.port_list)
         self._latest_stats = stat
         for port in stat:
-            data = [port, 'Tx']
-            for key in stat[port]['aggregate']['tx']:
-                data.append(stat[port]['aggregate']['tx'][key])
-            traffic_table.add_row(data)
-            # remove the values from Tx from 1:end, since these have been added
-            # to the table now
-            del data[1:]
-            data.append('Rx')
-            for key in stat[port]['aggregate']['rx']:
-                data.append(stat[port]['aggregate']['rx'][key])
-            traffic_table.add_row(data)
+            for direction in ['tx', "rx"]:
+                data = ['N/A']*len(traffic_table.field_names)
+                data[0] = port
+                data[1] = direction.capitalize()
+                for key in stat[port]['aggregate'][direction]:
+                    if key in trex_stat_names:
+                        idx = trex_stat_names[key]
+                        data[idx] = stat[port]['aggregate'][direction][key]
+                traffic_table.add_row(data)
 
         return traffic_table
 

@@ -21,6 +21,7 @@ from prettytable import PrettyTable, from_csv
 from pyats.easypy import runtime
 from pyats.log.utils import banner
 from pyats.connections import BaseConnection
+from pyats.utils.secret_strings import SecretString, to_plaintext
 
 # Genie
 from genie.utils.timeout import Timeout
@@ -86,13 +87,20 @@ class IxiaNative(TrafficGen):
                             "YAML for device '{d}'".
                             format(k=key, d=self.device.name))
 
+        self.device = self.device or kwargs.get('device')
+        self.via = kwargs.get('via', 'tgn')
+
+        creds = self.device.credentials
+        self.username = creds.get('default', {}).get('username')
+        self.password = creds.get('default', {}).get('password')
+        if isinstance(self.password, SecretString):
+            self.password = to_plaintext(self.password)
+
         # Ixia Chassis Details
         header = "Ixia Chassis Details"
         summary = Summary(title=header, width=48)
         summary.add_message(msg='IxNetwork API Server: {}'.
                             format(self.ixnetwork_api_server_ip))
-        summary.add_sep_line()
-        summary.add_message(msg='IxNetwork API Server Platform: Windows')
         summary.add_sep_line()
         summary.add_message(msg='IxNetwork Version: {}'
                             .format(self.ixnetwork_version))
@@ -144,12 +152,31 @@ class IxiaNative(TrafficGen):
 
         log.info(banner("Connecting to IXIA"))
 
+        if self.username and self.password:
+            apiKey = self.ixNet.getApiKey(
+                self.ixnetwork_api_server_ip,
+                '-username', self.username,
+                '-password', self.password)
+        else:
+            apiKey = None
+
+        connect_args = [
+            self.ixnetwork_api_server_ip,
+            '-port', self.ixnetwork_tcl_port,
+            '-version', self.ixnetwork_version,
+            '-setAttribute', 'strict'
+        ]
+
+        if apiKey:
+            connect_args.extend([
+                '-apiKey', apiKey,
+                 '-closeServerOnDisconnect', 1,
+                 '-setAttribute', 'strict'
+                ])
+
         # Execute connect on IxNetwork
         try:
-            connect = self.ixNet.connect(self.ixnetwork_api_server_ip,
-                                         '-port', self.ixnetwork_tcl_port,
-                                         '-version', self.ixnetwork_version,
-                                         '-setAttribute', 'strict')
+            connect = self.ixNet.connect(*connect_args)
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Failed to connect to device '{d}' on port "
