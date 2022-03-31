@@ -651,10 +651,13 @@ class TestPagentAPIs(unittest.TestCase):
         intf = 'eth0'
         mac_src = 'aabb.0011.0111'
         mac_dst = 'aabb.0011.0222'
+        ip_src = '192.168.101.11'
+        ip_target = '192.168.101.22'
         vlan = '105'
 
         dev.start_pkt_count_arp(interface=intf,
                                  mac_src=mac_src, mac_dst=mac_dst,
+                                 src_ip=ip_src, dst_ip=ip_target,
                                  vlan_tag=vlan)
 
         dev.tg.execute.assert_has_calls([
@@ -672,7 +675,55 @@ class TestPagentAPIs(unittest.TestCase):
             call('pkts filter l2-shim vlan-id 105'),
             call('pkts filter L2-src-addr aabb.0011.0111'),
             call('pkts filter L2-dest-addr aabb.0011.0222'),
-            call('pkts filter match start-at packet-start offset 0 length 16'),
+            call('pkts filter L3-sender-haddr aabb.0011.0111'),
+            call('pkts filter L3-sender-paddr 192.168.101.11'),
+            call('pkts filter L3-target-haddr aabb.0011.0222'),
+            call('pkts filter L3-target-paddr 192.168.101.22'),
+            call('pkts filter match start-at packet-start offset 0 length 34'),
+            call('pkts filter active'),
+            call('pkts start')
+        ])
+
+    def test_start_pkt_count_ndp(self):
+        dev = self.dev
+
+
+        intf = 'eth0'
+        mac_src = 'aabb.0011.0111'
+        mac_dst = 'aabb.0011.0222'
+        ip_src = '2001:11::11'
+        ip_target = '2001:11::22'
+        vlan = '105'
+
+        dev.start_pkt_count_nd(interface=intf,
+                                 mac_src=mac_src, mac_dst=mac_dst,
+                                 src_ip=ip_src, dst_ip=ip_target,
+                                 vlan_tag=vlan)
+
+        dev.tg.execute.assert_has_calls([
+            call('pkts clear all'),
+            call('pkts filter clear filters'),
+            call('pkts eth0 promiscuous off'),
+            call('pkts eth0 fast-count off'),
+            call('pkts eth0 promiscuous on'),
+            call('pkts eth0 fast-count on'),
+            call('pkts filter eth0'),
+            call('pkts filter add icmpv6 fast-count in'),
+            call('pkts filter name eth0_pgf'),
+            call('pkts filter length auto'),
+            call('pkts filter layer 2 ethernet'),
+            call('pkts filter l2-shim is dot1q'),
+            call('pkts filter l2-shim vlan-id 105'),
+            call('pkts filter L2-src-addr aabb.0011.0111'),
+            call('pkts filter L2-dest-addr aabb.0011.0222'),
+            call('pkts filter L3-traffic-class 224'),
+            call('pkts filter L3-src-addr 2001:11::11'),
+            call('pkts filter L3-dest-addr ff02::1:ff00:0022'),
+            call('pkts filter L3-hop-limit 255'),
+            call('pkts filter data 0 00000000200100110000000000000000000000220101aabb00110111'),
+            call('pkts filter L4-type 135'),
+            call('pkts filter L4-code 0'),
+            call('pkts filter match start-at packet-start offset 0 length 74'),
             call('pkts filter active'),
             call('pkts start')
         ])

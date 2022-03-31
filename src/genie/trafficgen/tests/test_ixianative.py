@@ -51,3 +51,18 @@ class TestIxiaIxNative(unittest.TestCase):
                 ['1.1.1.1', '1', '2'],
             ],
             [], [], True)
+
+    def test_connect_with_credentials(self):
+        tb_file = os.path.join(os.path.dirname(__file__), 'testbed.yaml')
+        tb = loader.load(tb_file)
+        dev = tb.devices.ixia7
+        dev.instantiate()
+        ixnet_mock = dev.default.ixNet = Mock()
+        ixnet_mock.connect = Mock(return_value=True)
+        ixnet_mock.getApiKey = Mock(return_value='abc')
+        ixnet_mock.OK = True
+        dev.connect()
+        ixnet_mock.connect.assert_called_with(
+            '192.0.0.1', '-port', 8012, '-version', '9.00', '-setAttribute', 'strict',
+            '-apiKey', 'abc', '-closeServerOnDisconnect', 1, '-setAttribute',
+            'strict')

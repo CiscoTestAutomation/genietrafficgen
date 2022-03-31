@@ -880,19 +880,33 @@ class TrafficGen(BaseConnection):
         '''
         raise NotImplementedError
 
-    def start_pkt_count_arp(self, interface, mac_src, mac_dst,
-                              vlan_tag=0, vlan_header_len=2, l2_header_len=14,
-                              offset_start=0):
+    def start_pkt_count_arp(self, interface, mac_src, mac_dst, src_ip, dst_ip,
+                            vlan_tag=0):
         '''Start packet count arp
            Args:
              interface ('str' or 'list'): interface name
                                           or list of interface names
              mac_src ('str'): source mac address, example aabb.bbcc.ccdd
              mac_dst ('str'): destination mac address, example aabb.bbcc.ccdd
+             src_ip ('str'): source ip address, example 0.0.0.0
+             dst_ip ('str'): destination ip address, example 0.0.0.0
              vlan_tag ('int', optional): vlan tag, default is 0
-             vlan_header_len ('int', optional): vlan header length in the packet
-             l2_header_len ('int', optional): l2 header length in the packet
-             offset_start ('int', optional): offset in the packet to start matching
+           Returns:
+             None
+        '''
+        raise NotImplementedError
+
+    def start_pkt_count_nd(self, interface, mac_src, mac_dst, src_ip, dst_ip,
+                              vlan_tag=0):
+        '''Start packet count nd
+           Args:
+             interface ('str' or 'list'): interface name
+                                          or list of interface names
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             mac_dst ('str'): destination mac address, example aabb.bbcc.ccdd
+             src_ip ('str'): source ip address, example 0::0
+             dst_ip ('str'): destination ip address, example 0::0
+             vlan_tag ('int', optional): vlan tag, default is 0
            Returns:
              None
         '''

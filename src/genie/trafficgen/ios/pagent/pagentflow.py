@@ -85,7 +85,7 @@ class PG_flow_acd_request(PG_flow_t):
         return self.__config
 
 class PG_flow_arp_request(PG_flow_t):
-    def __init__(self, name, smac, sip, dip, vlan_tag=0):
+    def __init__(self, name, smac, sip, dip, vlan_tag=0, dmac=None):
         super(PG_flow_arp_request, self).__init__('arp', name)
         cmds = [
         ]
@@ -101,28 +101,36 @@ class PG_flow_arp_request(PG_flow_t):
 
         cmds.extend([
             'L2-src-addr {}'.format(smac),
-            'L2-dest-addr {}'.format('FFFF.FFFF.FFFF'),
+            'L2-dest-addr {}'.format('FFFF.FFFF.FFFF' if not dmac else dmac),
             'L3-sender-haddr {}'.format(smac),
             'L3-sender-paddr {}'.format(sip),
         ])
 
-        # Check if it is GARP
-        if sip == dip:
+        if dmac:
+            # This is being used in start_pkt_count_arp
+            # to find a unicast arp packet
             cmds.extend([
-                'L3-target-haddr {}'.format('0000.0000.0000'),
-                'L3-operation 2'
+                'L3-target-haddr {}'.format(dmac),
+                'L3-target-paddr {}'.format(dip),
             ])
         else:
+            # Check if it is GARP
+            if sip == dip:
+                cmds.extend([
+                    'L3-target-haddr {}'.format('0000.0000.0000'),
+                    'L3-operation 2'
+                ])
+            else:
+                cmds.extend([
+                    'L3-target-haddr {}'.format('FFFF.FFFF.FFFF'),
+                ])
             cmds.extend([
-                'L3-target-haddr {}'.format('FFFF.FFFF.FFFF'),
+                'L3-target-paddr {}'.format(dip),
+                'data-length 18'
             ])
-        pkt_len = pkt_len + 32
+            pkt_len = pkt_len + 18
 
-        cmds.extend([
-            'L3-target-paddr {}'.format(dip),
-            'data-length 18'
-        ])
-        pkt_len = pkt_len + 18
+        pkt_len = pkt_len + 32
 
         self.__config = cmds
         self.__pkt_len = pkt_len
@@ -603,7 +611,7 @@ class PG_flow_rawipv6(PG_flow_t):
         return self.__config
 
 class PG_flow_ndp_ns(PG_flow_t):
-    def __init__(self, name, smac, sip, dip, vlan_tag=0, **kwargs):
+    def __init__(self, name, smac, sip, dip, vlan_tag=0, dmac=None,**kwargs):
         super(PG_flow_ndp_ns, self).__init__('icmpv6', name)
         cmds = [
         ]
@@ -626,8 +634,16 @@ class PG_flow_ndp_ns(PG_flow_t):
         low24 = l3target_full[32:]
         cmds.extend([
             'L2-src-addr {}'.format(smac),
-            'L2-dest-addr 3333.ff{}.{}'.format(low24[0:2], low24[3:]),
         ])
+
+        if dmac:
+            cmds.extend([
+                'L2-dest-addr {}'.format(dmac),
+            ])
+        else:
+            cmds.extend([
+                'L2-dest-addr 3333.ff{}.{}'.format(low24[0:2], low24[3:]),
+            ])
 
         limit = kwargs.get('hop_limit', 255)
         cmds.extend([
