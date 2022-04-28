@@ -862,9 +862,34 @@ class Trex(TrafficGen):
 
     def configure_garp(self, port, mac_src, ip, frame_size=60,
                        vlan_id=0, transmit_mode='single_burst',
-                       pkts_per_burst=1, pps=100):
-        ''' Method to configure a GARP stream '''
-
+                       pkts_per_burst=1, pps=100,
+                        arp_src_hw_mode='fixed', arp_src_hw_step=1,
+                        arp_src_hw_count=1,
+                        arp_psrc_mode='fixed', arp_psrc_step=1,
+                        arp_psrc_count=1,
+                     ):
+        '''Configure a gratuitous ARP stream from traffic generator device
+           Args:
+             port ('int'): port to configure stream
+             mac_src ('str'): source mac address
+             ip_src ('str'): source ip address
+             ip_dst ('str'): destination ip address
+             frame_size ('int', optional): frame size, default 60
+             vlan_id ('int', optional): vlad id, default 0
+             transmit_mode ('str', optional): ('continuous', 'multi_burst', 'single_burst'), defaults to 'single_burst'
+             pkts_per_burst ('int', optional): packets per burst, default 1
+             pps ('int', optional): packets per second, default 100
+             arp_src_hw_mode ('str', optional): ARP src mode ('fixed', 'increment', 'decrement', 'random'), defaults to 'fixed'
+             arp_src_hw_step=1 ('int', optional): ARP src step, defaults to 1
+             arp_src_hw_count=1 ('int', optional): ARP src count, defaults to 1
+             arp_psrc_mode ('str', optional): ARP psrc mode ('fixed', 'increment', 'decrement', 'random'), defaults to 'fixed'
+             arp_psrc_step=1 ('int', optional): ARP psrc step, defaults to 1
+             arp_psrc_count=1 ('int', optional): ARP psrc count, defaults to 1
+           Returns:
+             None
+           Raises:
+             GenieTgnError
+        '''
         try:
             config_status = self._trex.traffic_config(
                 # Configure stream
@@ -880,10 +905,16 @@ class Trex(TrafficGen):
                 # Configure layer 3 settings
                 l3_protocol='arp',
                 arp_src_hw_addr=mac_src,
+                arp_src_hw_mode=arp_src_hw_mode,
+                arp_src_hw_step=arp_src_hw_step,
+                arp_src_hw_count=arp_src_hw_count,
                 arp_dst_hw_addr='ff:ff:ff:ff:ff:ff',
                 arp_psrc_addr=ip,
                 arp_pdst_addr=ip,
                 arp_operation='arpReply',
+                arp_psrc_mode=arp_psrc_mode,
+                arp_psrc_step=arp_psrc_step,
+                arp_psrc_count=arp_psrc_count,
 
                 # Configure transmit settings
                 transmit_mode=transmit_mode,
@@ -1092,11 +1123,35 @@ class Trex(TrafficGen):
 
         self._traffic_profile_configured = True
 
-    def configure_na(self, interface, mac_src, ip_src, ip_dst, solicited=True,
-                     hop_limit=255, length_mode='auto', vlan_id=0,
+    def configure_na(self, interface, mac_src, ip_src, ip_dst,
+                     solicited=True, hop_limit=255, length_mode='auto',
+                     vlan_id=0, icmp_nd_target_mode='fixed',
+                     icmp_nd_target_step=1, icmp_nd_target_count=1,
+                     icmp_nd_opt_dst_lladr_mode='fixed', icmp_nd_opt_dst_lladr_step=1,
+                     icmp_nd_opt_dst_lladr_count=1,
                      transmit_mode='single_burst', pkts_per_burst=1, pps=100):
-        ''' Method to configure an NA stream '''
-
+        '''Configure a gratuitous NA stream from traffic generator device
+           Args:
+             port ('int'): port to configure stream
+             mac_src ('str'): source mac address
+             ip_src ('str'): source ip address
+             ip_dst ('str'): destination ip address
+             frame_size ('int', optional): frame size, default 60
+             vlan_id ('int', optional): vlad id, default 0
+             transmit_mode ('str', optional): ('continuous', 'multi_burst', 'single_burst'), defaults to 'single_burst'
+             pkts_per_burst ('int', optional): packets per burst, default 1
+             pps ('int', optional): packets per second, default 100
+             icmp_nd_target_mode ('str', optional): ICMP ND mode ('fixed', 'increment', 'decrement', 'random'), defaults to 'fixed'
+             icmp_nd_target_step=1 ('int', optional): ICMP ND step, defaults to 1
+             icmp_nd_target_count=1 ('int', optional): ICMP ND count, defaults to 1
+             icmp_nd_opt_dst_lladr_mode ('str', optional): ICMP ND lladr mode ('fixed', 'increment', 'decrement', 'random'), defaults to 'fixed'
+             icmp_nd_opt_dst_lladr_step=1 ('int', optional): ICMP ND lladr step, defaults to 1
+             icmp_nd_opt_dst_lladr_count=1 ('int', optional): ICMP ND lladr count, defaults to 1
+           Returns:
+             None
+           Raises:
+             GenieTgnError
+        '''
         if solicited:
             mac_dst = make_multicast_mac(ip_dst)
             ip_multicast_dst = make_multicast_ipv6(ip_dst)
@@ -1126,7 +1181,13 @@ class Trex(TrafficGen):
                 l4_protocol='icmp',
                 icmp_type='nd_na',
                 icmp_nd_target=ip_src,
-                icmp_nd_opt_src_lladr=mac_src,
+                icmp_nd_target_mode=icmp_nd_target_mode,
+                icmp_nd_target_step=icmp_nd_target_step,
+                icmp_nd_target_count=icmp_nd_target_count,
+                icmp_nd_opt_dst_lladr=mac_src,
+                icmp_nd_opt_dst_lladr_mode=icmp_nd_opt_dst_lladr_mode,
+                icmp_nd_opt_dst_lladr_step=icmp_nd_opt_dst_lladr_step,
+                icmp_nd_opt_dst_lladr_count=icmp_nd_opt_dst_lladr_count,
 
                 # Configure transmit settings
                 transmit_mode=transmit_mode,
@@ -1313,6 +1374,22 @@ class Trex(TrafficGen):
         # if needed to unconfigure traffic after stopping
         if unconfig_traffic:
             self.unconfigure_traffic()
+
+    def clear_traffic(self):
+        '''Clear all traffic on traffic generator device'''
+        log.info(banner("Clearing TRex traffic profiles on all ports"))
+        try:
+            self._trex.traffic_config(
+                mode='reset',
+                port_handle=self.port_list
+            )
+            self._traffic_streams.clear()
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to reset traffic profiles on all ports")
+        log.info(banner("Cleared TRex traffic profiles"))
+
+        self._traffic_profile_configured = False
 
     def print_statistics(self, mode = 'aggregate'):
         '''Print traffic related statistics'''
@@ -2161,12 +2238,13 @@ class Trex(TrafficGen):
         self.mld_clients[client_handler]['filters'][grp_hdl] = None
         return True
 
-    def enable_subinterface_emulation(self, port, ip, mac):
+    def enable_subinterface_emulation(self, port, ip, mac, count=1):
         '''Enables subinterface emulation on the traffic generator's specified port
             Args:
              port ('int'): Traffic generator's port handle
              ip ('str'): ipv6 address
              mac ('str'): mac address
+             count ('int'): Number of interfaces
             Returns:
              Handle of subinterface group
         '''
@@ -2174,6 +2252,7 @@ class Trex(TrafficGen):
             port_handle=port,
             ip_start = ip,
             mac_start = mac,
+            count = count
         )
         return status.handle
 
@@ -2188,3 +2267,25 @@ class Trex(TrafficGen):
             mode='remove',
             handle=handle
         )
+
+    def disable_all_subinterface_emulation(self, port):
+        '''Disables all subinterface emulation on the traffic generator's specified port
+            Args:
+             port ('int'): Traffic generator's port handle
+            Returns:
+             None
+        '''
+        self._trex.emulation_subinterface_control(
+            mode='reset',
+            port_handle=port,
+        )
+
+    def print_subinterface_stats(self, version):
+        '''Print emulation subinterface stats
+            Args:
+             version ('str'): IP Version ('ipv4', 'ipv6')
+            Returns:
+             Handle of subinterface group
+        '''
+        res = self._trex.emulation_subinterface_stats(version=version)
+        log.info(res)

@@ -330,6 +330,10 @@ class TrafficGen(BaseConnection):
         '''Stop traffic on traffic generator device'''
         raise NotImplementedError
 
+    def clear_traffic(self):
+        '''Clear all traffic on traffic generator device'''
+        raise NotImplementedError
+
     def clear_statistics(self):
         '''Clear all traffic, port, protocol statistics on traffic generator device'''
         raise NotImplementedError
@@ -877,6 +881,24 @@ class TrafficGen(BaseConnection):
              handle ('obj'): Handle of previously created subinterface group
             Returns:
              None
+        '''
+        raise NotImplementedError
+
+    def disable_all_subinterface_emulation(self, port):
+        '''Disables all subinterface emulation on the traffic generator's specified port
+            Args:
+             port ('int'): Traffic generator's port handle
+            Returns:
+             Handle of subinterface group
+        '''
+        raise NotImplementedError
+
+    def print_subinterface_stats(self, version):
+        '''Print emulation subinterface stats
+            Args:
+             version ('str'): IP Version ('ipv4', 'ipv6')
+            Returns:
+             Handle of subinterface group
         '''
         raise NotImplementedError
 
