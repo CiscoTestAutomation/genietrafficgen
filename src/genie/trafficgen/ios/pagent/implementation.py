@@ -13,6 +13,7 @@
 import time
 import ipaddress
 import logging
+import re
 
 from .pagentflow import PG_Manager
 from .pagentflow import PG_flow_rawip
@@ -43,6 +44,7 @@ from unicon.core.errors import (ConnectionValidationError,
                                 SubCommandFailure)
 # Genie
 from genie.trafficgen.trafficgen import TrafficGen
+from genie.utils.timeout import Timeout
 
 # Logger
 log = logging.getLogger(__name__)
@@ -361,6 +363,158 @@ class Pagent(TrafficGen):
 
         flows = self.flows.setdefault(interface, [])
         flows.append(flow)
+
+    def add_dhcpv4_emulator_client(self, interface,
+                                   vlan_id=None,
+                                   mac='aa:aa:aa:aa:aa:aa'):
+        ''' Add an ipv4 DHCP client on pagent DCE
+            Args:
+              interface ('str'): interface to add client on
+              vlan_id ('str', Optional): vlan id, defaults None
+            Returns:
+              None
+            Raises:
+              SubCommandFailure
+        '''
+        try:
+            # always no shutdown the main interface
+            self.tg.configure(
+                [
+                    f'interface {interface}',
+                    f'no shutdown',
+                ]
+            )
+        except SubCommandFailure as e:
+            raise SubCommandFailure(
+                f'Failed to no shutdown interface {interface}\n{e}'
+            )
+
+        self.tg.execute('dce stop')
+        self.tg.execute('dce prompt static')
+        self.tg.execute(f'dce {interface}')
+        self.tg.execute('dce add client')
+        if vlan_id:
+            self.tg.execute(f'dce set dot1q {vlan_id}')
+        self.tg.execute('dce start')
+        self.tg.execute('dce show all')
+        self.tg.execute('dce end')
+
+    def add_dhcpv6_emulator_client(self, interface,
+                                   vlan_id=None,
+                                   mac='aa:aa:aa:aa:aa:aa'):
+        ''' To add an ipv6 DHCP client on pagent DCE
+            Args:
+              interface ('str'): interface to add client on
+              vlan_id ('str', Optional): vlan id, defaults None
+            Returns:
+              None
+            Raises:
+              SubCommandFailure
+        '''
+        try:
+            # always no shutdown the main interface
+            self.tg.configure(
+                [
+                    f'interface {interface}',
+                    f'no shutdown',
+                ]
+            )
+        except SubCommandFailure as e:
+            raise SubCommandFailure(
+                f'Failed to no shutdown interface {interface}\n{e}'
+            )
+
+        self.tg.execute('dce stop')
+        self.tg.execute('dce prompt static')
+        self.tg.execute(f'dce {interface}')
+        self.tg.execute('dce add client ipv6')
+        if vlan_id:
+            self.tg.execute(f'dce set dot1q {vlan_id}')
+        self.tg.execute('dce start')
+        self.tg.execute('dce show all')
+        self.tg.execute('dce end')
+
+    def get_dhcp_binding(self, interface):
+        ''' Get the DHCP bindings on pagent DCE
+            Returns:
+              'dce show all' output
+            Raises:
+              SubCommandFailure
+        '''
+        try:
+            return self.tg.execute('dce show all')
+        except SubCommandFailure as e:
+            raise SubCommandFailure(
+                f'Failed to get DCE bindings\n{e}'
+            )
+
+    def clear_dhcp_emulator_clients(self, interface):
+        ''' Clear all existing client on pagent DCE
+            Returns:
+              None
+            Raises:
+              SubCommandFailure
+        '''
+        try:
+            self.tg.execute('dce stop')
+            self.tg.execute('dce delete all')
+        except SubCommandFailure as e:
+            raise SubCommandFailure(
+                f'Failed to clear DCE clients\n{e}'
+            )
+
+    def verify_dhcp_client_binding(self, interface,
+                                   num_client=1, max_time=60,
+                                   check_interval=5):
+        """Verify the DCE client is in BOUND state
+            Args:
+                max_time('int', Optional): maximum time to wait, defaults 60
+                check_interval('int', Optional): how often to check, defaults 5
+            Returns:
+                True
+                False
+            Raises:
+                None
+        """
+        timeout = Timeout(max_time, check_interval)
+
+        while timeout.iterate():
+            out = self.get_dhcp_binding(interface)
+            if out and "BOUND" in out:
+               return True
+            timeout.sleep()
+        log.info("Failed to bring up DHCP client")
+        return False
+
+    def get_dhcpv4_binding_address(self, interface):
+        ''' Get the client ip address from bindings
+            on pagent DCE
+            Returns:
+              ip address of the client if found, else None
+            Raises:
+              None
+        '''
+        out = self.get_dhcp_binding(interface)
+        m = re.search(r'IPv4\s+(?P<address>[\w.]+)', out)
+        if m:
+            return m.groupdict()['address']
+        else:
+            return None
+
+    def get_dhcpv6_binding_address(self, interface):
+        ''' Get the client ipv6 address from bindings
+            on pagent DCE
+            Returns:
+              ip address of the client if found, else None
+            Raises:
+              None
+        '''
+        out = self.get_dhcp_binding(interface)
+        m = re.search(r'Client addr: (?P<address>[\w\:]+)', out)
+        if m:
+            return m.groupdict()['address']
+        else:
+            return None
 
     def configure_ns(self, interface, mac_src, ip_src, ip_dst, hop_limit=255,
                      length_mode='auto', vlan_id=0, transmit_mode='single_burst',

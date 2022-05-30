@@ -1,6 +1,8 @@
 
 import time
 import logging
+import re
+
 import ipaddress
 from prettytable import PrettyTable
 
@@ -10,6 +12,7 @@ from pyats.log.utils import banner
 # Genie
 from genie.trafficgen.trafficgen import TrafficGen
 from genie.harness.exceptions import GenieTgnError
+from genie.utils.timeout import Timeout
 
 # Logger
 log = logging.getLogger(__name__)
@@ -64,21 +67,35 @@ class Trex(TrafficGen):
                                     "for device '{d}'"
                                     .format(k=key, d=self.device.name))
 
-    def configure_interface(self, arp_send_req=False, arp_req_retries=3,
-                            multicast=False, vlan=False, promiscuous=False):
+    def configure_interface(self, port_list=None, ip_list=None, gw_list=None,
+                            arp_send_req=False, arp_req_retries=3,
+                            multicast=False, vlan=False, promiscuous=False,
+                            **kwargs):
         ''' Method to configure the interfaces on the TRex device.
             This needs to be configured before starting traffic. '''
+        portHandles = self.port_list
+        ip_list = self.intf_ip_list
+        gwIPs = self.gw_ip_list
+        if port_list is not None:
+            portHandles = port_list
+
+        if ip_list is not None:
+            IPs = ip_list
+
+        if gw_list is not None:
+            gwIPs = gw_list
 
         try:
             self._trex.interface_config(
-                    port_handle=self.port_list,
-                    promiscuous=promiscuous,
-                    arp_send_req=arp_send_req,
-                    arp_req_retries=arp_req_retries,
-                    intf_ip_addr=self.intf_ip_list,
-                    gateway=self.gw_ip_list,
-                    multicast=multicast,
-                    vlan=vlan)
+                port_handle=portHandles,
+                intf_ip_addr=IPs,
+                gateway=gwIPs,
+                promiscuous=promiscuous,
+                arp_send_req=arp_send_req,
+                arp_req_retries=arp_req_retries,
+                multicast=multicast,
+                vlan=vlan,
+                **kwargs)
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Failed to configure interfaces on TRex device") from e
@@ -161,43 +178,12 @@ class Trex(TrafficGen):
             )
             self._trex.get_stl_client().client.add_streams(ports=interface,
                                                            streams=flow)
-            self._trex.get_stl_client().client.start(ports=interface)
+            self._trex.get_stl_client().client.start(ports=interface,
+                                                     force=True)
             self._trex.get_stl_client().client.wait_on_traffic(
                 ports=interface
             )
             time.sleep(5)
-
-    def start_pkt_count_rawip(self, interface, mac_src, mac_dst,
-                              ip_src, ip_dst, vlan_tag=0):
-        '''Start ip packet count
-           Args:
-             interface ('str' or 'list'): interface name
-                                          or list of interface names
-             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
-             mac_dst ('str'): destination mac address, example aabb.bbcc.ccdd
-             ip_src ('str'): source ip address
-             ip_dst ('str'): destination ip address
-             vlan_tag ('int', optional): vlan tag, default is 0
-           Returns:
-             None
-        '''
-        ports = interface if isinstance(interface, list) else [interface]
-
-        self._trex.get_stl_client().client.set_port_attr(ports=ports,
-                                                         promiscuous=True)
-        self._trex.get_stl_client().client.set_service_mode(ports=ports)
-        pfilter = "ether dst {} and ether src {} and vlan {} "\
-                    "and dst host {} and src host {}".format(mac_dst, mac_src,
-                                                            vlan_tag,
-                                                            ip_dst, ip_src)
-
-        for port in ports:
-            result = self._trex.get_stl_client().client.start_capture(
-                rx_ports=[port],
-                limit=1,
-                bpf_filter=pfilter,
-            )
-            self.pktcnt_hdl[port] = {'cap_id': result['id']}
 
     def send_rawipv6(self, interface, mac_src, mac_dst, ipv6_src, ipv6_dst,
                      vlanid=0, count=1, pps=100):
@@ -237,113 +223,11 @@ class Trex(TrafficGen):
             )
             self._trex.get_stl_client().client.add_streams(ports=interface,
                                                         streams=flow)
-            self._trex.get_stl_client().client.start(ports=interface)
+            self._trex.get_stl_client().client.start(ports=interface,
+                                                     force=True)
             self._trex.get_stl_client().client.wait_on_traffic(
                 ports=interface
             )
-
-    def start_pkt_count_rawipv6(self, interface, mac_src, mac_dst,
-                                ipv6_src, ipv6_dst, vlan_tag=0):
-        '''Start ipv6 packet count
-           Args:
-             interface ('str' or 'list'): interface name
-                                          or list of interface names
-             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
-             mac_dst ('str'): destination mac address, example aabb.bbcc.ccdd
-             ipv6_src ('str'): source ipv6 address
-             ipv6_dst ('str'): destination ipv6 address
-             vlan_tag ('int', optional): vlan id, default = 0
-           Returns:
-             None
-        '''
-        ports = interface if isinstance(interface, list) else [interface]
-
-        self._trex.get_stl_client().client.set_port_attr(ports=ports,
-                                                         promiscuous=True)
-        self._trex.get_stl_client().client.set_service_mode(ports=ports)
-        pfilter = "ether dst {} and ether src {} and vlan {} "\
-                    "and dst host {} and src host {}".format(mac_dst, mac_src,
-                                                            vlan_tag,
-                                                            ipv6_dst, ipv6_src)
-
-        for port in ports:
-            result = self._trex.get_stl_client().client.start_capture(
-                rx_ports=[port],
-                limit=1,
-                bpf_filter=pfilter,
-            )
-
-            self.pktcnt_hdl[port] = {'cap_id': result['id']}
-
-    def stop_pkt_count(self, interface):
-        '''Stop ip packet count
-           Args:
-             interface ('str' or 'list'): interface name
-                                  or list of interface names
-                                  shall be same as passed in start_pkt_count
-           Returns:
-             None
-        '''
-        ports = interface if isinstance(interface, list) else [interface]
-
-        for intf in ports:
-            self._trex.get_stl_client().client.stop_capture(
-                capture_id=self.pktcnt_hdl[intf]['cap_id']
-            )
-            self._trex.get_stl_client().client.set_service_mode(ports=intf,
-                                                                enabled=False)
-
-    def get_pkt_count(self, interface):
-        '''Get ip packet count and stop pkt capture
-           Args:
-             interface ('str'): interface name
-           Returns:
-             count('int')
-        '''
-        stats = self._trex.get_stl_client().client.get_capture_status()
-        caps = stats[self.pktcnt_hdl[interface]['cap_id']]
-        packet_stats = caps['matched']
-        return packet_stats
-
-    def start_pkt_count_rawip_mcast(self, interface, mac_src,
-                                    ip_src, ip_dst, vlan=0):
-        '''Start ip packet count mcast
-           Args:
-             interface ('str' or 'list'): interface name
-                                          or list of interface names
-             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
-             ip_src ('str'): source ip address
-             ip_dst ('str'): destination ip address
-             vlan ('int', optional): vlan id, default is 0
-           Returns:
-             None
-        '''
-        map_addr = int(ipaddress.ip_address(ip_dst))
-        map_addr = map_addr & 0x7FFFFF
-        mac_dst = '0100.5E%02X.%04X' % (map_addr >> 16, map_addr & 0xFFFF)
-        self.start_pkt_count_rawip(interface, mac_src, mac_dst,
-                                   ip_src, ip_dst, vlan)
-
-    def start_pkt_count_rawipv6_mcast(self, interface, mac_src,
-                                      ipv6_src, ipv6_dst, vlan=0):
-        '''Start ipv6 multicast packet count
-           Args:
-             interface ('str' or 'list'): interface name
-                                          or list of interface names
-             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
-             ipv6_src ('str'): source ipv6 address
-             ipv6_dst ('str'): destination ipv6 address
-             vlan ('int', optional): vlan id, default = 0
-           Returns:
-             None
-           Raises:
-             NotImplementedError
-        '''
-        map_addr = int(ipaddress.IPv6Address(ipv6_dst))
-        map_addr = map_addr & 0xFFFFFFFF
-        mac_dst = '3333.%04X.%04X' %(map_addr >> 16, map_addr & 0xFFFF)
-        self.start_pkt_count_rawipv6(interface, mac_src, mac_dst,
-                                     ipv6_src, ipv6_dst, vlan)
 
     def send_rawip_mcast(self, interface, mac_src, ip_src, ip_dst,
                          vlan=0, count=1, pps=100):
@@ -366,7 +250,7 @@ class Trex(TrafficGen):
                         vlan, count, pps)
 
     def send_rawipv6_mcast(self, interface, mac_src, ipv6_src, ipv6_dst,
-                         vlan=0, count=1, pps=100):
+                           vlan=0, count=1, pps=100):
         '''Send ipv6 multicast packet
            Args:
              interface ('str'): interface name
@@ -432,7 +316,8 @@ class Trex(TrafficGen):
             )
             self._trex.get_stl_client().client.add_streams(ports=interface,
                                                            streams=flow)
-            self._trex.get_stl_client().client.start(ports=interface)
+            self._trex.get_stl_client().client.start(ports=interface,
+                                                     force=True)
             self._trex.get_stl_client().client.wait_on_traffic(
                 ports=interface
             )
@@ -482,7 +367,8 @@ class Trex(TrafficGen):
             )
             self._trex.get_stl_client().client.add_streams(ports=interface,
                                                            streams=flow)
-            self._trex.get_stl_client().client.start(ports=interface)
+            self._trex.get_stl_client().client.start(ports=interface,
+                                                     force=True)
             self._trex.get_stl_client().client.wait_on_traffic(
                 ports=interface
             )
@@ -541,7 +427,8 @@ class Trex(TrafficGen):
             )
             self._trex.get_stl_client().client.add_streams(ports=interface,
                                                            streams=flow)
-            self._trex.get_stl_client().client.start(ports=interface)
+            self._trex.get_stl_client().client.start(ports=interface,
+                                                     force=True)
             self._trex.get_stl_client().client.wait_on_traffic(
                 ports=interface
             )
@@ -591,7 +478,8 @@ class Trex(TrafficGen):
             )
             self._trex.get_stl_client().client.add_streams(ports=interface,
                                                            streams=flow)
-            self._trex.get_stl_client().client.start(ports=interface)
+            self._trex.get_stl_client().client.start(ports=interface,
+                                                     force=True)
             self._trex.get_stl_client().client.wait_on_traffic(
                 ports=interface
             )
@@ -641,15 +529,304 @@ class Trex(TrafficGen):
             )
             self._trex.get_stl_client().client.add_streams(ports=interface,
                                                            streams=flow)
-            self._trex.get_stl_client().client.start(ports=interface)
+            self._trex.get_stl_client().client.start(ports=interface,
+                                                     force=True)
             self._trex.get_stl_client().client.wait_on_traffic(
                 ports=interface
             )
 
+    def start_pkt_count_rawip(self, interface, mac_src, mac_dst,
+                              ip_src, ip_dst, vlan_tag=0):
+        '''Start ip packet count
+           Args:
+             interface ('str' or 'list'): interface name
+                                          or list of interface names
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             mac_dst ('str'): destination mac address, example aabb.bbcc.ccdd
+             ip_src ('str'): source ip address
+             ip_dst ('str'): destination ip address
+             vlan_tag ('int', optional): vlan tag, default is 0
+           Returns:
+             None
+        '''
+        ports = interface if isinstance(interface, list) else [interface]
+
+        self._trex.get_stl_client().client.set_port_attr(ports=ports,
+                                                         promiscuous=True)
+        self._trex.get_stl_client().client.set_service_mode(ports=ports)
+        pfilter = "ether dst {} and ether src {} and vlan {} "\
+                  "and dst host {} and src host {}".format(mac_dst, mac_src,
+                                                           vlan_tag,
+                                                           ip_dst, ip_src)
+
+        for port in ports:
+            result = self._trex.get_stl_client().client.start_capture(
+                rx_ports=[port],
+                limit=1,
+                bpf_filter=pfilter,
+            )
+            self.pktcnt_hdl[port] = {'cap_id': result['id']}
+
+    def start_pkt_count_rawipv6(self, interface, mac_src, mac_dst,
+                                ipv6_src, ipv6_dst, vlan_tag=0):
+        '''Start ipv6 packet count
+           Args:
+             interface ('str' or 'list'): interface name
+                                          or list of interface names
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             mac_dst ('str'): destination mac address, example aabb.bbcc.ccdd
+             ipv6_src ('str'): source ipv6 address
+             ipv6_dst ('str'): destination ipv6 address
+             vlan_tag ('int', optional): vlan id, default = 0
+           Returns:
+             None
+        '''
+        ports = interface if isinstance(interface, list) else [interface]
+
+        self._trex.get_stl_client().client.set_port_attr(ports=ports,
+                                                         promiscuous=True)
+        self._trex.get_stl_client().client.set_service_mode(ports=ports)
+        pfilter = "ether dst {} and ether src {} and vlan {} "\
+                  "and dst host {} and src host {}".format(mac_dst, mac_src,
+                                                           vlan_tag,
+                                                           ipv6_dst, ipv6_src)
+
+        for port in ports:
+            result = self._trex.get_stl_client().client.start_capture(
+                rx_ports=[port],
+                limit=1,
+                bpf_filter=pfilter,
+            )
+
+            self.pktcnt_hdl[port] = {'cap_id': result['id']}
+
+    def start_pkt_count_rawip_mcast(self, interface, mac_src,
+                                    ip_src, ip_dst, vlan=0):
+        '''Start ip packet count mcast
+           Args:
+             interface ('str' or 'list'): interface name
+                                          or list of interface names
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             ip_src ('str'): source ip address
+             ip_dst ('str'): destination ip address
+             vlan ('int', optional): vlan id, default is 0
+           Returns:
+             None
+        '''
+        map_addr = int(ipaddress.ip_address(ip_dst))
+        map_addr = map_addr & 0x7FFFFF
+        mac_dst = '0100.5E%02X.%04X' % (map_addr >> 16, map_addr & 0xFFFF)
+        self.start_pkt_count_rawip(interface, mac_src, mac_dst,
+                                   ip_src, ip_dst, vlan)
+
+    def start_pkt_count_rawipv6_mcast(self, interface, mac_src,
+                                      ipv6_src, ipv6_dst, vlan=0):
+        '''Start ipv6 multicast packet count
+           Args:
+             interface ('str' or 'list'): interface name
+                                          or list of interface names
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             ipv6_src ('str'): source ipv6 address
+             ipv6_dst ('str'): destination ipv6 address
+             vlan ('int', optional): vlan id, default = 0
+           Returns:
+             None
+           Raises:
+             NotImplementedError
+        '''
+        map_addr = int(ipaddress.IPv6Address(ipv6_dst))
+        map_addr = map_addr & 0xFFFFFFFF
+        mac_dst = '3333.%04X.%04X' %(map_addr >> 16, map_addr & 0xFFFF)
+        self.start_pkt_count_rawipv6(interface, mac_src, mac_dst,
+                                     ipv6_src, ipv6_dst, vlan)
+
+    def start_pkt_count_arp(self, interface, mac_src, mac_dst, src_ip, dst_ip,
+                            vlan_tag=0):
+        '''Start packet count arp
+           Args:
+             interface ('str' or 'list'): interface name
+                                          or list of interface names
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             mac_dst ('str'): destination mac address, example aabb.bbcc.ccdd
+             src_ip ('str'): source ip address, example 0.0.0.0
+             dst_ip ('str'): destination ip address, example 0.0.0.0
+             vlan_tag ('int', optional): vlan tag, default is 0
+           Returns:
+             None
+        '''
+        ports = interface if isinstance(interface, list) else [interface]
+
+        self._trex.get_stl_client().client.set_port_attr(ports=ports,
+                                                         promiscuous=True)
+        self._trex.get_stl_client().client.set_service_mode(ports=ports)
+
+        if src_ip == dst_ip:
+            op_code = 2
+        else:
+            op_code = 1
+        mac_src = mac_to_colon_notation(mac_src)
+        mac_src_bytes = mac_src.split(':')
+        src_ip_bytes = src_ip.split('.')
+        dst_ip_bytes = dst_ip.split('.')
+        pfilter = "ether dst {} && ether src {} && vlan {} && "\
+                  "arp[6:2]={} && "\
+                  "arp[8]=0x{} && arp[9]=0x{} && arp[10]=0x{} && "\
+                  "arp[11]=0x{} && arp[12]=0x{} && arp[13]=0x{} && "\
+                  "arp[14]={} && arp[15]={} && "\
+                  "arp[16]={} && arp[17]={} && "\
+                  "arp[24]={} && arp[25]={} && "\
+                  "arp[26]={} && arp[27]={} ".format(
+                      mac_dst, mac_src, vlan_tag, op_code,
+                      mac_src_bytes[0], mac_src_bytes[1],
+                      mac_src_bytes[2], mac_src_bytes[3],
+                      mac_src_bytes[4], mac_src_bytes[5],
+                      src_ip_bytes[0], src_ip_bytes[1],
+                      src_ip_bytes[2], src_ip_bytes[3],
+                      dst_ip_bytes[0], dst_ip_bytes[1],
+                      dst_ip_bytes[2], dst_ip_bytes[3]
+                  )
+
+        for port in ports:
+            result = self._trex.get_stl_client().client.start_capture(
+                rx_ports=[port],
+                limit=1,
+                bpf_filter=pfilter,
+            )
+
+            self.pktcnt_hdl[port] = {'cap_id': result['id']}
+
+    def start_pkt_count_nd(self, interface, mac_src, mac_dst, src_ip, dst_ip,
+                           vlan_tag=0):
+        '''Start packet count ndp ns
+           Args:
+             interface ('str' or 'list'): interface name
+                                          or list of interface names
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             mac_dst ('str'): destination mac address, example aabb.bbcc.ccdd
+             src_ip ('str'): source ip address, example 0::0
+             dst_ip ('str'): destination ip address, example 0::0
+             vlan_tag ('int', optional): vlan tag, default is 0
+           Returns:
+             None
+        '''
+        ports = interface if isinstance(interface, list) else [interface]
+
+        self._trex.get_stl_client().client.set_port_attr(ports=ports,
+                                                         promiscuous=True)
+        self._trex.get_stl_client().client.set_service_mode(ports=ports)
+
+        sip_str = str(hex(int(ipaddress.IPv6Address(src_ip))))
+        sip_str = sip_str[2:]
+        srcip_as_bytes = [sip_str[index : index + 2] \
+                          for index in range(0, len(sip_str), 2)]
+        tgt_ip = dst_ip
+        tgtip_str = str(hex(int(ipaddress.IPv6Address(tgt_ip))))
+        tgtip_str = tgtip_str[2:]
+        tgtip_as_bytes = [tgtip_str[index : index + 2] \
+                          for index in range(0, len(tgtip_str), 2)]
+
+        dst_ip = make_multicast_ipv6(dst_ip)
+        dip_str = str(hex(int(ipaddress.IPv6Address(dst_ip))))
+        dip_str = dip_str[2:]
+        dstip_as_bytes = [dip_str[index : index + 2] \
+                          for index in range(0, len(dip_str), 2)]
+
+        pfilter = "ether dst {} && ether src {} && vlan {} && "\
+                  "icmp6 && ip6[40]=135 && "\
+                  "ip6[8]=0x{} && ip6[9]=0x{} && "\
+                  "ip6[10]=0x{} && ip6[11]=0x{} && "\
+                  "ip6[12]=0x{} && ip6[13]=0x{} && "\
+                  "ip6[14]=0x{} && ip6[15]=0x{} && "\
+                  "ip6[16]=0x{} && ip6[17]=0x{} && "\
+                  "ip6[18]=0x{} && ip6[19]=0x{} && "\
+                  "ip6[20]=0x{} && ip6[21]=0x{} && "\
+                  "ip6[22]=0x{} && ip6[23]=0x{} && "\
+                  "ip6[24]=0x{} && ip6[25]=0x{} && "\
+                  "ip6[26]=0x{} && ip6[27]=0x{} && "\
+                  "ip6[28]=0x{} && ip6[29]=0x{} && "\
+                  "ip6[30]=0x{} && ip6[31]=0x{} && "\
+                  "ip6[32]=0x{} && ip6[33]=0x{} && "\
+                  "ip6[34]=0x{} && ip6[35]=0x{} && "\
+                  "ip6[36]=0x{} && ip6[37]=0x{} && "\
+                  "ip6[38]=0x{} && ip6[39]=0x{} && "\
+                  "ip6[48]=0x{} && ip6[49]=0x{} && "\
+                  "ip6[50]=0x{} && ip6[51]=0x{} && "\
+                  "ip6[52]=0x{} && ip6[53]=0x{} && "\
+                  "ip6[54]=0x{} && ip6[55]=0x{} && "\
+                  "ip6[56]=0x{} && ip6[57]=0x{} && "\
+                  "ip6[58]=0x{} && ip6[59]=0x{} && "\
+                  "ip6[60]=0x{} && ip6[61]=0x{} && "\
+                  "ip6[62]=0x{} && ip6[63]=0x{}".format(
+                      mac_dst, mac_src, vlan_tag,
+                      srcip_as_bytes[0], srcip_as_bytes[1],
+                      srcip_as_bytes[2], srcip_as_bytes[3],
+                      srcip_as_bytes[4], srcip_as_bytes[5],
+                      srcip_as_bytes[6], srcip_as_bytes[7],
+                      srcip_as_bytes[8], srcip_as_bytes[9],
+                      srcip_as_bytes[10], srcip_as_bytes[11],
+                      srcip_as_bytes[12], srcip_as_bytes[13],
+                      srcip_as_bytes[14], srcip_as_bytes[15],
+                      dstip_as_bytes[0], dstip_as_bytes[1],
+                      dstip_as_bytes[2], dstip_as_bytes[3],
+                      dstip_as_bytes[4], dstip_as_bytes[5],
+                      dstip_as_bytes[6], dstip_as_bytes[7],
+                      dstip_as_bytes[8], dstip_as_bytes[9],
+                      dstip_as_bytes[10], dstip_as_bytes[11],
+                      dstip_as_bytes[12], dstip_as_bytes[13],
+                      dstip_as_bytes[14], dstip_as_bytes[15],
+                      tgtip_as_bytes[0], tgtip_as_bytes[1],
+                      tgtip_as_bytes[2], tgtip_as_bytes[3],
+                      tgtip_as_bytes[4], tgtip_as_bytes[5],
+                      tgtip_as_bytes[6], tgtip_as_bytes[7],
+                      tgtip_as_bytes[8], tgtip_as_bytes[9],
+                      tgtip_as_bytes[10], tgtip_as_bytes[11],
+                      tgtip_as_bytes[12], tgtip_as_bytes[13],
+                      tgtip_as_bytes[14], tgtip_as_bytes[15]
+                  )
+
+        for port in ports:
+            result = self._trex.get_stl_client().client.start_capture(
+                rx_ports=[port],
+                limit=1,
+                bpf_filter=pfilter,
+            )
+
+            self.pktcnt_hdl[port] = {'cap_id': result['id']}
+
+    def stop_pkt_count(self, interface):
+        '''Stop ip packet count
+           Args:
+             interface ('str' or 'list'): interface name
+                                  or list of interface names
+                                  shall be same as passed in start_pkt_count
+           Returns:
+             None
+        '''
+        ports = interface if isinstance(interface, list) else [interface]
+
+        for intf in ports:
+            self._trex.get_stl_client().client.stop_capture(
+                capture_id=self.pktcnt_hdl[intf]['cap_id']
+            )
+            self._trex.get_stl_client().client.set_service_mode(ports=intf,
+                                                                enabled=False)
+
+    def get_pkt_count(self, interface):
+        '''Get ip packet count and stop pkt capture
+           Args:
+             interface ('str'): interface name
+           Returns:
+             count('int')
+        '''
+        stats = self._trex.get_stl_client().client.get_capture_status()
+        caps = stats[self.pktcnt_hdl[interface]['cap_id']]
+        packet_stats = caps['matched']
+        return packet_stats
+
     def configure_traffic_profile(self, bidirectional=False, frame_size=60, ignore_macs=True,
             l3_protocol='ipv4', ip_src_mode='increment', ip_src_count=254,
             ip_dst_mode='increment', ip_dst_count=254, l4_protocol='udp',
-            udp_dst_port=1209, udp_src_port=1025, rate_pps=1000, count=3):
+            udp_dst_port=1209, udp_src_port=1025, rate_pps=1000, count=3, **kwargs):
         ''' Configure the traffic profile, the profile has to be configured
             before calling the start_traffic method.
         '''
@@ -658,13 +835,31 @@ class Trex(TrafficGen):
         # otherwise it just returns one stream-id
         ip_src_string = self.ip_src_addr
         ip_dst_string = self.ip_dst_addr
+        port_handle = self.port_list[0]
+        port_handle2 = None
+        if bidirectional:
+            port_handle2 = self.port_list[1]
+
+        if 'ip_src_addr' in kwargs.keys():
+            ip_src_string = kwargs['ip_src_addr']
+            kwargs.pop('ip_src_addr')
+        if 'ip_dst_addr' in kwargs.keys():
+            ip_dst_string = kwargs['ip_dst_addr']
+            kwargs.pop('ip_dst_addr')
+        if 'port_handle' in kwargs.keys():
+            port_handle = kwargs['port_handle']
+            kwargs.pop('port_handle')
+        if 'port_handle2' in kwargs.keys():
+            port_handle2 = kwargs['port_handle2']
+            kwargs.pop('port_handle2')
+
         for _ in range(count):
             try:
                 config_status = self._trex.traffic_config(
                 mode = 'create',
                 bidirectional = bidirectional,
-                port_handle = self.port_list[1],
-                port_handle2 = self.port_list[0],
+                port_handle = port_handle,
+                port_handle2 = port_handle2,
                 frame_size = frame_size,
                 ignore_macs = ignore_macs,
                 l3_protocol = l3_protocol,
@@ -679,7 +874,8 @@ class Trex(TrafficGen):
                 udp_dst_port = udp_dst_port,
                 udp_src_port = udp_src_port,
 
-                rate_pps = rate_pps
+                rate_pps = rate_pps,
+                **kwargs
             )
             except Exception as e:
                 log.error(e)
@@ -819,6 +1015,186 @@ class Trex(TrafficGen):
             log.info("Traffic config streams: " + stream_list)
 
         self._traffic_profile_configured = True
+
+    def add_dhcpv4_emulator_client(self, interface,
+                                   vlan_id=None,
+                                   mac='aa:aa:aa:aa:aa:aa'):
+        ''' Add an ipv4 DHCP client on trex DHCP client emulator
+            Args:
+              interface ('str'): interface to add client on
+              vlan_id ('str', Optional): vlan id, defaults None
+              mac ('str, Optional'): client mac address, defaults to aa:aa:aa:aa:aa:aa
+            Returns:
+              None
+            Raises:
+              None
+        '''
+        log.info('Reset DHCP session port')
+        self._trex.emulation_dhcp_config(
+            port_handle=interface,
+            mode='reset',
+        )
+        res = self._trex.emulation_dhcp_config(
+            port_handle=interface,
+            mode='create',
+            msg_timeout=3000,
+            retry_count=5,
+        )
+        session_handle = res.handle
+
+        self._trex.emulation_dhcp_group_config(
+            mode='create',
+            handle=session_handle,
+            num_sessions=1,
+            mac_addr=mac,
+            vlan_id=vlan_id,
+            vlan_id_step=1,
+            dhcp_range_ip_type='ipv4',
+            engine='devx'
+        )
+        log.info('Starting DHCPv4 emulation')
+        self._trex.emulation_dhcp_control(
+            action='bind',
+            port_handle=interface
+        )
+
+    def add_dhcpv6_emulator_client(self, interface,
+                                   vlan_id=None,
+                                   mac='aa:aa:aa:aa:aa:aa'):
+        ''' Add an ipv6 DHCP client on trex DHCP client emulator
+            Args:
+              interface ('str'): interface to add client on
+              vlan_id ('str', Optional): vlan id, defaults None
+              mac ('str, Optional'): client mac address, defaults to aa:aa:aa:aa:aa:aa
+            Returns:
+              None
+            Raises:
+              None
+        '''
+        log.info('Reset DHCP session port')
+        self._trex.emulation_dhcp_config(
+            port_handle=interface,
+            mode='reset',
+        )
+        res = self._trex.emulation_dhcp_config(
+            port_handle=interface,
+            mode='create',
+            msg_timeout=3000,
+            retry_count=5,
+        )
+        session_handle = res.handle
+
+        self._trex.emulation_dhcp_group_config(
+            mode='create',
+            handle=session_handle,
+            num_sessions=1,
+            mac_addr=mac,
+            vlan_id=vlan_id,
+            vlan_id_step=1,
+            dhcp_range_ip_type='ipv6',
+            engine='devx'
+        )
+        log.info('Starting DHCPv6 emulation')
+        self._trex.emulation_dhcp_control(
+            action='bind',
+            port_handle=interface
+        )
+
+    def get_dhcp_binding(self, interface):
+        ''' Get the DHCP bindings on Trex
+            Args:
+              interface ('str'): interface to get bindings from
+            Returns:
+              Trex DHCP emulator statistics
+            Raises:
+              GenieTgnError
+        '''
+        try:
+            return self._trex.emulation_dhcp_stats(port_handle=interface)
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Failed get DHCP bindings from Trex") from e
+
+    def clear_dhcp_emulator_clients(self, interface):
+        ''' Clear existing client on DHCP emulator
+            Args:
+              interface ('str'): interface to release client from
+            Returns:
+              None
+            Raises:
+              GenieTgnError
+        '''
+        try:
+            self._trex.emulation_dhcp_control(action='abort_async',
+                                              port_handle=interface)
+            self._trex.emulation_dhcp_config(mode='reset')
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Failed clear DHCP client from Trex") from e
+
+    def verify_dhcp_client_binding(self, interface,
+                                   num_client=1, max_time=60,
+                                   check_interval=5):
+        """Verify the DHCP client is currently_bound
+            Args:
+                interface ('str'): interface on which to verify
+                num_client ('int', Optional): number of client to verify, defaults to 1
+                max_time('int', Optional): maximum time to wait, defaults to 60
+                check_interval('int', Optional): how often to check, defaults to 5
+            Returns:
+                True
+                False
+            Raises:
+                None
+        """
+        timeout = Timeout(max_time, check_interval)
+
+        while timeout.iterate():
+            out = self.get_dhcp_binding(interface)
+            log.info(out)
+            if out:
+                for session_attr in out['session'].values():
+                    if session_attr['currently_bound'] == num_client:
+                        return True
+            timeout.sleep()
+        log.info("Failed to bring up DHCP client")
+        return False
+
+    def get_dhcpv4_binding_address(self, interface):
+        ''' Get the client ip address from bindings
+            on pagent DCE
+            Args:
+              interface ('str'): interface on which the client is
+            Returns:
+              ip address of the client if found, else None
+            Raises:
+              None
+        '''
+        out = self.get_dhcp_binding(interface)
+        log.info(out)
+        if out:
+            # Only one session per port is supported under devx engine
+            for session_attr in out['session'].values():
+                return session_attr['ip_address']
+        return None
+
+    def get_dhcpv6_binding_address(self, interface):
+        ''' Get the client ipv6 address from bindings
+            on pagent DCE
+            Args:
+              interface ('str'): interface on which the client is
+            Returns:
+              ip address of the client if found, else None
+            Raises:
+              None
+        '''
+        out = self.get_dhcp_binding(interface)
+        log.info(out)
+        if out:
+            # Only one session per port is supported under devx engine
+            for session_attr in out['session'].values():
+                return session_attr['ip_address']
+        return None
 
     def configure_arp_request(self, port, mac_src, ip_src, ip_dst, frame_size=60,
                               vlan_id=0, transmit_mode='single_burst',
@@ -1319,6 +1695,7 @@ class Trex(TrafficGen):
         log.info(banner("Unconfigured TRex traffic profile"))
 
         self._traffic_profile_configured = False
+        self._traffic_streams = []
 
     def stop_traffic(self, port=None, wait_time=10, unconfig_traffic=True, print_stats=False):
         '''Stop traffic for specified port(s) on TRex'''
@@ -1395,6 +1772,7 @@ class Trex(TrafficGen):
         '''Print traffic related statistics'''
         res = self._trex.traffic_stats(mode = mode, port_handle = self.port_list)
         log.info(res)
+        return res
 
     def clear_statistics(self, port_handle_clear=None, wait_time=5, clear_port_stats=True,
                          clear_protocol_stats=True):

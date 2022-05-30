@@ -164,3 +164,168 @@ class TestTrex(unittest.TestCase):
         result = dev.disable_all_subinterface_emulation(port=0)
         #Assert
         self.assertEqual(expected, result)
+
+    def test_dhcpv4_emulator_client(self):
+        # Arrange
+        dev = self.dev
+        dev.default._trex = Mock()
+        dev._trex.traffic_config = Mock(return_value={"stream_id": 1})
+        expected = True
+        #Act
+        dev.add_dhcpv4_emulator_client(interface=0, vlan_id='105')
+        result = dev._traffic_profile_configured
+        #Assert
+        self.assertEqual(expected, result)
+
+    def test_dhcpv6_emulator_client(self):
+        # Arrange
+        dev = self.dev
+        dev.default._trex = Mock()
+        dev._trex.traffic_config = Mock(return_value={"stream_id": 1})
+        expected = True
+        #Act
+        dev.add_dhcpv6_emulator_client(interface=0, vlan_id='105')
+        result = dev._traffic_profile_configured
+        #Assert
+        self.assertEqual(expected, result)
+
+    def test_verify_dhcp_client_binding(self):
+        # Arrange
+        dev = self.dev
+        dev.default._trex = Mock()
+        dev._trex.emulation_dhcp_stats = Mock(return_value=
+            {'session':
+                {0:
+                    {'acks_received': 0,
+                     'dhcp_group': '33b93e79-0a8c-4de6-b9d8-7a458c82ae36',
+                     'discovers_sent': 0,
+                     'ip_address': '2001:111::b486:a046:1ae0:cfee',
+                     'lease_time': 0,
+                     'nacks_received': 0,
+                     'offers_received': 0,
+                     'port_handle': 0,
+                     'releases_sent': 0,
+                     'requests_sent': 0,
+                     'session_name': 'aa:aa:aa:aa:aa:aa',
+                     'currently_attempting': 0,
+                     'currently_idle': 0,
+                     'currently_bound': 1
+                    }
+                },
+                'group':
+                   {'33b93e79-0a8c-4de6-b9d8-7a458c82ae36':
+                           {'currently_attempting': 0,
+                            'currently_idle': 0,
+                            'currently_bound': 1,
+                            'bound_renewed': 0,
+                            'total_attempted': 0,
+                            'total_bound': 0,
+                            'total_failed': 0,
+                            'discover_tx_count': 0,
+                            'request_tx_count': 0,
+                            'release_tx_count': 0,
+                            'ack_rx_count': 0,
+                            'nak_rx_count': 0,
+                            'offer_rx_count': 0
+                            }
+                    }
+            })
+        expected = True
+        #Act
+        result = dev.verify_dhcp_client_binding(interface=0)
+        #Assert
+        self.assertEqual(expected, result)
+
+    def test_get_dhcpv4_binding_address(self):
+        # Arrange
+        dev = self.dev
+        dev.default._trex = Mock()
+        dev._trex.emulation_dhcp_stats = Mock(return_value=
+            {'session':
+                {0:
+                    {'acks_received': 0,
+                     'dhcp_group': '33b93e79-0a8c-4de6-b9d8-7a458c82ae36',
+                     'discovers_sent': 0,
+                     'ip_address': '192.168.105.1',
+                     'lease_time': 0,
+                     'nacks_received': 0,
+                     'offers_received': 0,
+                     'port_handle': 0,
+                     'releases_sent': 0,
+                     'requests_sent': 0,
+                     'session_name': 'aa:aa:aa:aa:aa:aa',
+                     'currently_attempting': 0,
+                     'currently_idle': 0,
+                     'currently_bound': 1
+                    }
+                },
+                'group':
+                   {'33b93e79-0a8c-4de6-b9d8-7a458c82ae36':
+                           {'currently_attempting': 0,
+                            'currently_idle': 0,
+                            'currently_bound': 1,
+                            'bound_renewed': 0,
+                            'total_attempted': 0,
+                            'total_bound': 0,
+                            'total_failed': 0,
+                            'discover_tx_count': 0,
+                            'request_tx_count': 0,
+                            'release_tx_count': 0,
+                            'ack_rx_count': 0,
+                            'nak_rx_count': 0,
+                            'offer_rx_count': 0
+                            }
+                    }
+            })
+        expected = '192.168.105.1'
+        #Act
+        result = dev.get_dhcpv4_binding_address(interface=0)
+        #Assert
+        self.assertEqual(expected, result)
+
+    def test_get_dhcpv6_binding_address(self):
+        # Arrange
+        dev = self.dev
+        dev.default._trex = Mock()
+        dev._trex.emulation_dhcp_stats = Mock(return_value=
+            {'session':
+                {0:
+                    {'acks_received': 0,
+                     'dhcp_group': '33b93e79-0a8c-4de6-b9d8-7a458c82ae36',
+                     'discovers_sent': 0,
+                     'ip_address': '2001:111::b486:a046:1ae0:cfee',
+                     'lease_time': 0,
+                     'nacks_received': 0,
+                     'offers_received': 0,
+                     'port_handle': 0,
+                     'releases_sent': 0,
+                     'requests_sent': 0,
+                     'session_name': 'aa:aa:aa:aa:aa:aa',
+                     'currently_attempting': 0,
+                     'currently_idle': 0,
+                     'currently_bound': 1
+                    }
+                },
+                'group':
+                   {'33b93e79-0a8c-4de6-b9d8-7a458c82ae36':
+                           {'currently_attempting': 0,
+                            'currently_idle': 0,
+                            'currently_bound': 1,
+                            'bound_renewed': 0,
+                            'total_attempted': 0,
+                            'total_bound': 0,
+                            'total_failed': 0,
+                            'discover_tx_count': 0,
+                            'request_tx_count': 0,
+                            'release_tx_count': 0,
+                            'ack_rx_count': 0,
+                            'nak_rx_count': 0,
+                            'offer_rx_count': 0
+                            }
+                    }
+            })
+        expected = '2001:111::b486:a046:1ae0:cfee'
+        #Act
+        result = dev.get_dhcpv6_binding_address(interface=0)
+        #Assert
+        self.assertEqual(expected, result)
