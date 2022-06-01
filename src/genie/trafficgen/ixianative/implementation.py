@@ -32,7 +32,7 @@ from genie.harness.exceptions import GenieTgnError
 
 # IxNetwork Native
 try:
-    from IxNetwork import IxNet
+    from IxNetwork import IxNet, IxNetError
 except ImportError as e:
     raise ImportError("IxNetwork package is not installed in virtual env - "
                       "https://pypi.org/project/IxNetwork/") from e
@@ -151,14 +151,15 @@ class IxiaNative(TrafficGen):
         '''Connect to Ixia'''
 
         log.info(banner("Connecting to IXIA"))
-
+        apiKey = None
         if self.username and self.password:
-            apiKey = self.ixNet.getApiKey(
-                self.ixnetwork_api_server_ip,
-                '-username', self.username,
-                '-password', self.password)
-        else:
-            apiKey = None
+            try:
+                apiKey = self.ixNet.getApiKey(
+                    self.ixnetwork_api_server_ip,
+                    '-username', self.username,
+                    '-password', self.password)
+            except IxNetError as e:
+                log.warning(e)
 
         connect_args = [
             self.ixnetwork_api_server_ip,

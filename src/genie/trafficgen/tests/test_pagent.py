@@ -728,6 +728,55 @@ class TestPagentAPIs(unittest.TestCase):
             call('pkts start')
         ])
 
+    def test_dhcpv4_emulator_client(self):
+        dev = self.dev
+
+        intf = 'eth0'
+        vlan = '105'
+
+        dev.add_dhcpv4_emulator_client(interface=intf, vlan_id=vlan)
+
+        dev.tg.execute.assert_has_calls([
+            call('dce stop'),
+            call('dce prompt static'),
+            call('dce eth0'),
+            call('dce add client'),
+            call('dce set dot1q 105'),
+            call('dce start'),
+            call('dce show all'),
+            call('dce end'),
+        ])
+
+    def test_dhcpv6_emulator_client(self):
+        dev = self.dev
+
+        intf = 'eth0'
+        vlan = '105'
+
+        dev.add_dhcpv6_emulator_client(interface=intf, vlan_id=vlan)
+
+        dev.tg.execute.assert_has_calls([
+            call('dce stop'),
+            call('dce prompt static'),
+            call('dce eth0'),
+            call('dce add client ipv6'),
+            call('dce set dot1q 105'),
+            call('dce start'),
+            call('dce show all'),
+            call('dce end'),
+        ])
+
+    def test_get_dhcp_binding(self):
+        dev = self.dev
+
+        intf = 'eth0'
+
+        dev.get_dhcp_binding(interface=intf)
+
+        dev.tg.execute.assert_has_calls([
+            call('dce show all'),
+        ])
+
     @classmethod
     def tearDownClass(cls):
         cls.dev.disconnect()
@@ -752,3 +801,76 @@ class TestIolPagent(unittest.TestCase):
             dev.send_rawip(interface='Gi0/0', mac_src='00:de:ad:be:ef:ff', mac_dst='', ip_src='', ip_dst='')
         finally:
             md.stop()
+
+
+    def test_verify_dhcp_client_binding(self):
+        md = MockDeviceTcpWrapperIOSXE(port=0, state='enable', mock_data_dir='mock_data', hostname='pagent')
+        md.start()
+        telnet_port = md.ports[0]
+
+        tb_file = os.path.join(os.path.dirname(__file__), 'testbed.yaml')
+        tb = loader.load(tb_file)
+
+        tb.devices.pagent.connections.tgn['ip'] = '127.0.0.1'
+        tb.devices.pagent.connections.tgn['port'] = telnet_port
+
+        dev = tb.devices.pagent
+        intf = 'eth0'
+        result = False
+        expected = True
+
+        try:
+            dev.connect()
+            result = dev.verify_dhcp_client_binding(interface=intf)
+        finally:
+            md.stop()
+
+        self.assertEqual(result, expected)
+
+    def test_get_dhcpv4_binding_address(self):
+        md = MockDeviceTcpWrapperIOSXE(port=0, state='enable', mock_data_dir='mock_data', hostname='pagent')
+        md.start()
+        telnet_port = md.ports[0]
+
+        tb_file = os.path.join(os.path.dirname(__file__), 'testbed.yaml')
+        tb = loader.load(tb_file)
+
+        tb.devices.pagent.connections.tgn['ip'] = '127.0.0.1'
+        tb.devices.pagent.connections.tgn['port'] = telnet_port
+
+        dev = tb.devices.pagent
+        intf = 'eth0'
+        result = ""
+        expected = "192.168.111.1"
+
+        try:
+            dev.connect()
+            result = dev.get_dhcpv4_binding_address(interface=intf)
+        finally:
+            md.stop()
+
+        self.assertEqual(result, expected)
+
+    def test_get_dhcpv6_binding_address(self):
+        md = MockDeviceTcpWrapperIOSXE(port=0, state='enable', mock_data_dir='mock_data', hostname='pagent')
+        md.start()
+        telnet_port = md.ports[0]
+
+        tb_file = os.path.join(os.path.dirname(__file__), 'testbed.yaml')
+        tb = loader.load(tb_file)
+
+        tb.devices.pagent.connections.tgn['ip'] = '127.0.0.1'
+        tb.devices.pagent.connections.tgn['port'] = telnet_port
+
+        dev = tb.devices.pagent
+        intf = 'eth0'
+        result = ""
+        expected = "2001:111::41D8:472C:990A:A938"
+
+        try:
+            dev.connect()
+            result = dev.get_dhcpv6_binding_address(interface=intf)
+        finally:
+            md.stop()
+
+        self.assertEqual(result, expected)

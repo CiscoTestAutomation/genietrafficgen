@@ -126,6 +126,98 @@ class TrafficGen(BaseConnection):
             GenieTgnError
         '''
 
+    def add_dhcpv4_emulator_client(self, interface,
+                                   vlan_id=None,
+                                   mac='aa:aa:aa:aa:aa:aa'):
+        ''' Add an ipv4 DHCP client on  DHCP client emulator
+            Args:
+              interface ('str'): interface to add client on
+              vlan_id ('str', Optional): vlan id, defaults None
+              mac ('str, Optional'): client mac address, defaults to aa:aa:aa:aa:aa:aa
+            Returns:
+              None
+            Raises:
+              None
+        '''
+        raise NotImplementedError
+
+    def add_dhcpv6_emulator_client(self, interface,
+                                   vlan_id=None,
+                                   mac='aa:aa:aa:aa:aa:aa'):
+        ''' Add an ipv6 DHCP client on DHCP client emulator
+            Args:
+              interface ('str'): interface to add client on
+              vlan_id ('str', Optional): vlan id, defaults None
+              mac ('str, Optional'): client mac address, defaults to aa:aa:aa:aa:aa:aa
+            Returns:
+              None
+            Raises:
+              None
+        '''
+        raise NotImplementedError
+
+    def get_dhcp_binding(self, interface):
+        ''' Get the DHCP bindings on DHCP client emulator
+            Args:
+              interface ('str'): interface to get bindings from.
+            Returns:
+              DHCP emulator bindings/statictics
+            Raises:
+              GenieTgnError
+        '''
+        raise NotImplementedError
+
+    def clear_dhcp_emulator_clients(self, interface):
+        ''' Clear existing client on DHCP client emulator
+            Args:
+              interface ('str'): interface to release client from.
+            Returns:
+              None
+            Raises:
+              GenieTgnError
+        '''
+        raise NotImplementedError
+
+
+    def verify_dhcp_client_binding(self, interface,
+                                   num_client=1, max_time=60,
+                                   check_interval=5):
+        """Verify the DHCP client is bound
+            Args:
+                interface ('str'): interface on which to verify
+                num_client ('int', Optional): number of client to verify, defaults to 1
+                max_time('int', Optional): maximum time to wait, defaults to 60
+                check_interval('int', Optional): how often to check, defaults to 5
+            Returns:
+                True
+                False
+            Raises:
+                None
+        """
+        raise NotImplementedError
+
+    def get_dhcpv4_binding_address(self, interface):
+        ''' Get the client ip address
+            Args:
+              interface ('str'): interface on which the client is
+            Returns:
+              ip address of the client if found, else None
+            Raises:
+              None
+        '''
+        raise NotImplementedError
+
+    def get_dhcpv6_binding_address(self, interface):
+        ''' Get the client ipv6 address
+            Args:
+              interface ('str'): interface on which the client is
+            Returns:
+              ip address of the client if found, else None
+            Raises:
+              None
+        '''
+        raise NotImplementedError
+
     def configure_arp_request(self, port, mac_src, ip_src, ip_dst, frame_size=60,
                               vlan_id=0, transmit_mode='single_burst',
                               pkts_per_burst=1, pps=100):
@@ -392,100 +484,6 @@ class TrafficGen(BaseConnection):
         '''
         raise NotImplementedError
 
-    def start_pkt_count_rawip(self, interface, mac_src, mac_dst,
-                              ip_src, ip_dst, vlan_tag=0):
-        '''Start packet count rawip
-           Args:
-             interface ('str' or 'list'): interface name
-                                          or list of interface names
-             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
-             mac_dst ('str'): destination mac address, example aabb.bbcc.ccdd
-             ip_src ('str'): source ip address
-             ip_dst ('str'): destination ip address
-             vlan_tag ('int', optional): vlan tag, default is 0
-           Returns:
-             None
-           Raises:
-             NotImplementedError
-        '''
-        raise NotImplementedError
-
-    def start_pkt_count_rawipv6(self, interface, mac_src, mac_dst,
-                                ipv6_src, ipv6_dst, vlan_tag=0):
-        '''Start packet count rawip
-           Args:
-             interface ('str' or 'list'): interface name
-                                          or list of interface names
-             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
-             mac_dst ('str'): destination mac address, example aabb.bbcc.ccdd
-             ipv6_src ('str'): source ipv6 address
-             ipv6_dst ('str'): destination ipv6 address
-             vlan_tag ('int', optional): vlan id, default = 0
-           Returns:
-             None
-           Raises:
-             NotImplementedError
-        '''
-        raise NotImplementedError
-
-    def stop_pkt_count(self, interface):
-        '''Stop ip packet count
-           Args:
-             interface ('str' or 'list'): interface name
-                                  or list of interface names
-                                  shall be same as passed in start_pkt_count
-           Returns:
-             None
-           Raises:
-             NotImplementedError
-        '''
-        raise NotImplementedError
-
-    def get_pkt_count(self, interface):
-        '''Get ip packet count
-           Args:
-             interface ('str'): interface name
-           Returns:
-             None
-           Raises:
-             NotImplementedError
-        '''
-        raise NotImplementedError
-
-    def start_pkt_count_rawip_mcast(self, interface, mac_src,
-                                    ip_src, ip_dst, vlan=0):
-        '''Start ipv4 multicast packet count
-           Args:
-             interface ('str' or 'list'): interface name
-                                          or list of interface names
-             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
-             ip_src ('str'): source ip address
-             ip_dst ('str'): destination ip address
-             vlan ('int', optional): vlan id, default is 0
-           Returns:
-             None
-           Raises:
-             NotImplementedError
-        '''
-        raise NotImplementedError
-
-    def start_pkt_count_rawipv6_mcast(self, interface, mac_src,
-                                      ipv6_src, ipv6_dst, vlan_tag=0):
-        '''Start ipv6 multicast packet count
-           Args:
-             interface ('str' or 'list'): interface name
-                                          or list of interface names
-             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
-             ipv6_src ('str'): source ipv6 address
-             ipv6_dst ('str'): destination ipv6 address
-             vlan_tag ('int', optional): vlan id, default = 0
-           Returns:
-             None
-           Raises:
-             NotImplementedError
-        '''
-        raise NotImplementedError
-
     def send_rawip_mcast(self, interface, mac_src, ip_src, ip_dst,
                          vlan=0, count=1, pps=100):
         '''Send ipv4 multicast packet
@@ -505,7 +503,7 @@ class TrafficGen(BaseConnection):
         raise NotImplementedError
 
     def send_rawipv6_mcast(self, interface, mac_src, ipv6_src, ipv6_dst,
-                         vlan=0, count=1, pps=100):
+                           vlan=0, count=1, pps=100):
         '''Send ipv6 multicast packet
            Args:
              interface ('str'): interface name
@@ -558,12 +556,13 @@ class TrafficGen(BaseConnection):
         '''
         raise NotImplementedError
 
-    def send_ndp_na(self, interface, mac_src, ip_src, ip_dst,
+    def send_ndp_na(self, interface, mac_src, mac_dst, ip_src, ip_dst,
                     vlan_tag=0, count=1, pps=100):
         '''Send ndp neighbor solicitation packet
            Args:
              interface ('str'): interface name
              mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             mac_dst ('str'): destination mac address, example aabb.bbcc.ccdd
              ip_src ('str'): source ip address
              ip_dst ('str'): destination ip address
              vlan_tag ('int', optional): vlan tag, default 0
@@ -608,6 +607,139 @@ class TrafficGen(BaseConnection):
            Returns:
              None
             Raises:
+             NotImplementedError
+        '''
+        raise NotImplementedError
+
+    # ========================================
+    # APIs for sending packet
+    # ========================================
+    def start_pkt_count_rawip(self, interface, mac_src, mac_dst,
+                              ip_src, ip_dst, vlan_tag=0):
+        '''Start packet count rawip
+           Args:
+             interface ('str' or 'list'): interface name
+                                          or list of interface names
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             mac_dst ('str'): destination mac address, example aabb.bbcc.ccdd
+             ip_src ('str'): source ip address
+             ip_dst ('str'): destination ip address
+             vlan_tag ('int', optional): vlan tag, default is 0
+           Returns:
+             None
+           Raises:
+             NotImplementedError
+        '''
+        raise NotImplementedError
+
+    def start_pkt_count_rawipv6(self, interface, mac_src, mac_dst,
+                                ipv6_src, ipv6_dst, vlan_tag=0):
+        '''Start packet count rawip
+           Args:
+             interface ('str' or 'list'): interface name
+                                          or list of interface names
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             mac_dst ('str'): destination mac address, example aabb.bbcc.ccdd
+             ipv6_src ('str'): source ipv6 address
+             ipv6_dst ('str'): destination ipv6 address
+             vlan_tag ('int', optional): vlan id, default = 0
+           Returns:
+             None
+           Raises:
+             NotImplementedError
+        '''
+        raise NotImplementedError
+
+    def start_pkt_count_rawip_mcast(self, interface, mac_src,
+                                    ip_src, ip_dst, vlan=0):
+        '''Start ipv4 multicast packet count
+           Args:
+             interface ('str' or 'list'): interface name
+                                          or list of interface names
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             ip_src ('str'): source ip address
+             ip_dst ('str'): destination ip address
+             vlan ('int', optional): vlan id, default is 0
+           Returns:
+             None
+           Raises:
+             NotImplementedError
+        '''
+        raise NotImplementedError
+
+    def start_pkt_count_rawipv6_mcast(self, interface, mac_src,
+                                      ipv6_src, ipv6_dst, vlan_tag=0):
+        '''Start ipv6 multicast packet count
+           Args:
+             interface ('str' or 'list'): interface name
+                                          or list of interface names
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             ipv6_src ('str'): source ipv6 address
+             ipv6_dst ('str'): destination ipv6 address
+             vlan_tag ('int', optional): vlan id, default = 0
+           Returns:
+             None
+           Raises:
+             NotImplementedError
+        '''
+        raise NotImplementedError
+
+    def start_pkt_count_arp(self, interface, mac_src, mac_dst, src_ip, dst_ip,
+                            vlan_tag=0):
+        '''Start packet count arp
+           Args:
+             interface ('str' or 'list'): interface name
+                                          or list of interface names
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             mac_dst ('str'): destination mac address, example aabb.bbcc.ccdd
+             src_ip ('str'): source ip address, example 0.0.0.0
+             dst_ip ('str'): destination ip address, example 0.0.0.0
+             vlan_tag ('int', optional): vlan tag, default is 0
+           Returns:
+             None
+           Raises:
+             NotImplementedError
+        '''
+        raise NotImplementedError
+
+    def start_pkt_count_nd(self, interface, mac_src, mac_dst, src_ip, dst_ip,
+                           vlan_tag=0):
+        '''Start packet count nd
+           Args:
+             interface ('str' or 'list'): interface name
+                                          or list of interface names
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             mac_dst ('str'): destination mac address, example aabb.bbcc.ccdd
+             src_ip ('str'): source ip address, example 0::0
+             dst_ip ('str'): destination ip address, example 0::0
+             vlan_tag ('int', optional): vlan tag, default is 0
+           Returns:
+             None
+           Raises:
+             NotImplementedError
+        '''
+        raise NotImplementedError
+
+    def stop_pkt_count(self, interface):
+        '''Stop ip packet count
+           Args:
+             interface ('str' or 'list'): interface name
+                                  or list of interface names
+                                  shall be same as passed in start_pkt_count
+           Returns:
+             None
+           Raises:
+             NotImplementedError
+        '''
+        raise NotImplementedError
+
+    def get_pkt_count(self, interface):
+        '''Get ip packet count
+           Args:
+             interface ('str'): interface name
+           Returns:
+             None
+           Raises:
              NotImplementedError
         '''
         raise NotImplementedError
@@ -899,37 +1031,5 @@ class TrafficGen(BaseConnection):
              version ('str'): IP Version ('ipv4', 'ipv6')
             Returns:
              Handle of subinterface group
-        '''
-        raise NotImplementedError
-
-    def start_pkt_count_arp(self, interface, mac_src, mac_dst, src_ip, dst_ip,
-                            vlan_tag=0):
-        '''Start packet count arp
-           Args:
-             interface ('str' or 'list'): interface name
-                                          or list of interface names
-             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
-             mac_dst ('str'): destination mac address, example aabb.bbcc.ccdd
-             src_ip ('str'): source ip address, example 0.0.0.0
-             dst_ip ('str'): destination ip address, example 0.0.0.0
-             vlan_tag ('int', optional): vlan tag, default is 0
-           Returns:
-             None
-        '''
-        raise NotImplementedError
-
-    def start_pkt_count_nd(self, interface, mac_src, mac_dst, src_ip, dst_ip,
-                              vlan_tag=0):
-        '''Start packet count nd
-           Args:
-             interface ('str' or 'list'): interface name
-                                          or list of interface names
-             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
-             mac_dst ('str'): destination mac address, example aabb.bbcc.ccdd
-             src_ip ('str'): source ip address, example 0::0
-             dst_ip ('str'): destination ip address, example 0::0
-             vlan_tag ('int', optional): vlan tag, default is 0
-           Returns:
-             None
         '''
         raise NotImplementedError

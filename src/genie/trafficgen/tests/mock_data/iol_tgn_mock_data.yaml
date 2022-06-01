@@ -26,6 +26,13 @@ enable:
               Send process complete.
       timing:
         - 0:,5
+    "dce show all": "Interface: Ethernet0/0 \r\n
+                   DCE        configuration info\r\n
+                   Task# ClientXID    MacAddress    Dot1Q QinQ  State    Type   IP Address\r\n
+                      1  0x99296    aabb.cc00.5e00   111        BOUND    IPv4  192.168.111.1\r\n
+                      2  00030001AABBCC005E00  aabb.cc00.5e00   111        BOUND     IPv6\r\n
+                             Client addr: 2001:111::41D8:472C:990A:A938\r\n
+                             Remaining valid lifetime: 172794 sec, RENEW due in 43194 sec"
 
 
 config:
