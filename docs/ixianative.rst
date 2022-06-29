@@ -598,6 +598,13 @@ an Ixia traffic generator device:
     |                                 |           'Source/Dest Port Pair' filter if    |
     |                                 |           not present.                         |
     |                                 |           Default: False.                      |
+    |                                 |     * [0] raise_on_loss - raise exception if   |
+    |                                 |           traffic loss observed.               |
+    |                                 |           Default: True.                       |
+    |                                 |     * [0] check_traffic_type - enable traffic  |
+    |                                 |           type check for each stream, check    |
+    |                                 |           if traffic is of l2l3 type.          |
+    |                                 |           Default: False.                      |
     |---------------------------------+------------------------------------------------|
     | create_traffic_streams_table    | Creates and returns a table containing traffic |
     |                                 | statistics for all traffic items/streams that  |

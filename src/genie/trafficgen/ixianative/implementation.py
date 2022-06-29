@@ -37,6 +37,16 @@ except ImportError as e:
     raise ImportError("IxNetwork package is not installed in virtual env - "
                       "https://pypi.org/project/IxNetwork/") from e
 
+# helper function
+def cast_number(value):
+    try:
+        return int(value)
+    except ValueError:
+        try:
+            return float(value)
+        except ValueError:
+            return value
+
 # Logger
 log = logging.getLogger(__name__)
 
@@ -765,27 +775,28 @@ class IxiaNative(TrafficGen):
             raise GenieTgnError("Unable to get enumerationFilter object for"
                                 " 'GENIE' view") from e
 
-        # Adding 'Source/Dest Port Pair' column to 'GENIE' view
-        log.info("Add 'Source/Dest Port Pair' column to 'GENIE' custom traffic statistics view...")
-        try:
-            # Find the 'Source/Dest Port Pair' object, add it to the 'GENIE' view
-            source_dest_track_id = None
-            trackingFilterIdList = self.ixNet.getList(self._genie_view, 'availableTrackingFilter')
-            for track_id in trackingFilterIdList:
-                if re.search('Source/Dest Port Pair', track_id):
-                    source_dest_track_id = track_id
-                    break
-            if source_dest_track_id:
-                self.ixNet.setAttribute(enumerationFilter, '-trackingFilterId', source_dest_track_id)
-                self.ixNet.commit()
-            else:
-                raise GenieTgnError("Unable to add column for filter "
-                                    "'Source/Dest Port Pair' to 'GENIE' "
-                                    "traffic statistics view.")
-        except Exception as e:
-            log.error(e)
-            raise GenieTgnError("Unable to add 'Source/Dest Port Pair' to "
-                                "'GENIE' traffic statistics view.") from e
+        if not disable_port_pair:
+            # Adding 'Source/Dest Port Pair' column to 'GENIE' view
+            log.info("Add 'Source/Dest Port Pair' column to 'GENIE' custom traffic statistics view...")
+            try:
+                # Find the 'Source/Dest Port Pair' object, add it to the 'GENIE' view
+                source_dest_track_id = None
+                trackingFilterIdList = self.ixNet.getList(self._genie_view, 'availableTrackingFilter')
+                for track_id in trackingFilterIdList:
+                    if re.search('Source/Dest Port Pair', track_id):
+                        source_dest_track_id = track_id
+                        break
+                if source_dest_track_id:
+                    self.ixNet.setAttribute(enumerationFilter, '-trackingFilterId', source_dest_track_id)
+                    self.ixNet.commit()
+                else:
+                    raise GenieTgnError("Unable to add column for filter "
+                                        "'Source/Dest Port Pair' to 'GENIE' "
+                                        "traffic statistics view.")
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Unable to add 'Source/Dest Port Pair' to "
+                                    "'GENIE' traffic statistics view.") from e
 
         # Enable 'GENIE' view visibility
         log.info("Enable custom IxNetwork traffic statistics view 'GENIE'...")
@@ -846,7 +857,9 @@ class IxiaNative(TrafficGen):
                            check_iteration=10, check_interval=60,
                            outage_dict=None, clear_stats=False,
                            clear_stats_time=30, pre_check_wait=None,
-                           disable_tracking=False, disable_port_pair=False):
+                           disable_tracking=False, disable_port_pair=False,
+                           raise_on_loss=True, check_traffic_type=False,
+                           **kwargs):
         '''Check traffic loss for each traffic stream configured on Ixia
             using statistics/data from 'Traffic Item Statistics' view'''
 
@@ -854,6 +867,8 @@ class IxiaNative(TrafficGen):
             log.info("Waiting '{}' seconds before checking traffic streams "
                      "for loss/outage".format(pre_check_wait))
             time.sleep(pre_check_wait)
+
+        traffic_data_set = []
 
         for i in range(check_iteration):
 
@@ -867,8 +882,19 @@ class IxiaNative(TrafficGen):
                                     disable_tracking=disable_tracking,
                                     disable_port_pair=disable_port_pair)
 
+            if not traffic_table._rows:
+                raise GenieTgnError('No trafic data found')
+
+            traffic_data = {
+                "stream": {row[0]: dict(zip(traffic_table.field_names, [cast_number(v) for v in row])) for row in traffic_table._rows}
+            }
+            traffic_data_set.append(traffic_data)
+
             # Log iteration attempt to user
             log.info("\nAttempt #{}: Checking for traffic outage/loss".format(i+1))
+
+            traffic_stream_names = self.get_traffic_stream_names()
+            log.debug(f'Traffic stream names {traffic_stream_names}')
 
             # Check all streams for traffic outage/loss
             for row in traffic_table:
@@ -881,22 +907,30 @@ class IxiaNative(TrafficGen):
                     stream = row.get_string(fields=["Traffic Item"]).strip()
                 except Exception as e:
                     raise GenieTgnError("Traffic Item doesn't exist in GENIE view. Make sure to configure more than 1 traffic item, user defined stats/custom statistics view with a single traffic is not supported.: {}".format(e))
-                src_dest_pair = row.get_string(fields=["Source/Dest Port Pair"]).strip()
+
+                if not disable_port_pair:
+                    src_dest_pair = row.get_string(fields=["Source/Dest Port Pair"]).strip()
+                else:
+                    src_dest_pair = None
 
                 # Skip other streams if list of stream provided
                 if traffic_streams and stream not in traffic_streams:
                     continue
 
-                # Skip checks if traffic stream is not of type l2l3
-                ti_type = self.get_traffic_stream_attribute(traffic_stream=stream,
-                                                            attribute='trafficItemType')
-                if ti_type != 'l2L3':
-                    log.warning("SKIP: Traffic stream '{}' is not of type L2L3 "
-                                "- skipping traffic loss checks".format(stream))
-                    continue
+                # Only check traffic type if explicitly asked for.
+                # This may slow down the loss check from seconds to potentially minutes,
+                # disabled by default
+                if check_traffic_type:
+                    # Skip checks if traffic stream is not of type l2l3
+                    ti_type = self.get_traffic_stream_attribute(traffic_stream=stream,
+                                                                attribute='trafficItemType')
+                    if ti_type != 'l2L3':
+                        log.warning("SKIP: Traffic stream '{}' is not of type L2L3 "
+                                    "- skipping traffic loss checks".format(stream))
+                        continue
 
                 # Skip checks if traffic stream from "GENIE" table not in configuration
-                if stream not in self.get_traffic_stream_names():
+                if stream not in traffic_stream_names:
                     log.warning("SKIP: Traffic stream '{}' not found in current"
                                 " configuration".format(stream))
                     continue
@@ -992,7 +1026,8 @@ class IxiaNative(TrafficGen):
                 break
             elif i == check_iteration or i == check_iteration-1:
                 # End of iterations, raise Exception and exit
-                raise GenieTgnError("Unexpected traffic outage/loss is observed")
+                if raise_on_loss:
+                    raise GenieTgnError("Unexpected traffic outage/loss is observed")
             else:
                 # Traffic loss observed, sleep and recheck
                 log.error("\nTraffic loss/outage observed for streams:")
@@ -1002,6 +1037,7 @@ class IxiaNative(TrafficGen):
                           "traffic outage/loss".format(s=check_interval))
                 time.sleep(check_interval)
 
+        return traffic_data_set
 
     @BaseConnection.locked
     @isconnected
