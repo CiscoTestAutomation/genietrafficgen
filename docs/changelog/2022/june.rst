@@ -1,7 +1,7 @@
 June 2022
 ==========
 
-June 27 - Genietrafficgen v22.6 
+June 28 - Genietrafficgen v22.6
 ------------------------
 
 
