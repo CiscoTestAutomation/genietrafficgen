@@ -17,6 +17,32 @@ from genie.harness.exceptions import GenieTgnError
 
 class TestIxiaIxNative(unittest.TestCase):
 
+    @classmethod
+    def setUpClass(cls):
+        tb_file = os.path.join(os.path.dirname(__file__), 'testbed.yaml')
+        tb = loader.load(tb_file)
+        cls.dev7 = tb.devices.ixia7
+        cls.dev7.instantiate()
+        cls.dev7.default.ixNet = Mock()
+        cls.dev7.default.get_traffic_stream_attribute = Mock(return_value='l2L3')
+        cls.mock_traffic_table = PrettyTable()
+
+    def setUp(self):
+        self.mock_traffic_table.clear()
+        self.mock_stream_names = ["Stream1", "Stream3"]
+
+        # Populate table with proper data
+        self.mock_traffic_table.field_names = [
+            "Traffic Item", "Tx Frames", "Rx Frames", "Frames Delta", "Loss %", "Tx Frame Rate", "Rx Frame Rate", "Outage (seconds)"
+        ]
+        self.mock_traffic_table.add_rows([
+            ["Stream1", "11468 ", "11468 ", "0 ", "0", "200", "200", "0.0"],
+            ["Stream2", "2884 ", "2884 ", "0 ", "0", "50", "50", "0.0"],
+            ["Stream3", "2884", "2659", "225", "7.802", "50", "50", "4.5"],
+        ])
+        self.dev7.default.create_traffic_streams_table = Mock(return_value=self.mock_traffic_table)
+        self.dev7.default.get_traffic_stream_names = Mock(return_value=self.mock_stream_names)
+
     def test_connect_assign_ports_multichassis(self):
         tb_file = os.path.join(os.path.dirname(__file__), 'testbed.yaml')
         tb = loader.load(tb_file)
@@ -88,30 +114,32 @@ class TestIxiaIxNative(unittest.TestCase):
         dev.connect()
         ixnet_mock.connect.assert_called_with('192.0.0.1', '-port', 8012, '-version', '9.00', '-setAttribute', 'strict')
 
-    def test_check_traffic_loss(self):
-        tb_file = os.path.join(os.path.dirname(__file__), 'testbed.yaml')
-        tb = loader.load(tb_file)
-        dev = tb.devices.ixia7
-        dev.instantiate()
-        dev.default.ixNet = Mock()
+    def test_check_traffic_loss_duplicate_streams(self):
+        dev = self.dev7
 
-        mock_traffic_table = PrettyTable()
-        mock_stream_names = ["Stream1", "Stream3"]
+        mock_stream_names = ['Stream1', 'Stream1']
+        dev.default.get_traffic_stream_names = Mock(return_value=mock_stream_names)
+        # Check for duplicate names
+        with self.assertRaisesRegex(GenieTgnError, r"TGN-ERROR: Duplicate traffic streams found: \['Stream1']"):
+            dev.check_traffic_loss()
 
-        mock_traffic_table.field_names = [
+    def test_check_traffic_loss_traffic_item_does_not_exist(self):
+        dev = self.dev7
+
+        self.mock_traffic_table.field_names = [
             "Stream", "Tx Frames", "Rx Frames", "Frames Delta", "Loss %", "Tx Frame Rate", "Rx Frame Rate", "Outage (seconds)"
         ]
-        mock_traffic_table.add_row(
+        self.mock_traffic_table.add_row(
             ["Stream0", "11468 ", "11468 ", "0 ", "0", "200 ", "200 ", "3.0"],
         )
-
-        dev.default.create_traffic_streams_table = Mock(return_value=mock_traffic_table)
-        dev.default.get_traffic_stream_names = Mock(return_value=mock_stream_names)
-        dev.default.get_traffic_stream_attribute = Mock(return_value='l2L3')
 
         # Check if Traffic Item is in table
         with self.assertRaisesRegex(GenieTgnError, "TGN-ERROR: Traffic Item doesn't exist in GENIE view."):
             dev.check_traffic_loss()
+
+    def test_check_traffic_loss_no_stream_data(self):
+        dev = self.dev7
+        mock_traffic_table = self.mock_traffic_table
 
         # Reset table
         mock_traffic_table.clear()
@@ -120,44 +148,74 @@ class TestIxiaIxNative(unittest.TestCase):
         with self.assertRaisesRegex(GenieTgnError, "TGN-ERROR: No trafic data found"):
             dev.check_traffic_loss(disable_port_pair=True)
 
-        # Populate table with proper data
-        mock_traffic_table.field_names = [
-            "Traffic Item", "Tx Frames", "Rx Frames", "Frames Delta", "Loss %", "Tx Frame Rate", "Rx Frame Rate", "Outage (seconds)"
-        ]
-        mock_traffic_table.add_rows([
-            ["Stream1", "11468 ", "11468 ", "0 ", "0", "200", "200", "0.0"],
-            ["Stream2", "2884 ", "2884 ", "0 ", "0", "50", "50", "0.0"],
-            ["Stream3", "2884", "2659", "225", "7.802", "50", "50", "4.5"],
-        ])
+    def test_check_traffic_loss_no_source_dest_pair(self):
+        dev = self.dev7
+        mock_stream_names = ["Stream1", "Stream3"]
+        dev.default.get_traffic_stream_names = Mock(return_value=mock_stream_names)
 
         # By default, source/dest port pair is expected, check for error
         with self.assertRaisesRegex(Exception, 'Invalid field name: Source/Dest Port Pair'):
             dev.check_traffic_loss()
 
+    def test_check_traffic_loss_disable_port_pair(self):
+        dev = self.dev7
+
         # Disable port pair, should pass
         dev.check_traffic_loss(disable_port_pair=True)
+
+    def test_check_traffic_loss_traffic_stream_filter(self):
+        dev = self.dev7
 
         # Disable specific stream
         dev.check_traffic_loss(traffic_streams=['Stream1'], disable_port_pair=True)
 
+    def test_check_traffic_loss_pre_check_wait(self):
+        dev = self.dev7
+
         # pre-check wait
         dev.check_traffic_loss(pre_check_wait=0.1, disable_port_pair=True)
+
+    def test_check_traffic_loss_traffic_type_check(self):
+        dev = self.dev7
 
         # Add traffic type check
         dev.check_traffic_loss(disable_port_pair=True, check_traffic_type=True)
 
+    def test_check_traffic_loss_traffic_type_check(self):
+        dev = self.dev7
+
         dev.default.get_traffic_stream_attribute = Mock(return_value=None)
         dev.check_traffic_loss(disable_port_pair=True, check_traffic_type=True)
+
+    def test_check_traffic_loss_traffic_loss_check(self):
+        dev = self.dev7
+        mock_traffic_table = self.mock_traffic_table
+        mock_stream_names = self.mock_stream_names
 
         # Add data with loss
         mock_traffic_table.add_row(
             ["Stream4", "11468 ", "11468 ", "0 ", "20", "200 ", "200 ", "3.0"],
         )
         mock_stream_names.append('Stream4')
+        dev.default.get_traffic_stream_names = Mock(return_value=mock_stream_names)
+        dev.default.create_traffic_streams_table = Mock(return_value=mock_traffic_table)
 
         # Check for exception on loss
         with self.assertRaisesRegex(GenieTgnError, 'TGN-ERROR: Unexpected traffic outage/loss is observed'):
             dev.check_traffic_loss(disable_port_pair=True, check_iteration=2, check_interval=0)
+
+    def test_check_traffic_loss_traffic_loss_check_with_outage_dict(self):
+        dev = self.dev7
+        mock_traffic_table = self.mock_traffic_table
+        mock_stream_names = self.mock_stream_names
+
+        # Add data with loss
+        mock_traffic_table.add_row(
+            ["Stream4", "11468 ", "11468 ", "0 ", "20", "200 ", "200 ", "3.0"],
+        )
+        mock_stream_names.append('Stream4')
+        dev.default.get_traffic_stream_names = Mock(return_value=mock_stream_names)
+        dev.default.create_traffic_streams_table = Mock(return_value=mock_traffic_table)
 
         # outage dict check
         stream = 'Stream4'
@@ -170,8 +228,16 @@ class TestIxiaIxNative(unittest.TestCase):
         with self.assertRaisesRegex(GenieTgnError, 'TGN-ERROR: Unexpected traffic outage/loss is observed'):
             dev.check_traffic_loss(disable_port_pair=True, check_iteration=2, check_interval=0, outage_dict=outage_dict)
 
+    def test_check_traffic_loss_raise_on_loss(self):
+        dev = self.dev7
+
         # Check if exception is not raised with raise_on_loss False
-        traffic_data = dev.check_traffic_loss(disable_port_pair=True, check_iteration=2, check_interval=0, raise_on_loss=False)
+        dev.check_traffic_loss(disable_port_pair=True, check_iteration=2, check_interval=0, raise_on_loss=False)
+
+    def test_check_traffic_loss_rate_variation(self):
+        dev = self.dev7
+        mock_traffic_table = self.mock_traffic_table
+        mock_stream_names = self.mock_stream_names
 
         # remove loss data
         mock_traffic_table.del_row(-1)
@@ -181,10 +247,16 @@ class TestIxiaIxNative(unittest.TestCase):
             ["Stream5", "11468 ", "11468 ", "0 ", "0", "200", "100", "0"],
         )
         mock_stream_names.append('Stream5')
+        dev.default.create_traffic_streams_table = Mock(return_value=mock_traffic_table)
 
         # Check for exception on rate variation
         with self.assertRaisesRegex(GenieTgnError, 'TGN-ERROR: Unexpected traffic outage/loss is observed'):
             dev.check_traffic_loss(disable_port_pair=True, check_iteration=2, check_interval=0)
+
+    def test_check_traffic_loss_seconds(self):
+        dev = self.dev7
+        mock_traffic_table = self.mock_traffic_table
+        mock_stream_names = self.mock_stream_names
 
         # remove rate variance data
         mock_traffic_table.del_row(-1)
@@ -198,6 +270,23 @@ class TestIxiaIxNative(unittest.TestCase):
         # Check for exception on loss seconds
         with self.assertRaisesRegex(GenieTgnError, 'TGN-ERROR: Unexpected traffic outage/loss is observed'):
             dev.check_traffic_loss(disable_port_pair=True, check_iteration=2, check_interval=0, max_outage=1)
+
+    def test_check_traffic_return_data(self):
+        dev = self.dev7
+        self.maxDiff = None
+
+        mock_traffic_table = self.mock_traffic_table
+        mock_stream_names = self.mock_stream_names
+
+        # Add data with loss
+        mock_traffic_table.add_row(
+            ["Stream4", "11468 ", "11468 ", "0 ", "20", "200 ", "200 ", "3.0"],
+        )
+        mock_stream_names.append('Stream4')
+        dev.default.get_traffic_stream_names = Mock(return_value=mock_stream_names)
+        dev.default.create_traffic_streams_table = Mock(return_value=mock_traffic_table)
+
+        traffic_data = dev.check_traffic_loss(disable_port_pair=True, check_iteration=2, check_interval=0, raise_on_loss=False)
 
         # expected data
         expected_traffic_data = [{

@@ -863,6 +863,15 @@ class IxiaNative(TrafficGen):
         '''Check traffic loss for each traffic stream configured on Ixia
             using statistics/data from 'Traffic Item Statistics' view'''
 
+        traffic_stream_names = self.get_traffic_stream_names()
+        log.debug(f'Traffic stream names {traffic_stream_names}')
+
+        seen = set()
+        dupes = [x for x in traffic_stream_names if x in seen or seen.add(x)]
+
+        if dupes:
+            raise GenieTgnError(f'Duplicate traffic streams found: {dupes}')
+
         if pre_check_wait:
             log.info("Waiting '{}' seconds before checking traffic streams "
                      "for loss/outage".format(pre_check_wait))
@@ -1070,7 +1079,7 @@ class IxiaNative(TrafficGen):
         # Add column for Outage
         headers.append('Outage (seconds)')
         del headers[0]
-        
+
         '''
         No longer checking config_type since column/row_data(key/pair) will be created.
         Header rearrangement is removed
@@ -1124,13 +1133,13 @@ class IxiaNative(TrafficGen):
                                     "view page '{}'".format(i))
 
             traffic_table.field_names = headers
-            
+
             # Populate table with row data from current page
             for item in all_rows:
                 # Get row value data
                 row_item = item[0]
                 del row_item[0]
-                
+
                 # Create dict with header/value pair
                 header_data_dict = dict(zip(headers,row_item))
 
@@ -2060,12 +2069,11 @@ class IxiaNative(TrafficGen):
             for item in self.get_traffic_stream_objects():
                 traffic_streams.append(self.ixNet.getAttribute(item, '-name'))
         except Exception as e:
-            log.error(e)
+            log.exception(e)
             raise GenieTgnError("Error while retrieving traffic streams from "
                                 "configuration.")
-        else:
-            # Return to caller
-            return traffic_streams
+
+        return traffic_streams
 
 
     @BaseConnection.locked
