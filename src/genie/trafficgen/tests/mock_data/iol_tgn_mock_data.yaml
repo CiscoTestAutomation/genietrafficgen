@@ -46,3 +46,4 @@ config:
 
     "interface Gi0/0": ""
     "no shutdown": ""
+    "line vty 0 4": ""
