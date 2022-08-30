@@ -2124,7 +2124,7 @@ class Trex(TrafficGen):
                     self.igmp_client_del_group(client_handler, grp, grps[grp]['*'])
                 # Restart the updated client
                 self._trex.emulation_igmp_control(port_handle=interface,
-                                                  mode='join')
+                                                  mode='start')
             else:
                 for grp in grps:
                     for src in grps[grp]:
@@ -2459,7 +2459,7 @@ class Trex(TrafficGen):
                     self.mld_client_del_group(client_handler, grp, grps[grp]['*'])
                 # Restart the updated client
                 self._trex.emulation_mld_control(port_handle=interface,
-                                                 mode='join')
+                                                 mode='start')
             else:
                 for grp in grps:
                     for src in grps[grp]:
@@ -2616,13 +2616,14 @@ class Trex(TrafficGen):
         self.mld_clients[client_handler]['filters'][grp_hdl] = None
         return True
 
-    def enable_subinterface_emulation(self, port, ip, mac, count=1):
+    def enable_subinterface_emulation(self, port, ip, mac, count=1, vlan_id=None):
         '''Enables subinterface emulation on the traffic generator's specified port
             Args:
              port ('int'): Traffic generator's port handle
              ip ('str'): ipv6 address
              mac ('str'): mac address
              count ('int'): Number of interfaces
+             vlan_id ('str',optional): vlan id 
             Returns:
              Handle of subinterface group
         '''
@@ -2630,7 +2631,8 @@ class Trex(TrafficGen):
             port_handle=port,
             ip_start = ip,
             mac_start = mac,
-            count = count
+            count = count,
+            vlan_id = vlan_id
         )
         return status.handle
 
