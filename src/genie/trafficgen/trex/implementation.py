@@ -1018,11 +1018,18 @@ class Trex(TrafficGen):
 
     def add_dhcpv4_emulator_client(self, interface,
                                    vlan_id=None,
-                                   mac='aa:aa:aa:aa:aa:aa'):
+                                   mac='aa:aa:aa:aa:aa:aa',
+                                   vlan_id_step=0,
+                                   num_clients=1,
+                                   ):
         ''' Add an ipv4 DHCP client on trex DHCP client emulator
             Args:
               interface ('str'): interface to add client on
-              vlan_id ('str', Optional): vlan id, defaults None
+              vlan_id ('str', Optional): vlan id, defaults to None. Specify 0 for no dot1q tag
+              vlan_id_step ('str', Optional): vlan increment step, defaults 0. If vlan_id = 0, vlan_id_step must be 0 as well.
+              e.g. if vlan_id = 51 and vlan_id_step is 1, and num_clients = 10, the first client will be dot1q tagged with vlan51,
+              the 2nd will be tagged with vlan52, etc. There is only support for 1 client per vlan at the moment.
+              num_clients ('int', Optional): number of dhcp clients, defaults to 1
               mac ('str, Optional'): client mac address, defaults to aa:aa:aa:aa:aa:aa
             Returns:
               None
@@ -1045,10 +1052,10 @@ class Trex(TrafficGen):
         self._trex.emulation_dhcp_group_config(
             mode='create',
             handle=session_handle,
-            num_sessions=1,
+            num_sessions=num_clients, # defaults to 1 if num_clients not provided
             mac_addr=mac,
             vlan_id=vlan_id,
-            vlan_id_step=1,
+            vlan_id_step=vlan_id_step,
             dhcp_range_ip_type='ipv4',
             engine='devx'
         )
@@ -1125,9 +1132,12 @@ class Trex(TrafficGen):
               GenieTgnError
         '''
         try:
+            self._trex.emulation_dhcp_control(action='release',
+                                              port_handle=interface)
             self._trex.emulation_dhcp_control(action='abort_async',
                                               port_handle=interface)
             self._trex.emulation_dhcp_config(mode='reset')
+            log.info('Cleared DHCP client(s) from Trex successfully')
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Failed clear DHCP client from Trex") from e
@@ -1174,8 +1184,13 @@ class Trex(TrafficGen):
         log.info(out)
         if out:
             # Only one session per port is supported under devx engine
-            for session_attr in out['session'].values():
-                return session_attr['ip_address']
+            dhcpv4_binding_address_list = []
+            for session_attr in out['session'].values():                
+                dhcpv4_binding_address_list.append(session_attr['ip_address'])
+            if len(dhcpv4_binding_address_list) == 1:
+                # Don't break any existing UT
+                return dhcpv4_binding_address_list[0]
+            return dhcpv4_binding_address_list
         return None
 
     def get_dhcpv6_binding_address(self, interface):

@@ -176,6 +176,20 @@ class TestTrex(unittest.TestCase):
         result = dev._traffic_profile_configured
         #Assert
         self.assertEqual(expected, result)
+        
+    def test_dhcpv4_emulator_client_vlan_client(self):
+        # Arrange
+        dev = self.dev
+        dev.default._trex = Mock()
+        dev._trex.traffic_config = Mock(return_value={"stream_id": 1})
+        expected = True
+        #Act
+        dev.add_dhcpv4_emulator_client(interface=0, vlan_id='53', vlan_id_step=0, num_clients=1)
+        result = dev._traffic_profile_configured
+        #Assert
+        self.assertEqual(expected, result)
+        
+        
 
     def test_dhcpv6_emulator_client(self):
         # Arrange

@@ -381,5 +381,70 @@ class TestIxiaIxNative(unittest.TestCase):
         self.assertEqual(traffic_data, expected_traffic_data)
 
 
+class TestIxiaIxNative2(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        tb_file = os.path.join(os.path.dirname(__file__), 'testbed.yaml')
+        tb = loader.load(tb_file)
+        cls.dev7 = tb.devices.ixia7
+        cls.dev7.instantiate()
+        cls.dev7.default.ixNet = Mock()
+        cls.dev7.default.get_traffic_stream_attribute = Mock(return_value='l2L3')
+
+    def test_create_traffic_streams_table(self):
+        dev = self.dev7
+        dev.default.get_all_statistics_views = Mock(return_value={'GENIE': []})
+        dev.default.get_traffic_attribute = Mock()
+        dev.default.get_packet_rate = Mock()
+        dev.default._genie_view = Mock()
+        dev.default._genie_page = Mock()
+
+        row_data = [
+            [["S1", "1000", "800", "0", "200", "200"]],
+            [["S2", "2000", "2000", "0", "200", "200"]],
+        ]
+
+        class MockGetAttribute:
+            def __init__(self, *args, **kwargs):
+                self.calls = []
+
+            def __call__(self, *args, **kwargs):
+                self.calls.append((args, kwargs))
+                if '-columnCaptions' in args:
+                    return [
+                        'dummy'
+                        'Traffic Item',
+                        'Tx Frames',
+                        'Rx Frames',
+                        'Loss %',
+                        'Tx Frame Rate',
+                        'Rx Frame Rate']
+                elif '-buildNumber' in args:
+                    return '9.00'
+                elif '-totalPages' in args:
+                    return 1
+                elif '-rowValues' in args:
+                    return row_data
+
+        mock_get_attribute = MockGetAttribute()
+
+        ixnet_mock = dev.default.ixNet
+        ixnet_mock.connect = Mock(return_value=True)
+        ixnet_mock.OK = True
+        ixnet_mock.getList = Mock(return_value=[])
+        ixnet_mock.getRoot = Mock(return_value='root')
+        ixnet_mock.getAttribute = Mock(side_effect=mock_get_attribute)
+        ixnet_mock.setAttribute = Mock()
+        ixnet_mock.commit = Mock()
+
+        traffic_table = dev.create_traffic_streams_table()
+
+        self.assertEqual(traffic_table._field_names,
+            ['Tx Frames', 'Rx Frames', 'Loss %', 'Tx Frame Rate', 'Rx Frame Rate', 'Outage (seconds)'])
+        self.assertEqual(traffic_table._rows[0][-1], '1.0')
+        self.assertEqual(traffic_table._rows[1][-1], '0.0')
+
+
 if __name__ == "__main__":
     unittest.main()

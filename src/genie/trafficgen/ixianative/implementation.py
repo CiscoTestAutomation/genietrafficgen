@@ -1146,10 +1146,16 @@ class IxiaNative(TrafficGen):
                 # Get current state of traffic
                 state = self.get_traffic_attribute(attribute='state')
 
-                # Get 'Frames Delta' values
-                frames_delta = header_data_dict['Frames Delta']
+                # Get 'Frames Delta' value
+                frames_delta = header_data_dict.get('Frames Delta')
 
-                # If current state of traffic is stopped, get the tx_frame_rate 
+                # Calculate value if not provided by stream data
+                if frames_delta is None:
+                    tx_frames = header_data_dict['Tx Frames']
+                    rx_frames = header_data_dict['Rx Frames']
+                    frames_delta = int(tx_frames) - int(rx_frames)
+
+                # If current state of traffic is stopped, get the tx_frame_rate
                 # from the configuration settings on the IXIA device
                 if state == 'stopped':
                     tx_frame_rate = self.get_packet_rate(traffic_stream=header_data_dict['Traffic Item'])
@@ -1166,6 +1172,7 @@ class IxiaNative(TrafficGen):
                         raise
                 else:
                     outage_seconds = 0.0
+
                 # Add data to row
                 row_item.append(str(outage_seconds))
                 # Add data to traffic_table
