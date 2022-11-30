@@ -1640,13 +1640,15 @@ class Pagent(TrafficGen):
         self._update_igmpclient_field(hkey, 'state', 'idle')
 
         # after receiving leave message, igmp snooping will
-        # send queries and wait for response
-        # we send dummy join messages to pretend a real igmp client
+        # send queries and wait for responses
+        # we send dummy join messages to pretend real igmp clients
         time.sleep(2)
-        intf, ip = hkey.split(',')
-        for host in self.igmp_clients[intf]:
-            if self._get_igmpclient_field(host, 'state') == 'running':
-                self._start_igmpclient(host)
+
+        for intf in self.igmp_clients:
+            for host in self.igmp_clients[intf]:
+                if self._get_igmpclient_field(host, 'state') == 'running':
+                    if self._get_igmpclient_field(hkey, 'grp_attr') == grp_attr:
+                        self._start_igmpclient(host)
 
     # =============================================================
     # MLD Client management methods
@@ -1808,13 +1810,15 @@ class Pagent(TrafficGen):
         self._update_mldclient_field(hkey, 'state', 'idle')
 
         # after receiving leave message, mld snooping will
-        # send queries and wait for response
-        # we send dummy join messages to pretend a real mld client
+        # send queries and wait for responses
+        # we send dummy join messages to pretend real mld clients
         time.sleep(2)
-        intf, ip = hkey.split(',')
-        for host in self.mld_clients[intf]:
-            if self._get_mldclient_field(host, 'state') == 'running':
-                self._start_mldclient(host)
+
+        for intf in self.mld_clients:
+            for host in self.mld_clients[intf]:
+                if self._get_mldclient_field(host, 'state') == 'running':
+                    if self._get_mldclient_field(hkey, 'grp_attr') == grp_attr:
+                        self._start_mldclient(host)
 
     # ======================================================
     # Pagent ICE is not used because of following limitations:
