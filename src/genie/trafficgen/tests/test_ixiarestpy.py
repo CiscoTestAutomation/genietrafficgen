@@ -9,19 +9,24 @@ from unittest.mock import Mock, patch
 class chassis_mock:
     State = 'ready'
 
+class mock_session:
+    State = 'ACTIVE'
+    UserId = '8020'
+    Id = 8020
 
 class SessionMock:
     def __init__(self, *args, **kwargs):
-        self.Ixnetwork = Mock
-        self.Ixnetwork._connection = Mock
-        self.Ixnetwork._connection._session = Mock
-        self.Ixnetwork.AvailableHardware = Mock
-        self.Ixnetwork.AvailableHardware = Mock
-        self.Ixnetwork.AvailableHardware.Chassis = Mock
+        self.Ixnetwork = Mock()
+        self.Ixnetwork._connection = Mock()
+        self.Ixnetwork._connection._session = Mock()
+        self.Ixnetwork._connection._read = Mock(return_value={"username":"UserId-8020"})
+        self.Ixnetwork.AvailableHardware = Mock()
+        self.Ixnetwork.AvailableHardware.Chassis = Mock()
         self.Ixnetwork.AvailableHardware.Chassis.add = Mock(return_value=chassis_mock)
-        self.Session = Mock
-        self.Session.find = Mock
-        self.Session.find.State = 'ACTIVE'
+        self.Ixnetwork.AvailableHardware.Chassis.find = Mock(return_value=chassis_mock)
+        self.Session = Mock()
+
+        self.Session.find = Mock(return_value=[mock_session])
 
     def __call__(self, *args, **kwargs):
         self.called_args = args, kwargs
@@ -29,7 +34,6 @@ class SessionMock:
 
 
 session_mock = SessionMock()
-
 
 class TestIxiaIxNetworkRestPy(unittest.TestCase):
 
@@ -49,6 +53,7 @@ class TestIxiaIxNetworkRestPy(unittest.TestCase):
         self.assertEqual(dev.default.via, 'tgn')
         dev.connect()
         called_args = session_mock.called_args[1]
+        called_args.update(SessionName=None)
         self.assertEqual(called_args,
                          dict(IpAddress='192.0.0.1',
                               RestPort=11009,

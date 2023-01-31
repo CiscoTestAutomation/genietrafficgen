@@ -14,6 +14,7 @@ Trex requires the `trex_hltapi` package. Check https://trex.cisco.com/hltapi/ins
 
                 hltapi:
                     device_ip: trex-host # hostname/IP address of machine where TRex is running
+                    port: ssh-port # port to use when connecting via ssh, default 22
                     username: trex-hlt-user # username that will be used to acquire TRex ports
                     reset: true # should reset ports before test
                     break_locks: true # should force acquire TRex ports
@@ -23,3 +24,8 @@ Trex requires the `trex_hltapi` package. Check https://trex.cisco.com/hltapi/ins
                     port_list: []  #
                     ip_src_addr: 1.1.1.1 #
                     ip_dst_addr: 2.2.2.2 #
+                    intf_ip_list: []
+                    gw_ip_list: []
+                    trex_path: /path/to/trex # path to the TRex installation, default /opt/trex
+                    autostart: Boolean # check if the TRex process is running, and start it if not, default False
+                    autostart_timeout: 30 # timeout value for attempting to start trex, default 60

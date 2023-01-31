@@ -1,18 +1,23 @@
-
 import time
 import logging
-import re
 
 import ipaddress
+
 from prettytable import PrettyTable
 
 # pyATS
 from pyats.log.utils import banner
+from pyats.utils.secret_strings import SecretString, to_plaintext
 
 # Genie
 from genie.trafficgen.trafficgen import TrafficGen
 from genie.harness.exceptions import GenieTgnError
 from genie.utils.timeout import Timeout
+
+# Unicon
+from unicon import Connection
+from unicon.eal.dialogs import Dialog, Statement
+from unicon.core.errors import SubCommandFailure
 
 # Logger
 log = logging.getLogger(__name__)
@@ -24,17 +29,43 @@ try:
     from trex_hltapi import make_multicast_ipv6
     from trex_hltapi import make_multicast_mac
     from trex_hltapi import ALL_IPV6_NODES_MULTICAST
-    from trex_hltapi.utils.tools import mac_to_colon_notation
+    from trex_hltapi.utils.tools import (mac_to_colon_notation,mac_to_dot_notation)
     from trex_hltapi import (make_link_local_ipv6, make_multicast_mac, DhcpMessageType, Dhcpv6MessageType,
-    Dhcpv6OptCode, ALL_IPV6_NODES_MULTICAST, ALL_DHCPV6_SERVERS_MULTICAST)
+                             Dhcpv6OptCode, ALL_IPV6_NODES_MULTICAST, ALL_DHCPV6_SERVERS_MULTICAST)
 except:
     log.warning('trex_hltapi must be installed to use the trex traffic gen')
 
-class Trex(TrafficGen):
 
+class Trex(TrafficGen):
     def __init__(self, *args, **kwargs):
 
         super().__init__(*args, **kwargs)
+
+        # add support for credentials
+        self.device = self.device or kwargs.get('device')
+        self.via = kwargs.get('via', 'tgn')
+
+        # add controls for autostart functionality
+        self.auto_start_trex = self.connection_info.get('autostart', False)
+        self.auto_start_timeout = self.connection_info.get('autostart_timeout', 60)
+        self.trex_path = self.connection_info.get('trex_path', '/opt/trex')
+
+        # Don't document this
+        # Allows ability to override exit key for unittesting
+        self.screen_exit_keys = 'send(\x01d)'
+
+        creds = self.device.credentials
+        self.username = creds.get('default', {}).get('username', 'admin')
+        self.password = creds.get('default', {}).get('password', 'admin')
+
+        self.ssh_username = creds.get('ssh', {}).get('username', 'trex')
+        self.ssh_password = creds.get('ssh', {}).get('password', 'trex')
+
+        if isinstance(self.password, SecretString):
+            self.password = to_plaintext(self.password)
+        if isinstance(self.ssh_password, SecretString):
+            self.ssh_password = to_plaintext(self.ssh_password)
+
         self._is_connected = False
         self._traffic_profile_configured = False
         self._latest_stats = {}
@@ -48,24 +79,33 @@ class Trex(TrafficGen):
         self.igmp_clients = {}
         self.mld_clients = {}
 
-        # Get TRex device from testbed
-        try:
-            self._trex = TRexHLTAPI()
-        except Exception as e:
-            log.error(e)
-            raise GenieTgnError("TRex API returned error") from e
-
         log.info(self.connection_info)
-
-        for key in ['username', 'reset', 'break_locks', 'raise_errors', \
-            'verbose', 'timeout', 'device_ip', 'port_list', 'ip_src_addr', \
-            'ip_dst_addr', 'intf_ip_list', 'gw_ip_list']:
+        for key in ['username', 'reset', 'break_locks', 'raise_errors',
+                    'verbose', 'timeout', 'device_ip', 'port_list', 'ip_src_addr',
+                    'ip_dst_addr', 'intf_ip_list', 'gw_ip_list']:
             try:
                 setattr(self, key, self.connection_info[key])
             except Exception:
                 raise GenieTgnError("Argument '{k}' not found in testbed"
                                     "for device '{d}'"
                                     .format(k=key, d=self.device.name))
+
+        ssh_port = self.connection_info.get('port', 22)
+        ssh_command = f'ssh {self.device_ip} -p {ssh_port}' if ssh_port != 22 else f'ssh {self.device_ip}'
+
+        self._conn = Connection(hostname=self.device.name,
+                                start=[ssh_command + ' -o UserKnownHostsFile=/dev/null'],
+                                credentials={'default': {'username': self.ssh_username,
+                                                         'password': self.ssh_password}
+                                             },
+                                os='linux')
+
+        # Initialize trex-hltapi object with info from testbed
+        try:
+            self._trex = TRexHLTAPI()
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("TRex API returned error") from e
 
     def configure_interface(self, port_list=None, ip_list=None, gw_list=None,
                             arp_send_req=False, arp_req_retries=3,
@@ -104,21 +144,82 @@ class Trex(TrafficGen):
         ''' Method to check connectivity to TRex device '''
         return self._trex is not None and self._trex.is_connected()
 
+    def connect_to_trex_server(self):
+        # unicon connection detailed in __init__
+        self._conn.connect()
+
+    def check_trex_running(self):
+        '''
+        Checks if t-rex-64 is found in the running processes, else starts the process
+        '''
+        ps_output = self._conn.execute('ps -aux | grep t-rex-64 | grep -v grep')
+        if 't-rex-64' in ps_output:
+            log.info(f'TRex is running!')
+        else:
+            log.info('TRex process is not running.\n'
+                     'Attempting to boot TRex process...')
+            self.start_trex_process()
+
+        # check if port is listening/TRex is started
+        timeout = Timeout(max_time=31, interval=6, disable_log=False)
+        while timeout.iterate():
+            netstat_output = self._conn.execute('netstat -an | grep 4501 | grep -v grep')
+            if netstat_output:
+                return True
+            timeout.sleep()
+
+        # return false if everything broke
+        return False
+
+    def start_trex_process(self):
+        ''' Method to start the TRex process '''
+        # connection should have already been opened via connect_to_trex_server
+        # navigates to trex path from testbed, opens stateless trex into a screen
+        # then detaches from the screen with control+a, d
+
+        dialog = Dialog([
+            Statement(pattern='test duration',
+                      action=self.screen_exit_keys,
+                      args=None,
+                      loop_continue=True,
+                      continue_timer=False),
+        ])
+        try:
+            self._conn.execute(f'cd {self.trex_path}; screen sudo -n ./t-rex-64 -i',
+                               reply=dialog, timeout=self.auto_start_timeout)
+        except SubCommandFailure as e:
+            raise SubCommandFailure(f"Failed to boot the TRex process from {self.trex_path}.\n"
+                                    f"Error:\n{e}")
+
     def connect(self, configure_interface_flag=True):
-        '''Connect to TRex'''
+        '''
+        Connect to TRex
+            * configure_interface_flag (boolean, default=True): Configure interfaces when on connection
+        '''
 
         log.info(banner("Connecting to TRex"))
 
-        # try connecting
+        if self.auto_start_trex:
+            # connect to server running trex via unicon as self._conn
+            self.connect_to_trex_server()
+
+            # check that TRex is running and the port is open
+            # start TRex if not running
+            trex_running_state = self.check_trex_running()
+            if not trex_running_state:
+                raise GenieTgnError("Could not find TRex process on device\n"
+                                    "Could not launch the TRex process")
+
+        # try connecting to the TRex process
         try:
-            self._trex.connect(device = self.device_ip,
-                               username = self.username,
-                               reset = self.reset,
-                               break_locks = self.break_locks,
-                               raise_errors = self.raise_errors,
-                               verbose = self.verbose,
-                               timeout = self.timeout,
-                               port_list = self.port_list)
+            self._trex.connect(device=self.device_ip,
+                               username=self.username,
+                               reset=self.reset,
+                               break_locks=self.break_locks,
+                               raise_errors=self.raise_errors,
+                               verbose=self.verbose,
+                               timeout=self.timeout,
+                               port_list=self.port_list)
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Failed to connect to TRex device") from e
@@ -2684,3 +2785,204 @@ class Trex(TrafficGen):
         '''
         res = self._trex.emulation_subinterface_stats(version=version)
         log.info(res)
+
+    def reset_dhcp_session_config(self, interface):
+        '''
+           Args:
+               interface('str'):interface to reset dhcp configs
+           Returns:
+               None
+        '''
+        try:
+            self._trex.emulation_dhcp_config(
+                port_handle=interface,
+                mode='reset'
+            )
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Failed to reset the dhcp_session interface on TRex device") from e           
+        
+    def abort_dhcp_devx_session(self, interface):
+        '''
+        Args:
+            interface('str'):interface to abort dhcp devx session
+        Returns:
+            None
+        '''
+        try:
+            self._trex.emulation_dhcp_control(
+                action='abort_async',
+                port_handle=interface
+            )
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Failed to abort dhcp devx sessionin trex") from e
+
+    def generate_dhcp_session_handle(self, interface, msg_timeout=3000, retry_count=5):
+        '''
+        Args:
+            interface('str'):interface to generate dhcp sesion handle
+            msg_timeout('int'):Timeout for DHCP clients to wait offer, acks an other DHCP server messages.
+            Defaults to 3000
+            retry_count('int'):How many times to try establish each DHCP state of client.Defaults to 5.                      
+        Returns:
+            dhcp_session_handle
+        ''' 
+        try:
+            res = self._trex.emulation_dhcp_config(
+                port_handle=interface,
+                mode='create',
+                msg_timeout=msg_timeout,
+                retry_count=retry_count,
+            )
+            return res['handle']  
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Failed to generate dhcp session handle") from e 
+           
+    def add_dhcp_emulator_bvm_client(self, 
+                                   session_handle,
+                                   vlan_id=None,
+                                   vlan_id_step=0,
+                                   mac_same_sessions='aa:cd:ef:ab:cd:ef',
+                                   num_same_sessions=1, 
+                                   mac_custom_client_addr='10:22:33:44:55:01',
+                                   num_custom_client_addr=1,
+                                   num_sessions = 0,                                
+                                   dhcp_range_ip_type='ipv4'
+                                   ):
+        ''' Add an ipv4/ipv6 DHCP bvm client on trex DHCP client emulator
+            Args:
+                session_handle(str): dhcp session handle
+                vlan_id ('str', Optional): vlan id, defaults to None. Specify 0 for no dot1q tag
+                vlan_id_step ('str', Optional): vlan increment step, defaults 0. If vlan_id = 0, vlan_id_step must be 0 as well.
+                e.g. if vlan_id = 51 and vlan_id_step is 1, and num_clients = 10, the first client will be dot1q tagged with vlan51,
+                the 2nd will be tagged with vlan52, etc. There is only support for 1 client per vlan at the moment.
+                mac_same_sessions ('str): mac address of end host, defaults to aa:aa:aa:aa:aa:aa
+                num_same_sessions('int') : number of bvm sessions to bring up with mac mac_same_sessions.Defaults to 1.
+                mac_custom_client_addr('str') : bvm client id. Defaults to '22:22:22:22:22:22'
+                num_custom_client_addr('str') : number of bvm clients .Defaults to 1.
+                num_sessions('int')  : This needs to be always 0 for bvm session bring-up.
+                providing this option to support any future enhancements in trex-hltpai.
+                dhcp_range_ip_type('str') : type of dhcp ie ipv4 or ipv6.defaults to ipv4.                       
+            Returns: 
+                handle              
+        '''
+        
+        try:
+            res=self._trex.emulation_dhcp_group_config(
+                mode='create',
+                handle=session_handle,
+                mac_custom_client_addr=mac_custom_client_addr,
+                num_custom_client_addr=num_custom_client_addr,
+                mac_same_sessions=mac_same_sessions,
+                num_same_sessions=num_same_sessions,
+                num_sessions=num_sessions,
+                dhcp_range_ip_type=dhcp_range_ip_type,
+                engine="devx"
+            )
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Failed to generate dhcp bvm clients config") from e 
+        return res['handle']
+
+    def bind_dhcp_clients(self, interface):
+        '''
+        Args:
+            interface('str'):interface to bind dhcp clients
+        Returns:
+            None
+        '''
+        try:
+            self._trex.emulation_dhcp_control(
+                action='bind',
+                port_handle=interface
+            )
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Failed to bind dhcp clients") from e  
+
+    def verify_num_dhcp_clients_binding(self, interface, handle,
+                                   num_client=1, max_time=180,
+                                   check_interval=15):
+        """Verify the DHCP client is currently_bound
+           Args:
+               interface ('str'): interface on which to verify
+               handle ('str')   : handle to verify the clients 
+               num_client ('int', Optional): number of client to verify, defaults to 1
+               max_time('int', Optional): maximum time to wait, defaults to 60
+               check_interval('int', Optional): how often to check, defaults to 5
+            Returns:
+                True
+                False
+            Raises:
+                None
+        """
+        
+        timeout = Timeout(max_time, check_interval)
+        while timeout.iterate():
+            out = self.get_dhcp_binding(interface)
+            if out:
+                log.info(out)
+                if out['group'][handle]['currently_bound'] == num_client:
+                    return True
+            timeout.sleep()
+        log.info("Failed to verify DHCP client")
+        return False
+
+    def get_dhcp_client_ip_mac_details(self, interface) :
+        """
+           Args:
+               interface ('str'): interface on which to get the details
+           Returns: 
+               A dict containing Ips as keys and mac addresses as values    
+        """
+        dhcp_client_dict={}
+        out = self.get_dhcp_binding(interface)
+        dict1=out['session']
+        for key in dict1.keys() :
+            ip=dict1[key]['ip_address']
+            mac=dict1[key]['session_name']
+            dhcp_client_dict[ip]=mac_to_dot_notation(mac)
+        return dhcp_client_dict
+
+          
+    def add_dhcp_emulator_non_bvm_client(self, 
+                                   session_handle,
+                                   vlan_id=None,
+                                   vlan_id_step=0,
+                                   mac_addr='aa:cd:ef:ab:cd:ef',
+                                   mac_step="00:00:00:00:00:01",
+                                   num_sessions = 1,                                
+                                   dhcp_range_ip_type='ipv4'
+                                   ):
+        ''' Add an ipv4/ipv6 DHCP non bvm client on trex DHCP client emulator
+            Args:
+                session_handle(str): dhcp session handle
+                vlan_id ('str', Optional): vlan id, defaults to None. Specify 0 for no dot1q tag
+                vlan_id_step ('str', Optional): vlan increment step, defaults 0. If vlan_id = 0, vlan_id_step must be 0 as well.
+                e.g. if vlan_id = 51 and vlan_id_step is 1, and num_clients = 10, the first client will be dot1q tagged with vlan51,
+                the 2nd will be tagged with vlan52, etc. There is only support for 1 client per vlan at the moment.
+                mac_addr ('str): mac address of the host, defaults to aa:cd:ef:ab:cd:ef
+                mac_step ('str): mac address step . defaults to 00:00:00:00:00:01 
+                num_sessions('int')  : number of sessions.Defaults to 1
+                dhcp_range_ip_type('str') : type of dhcp ie ipv4 or ipv6.defaults to ipv4.                       
+            Returns: 
+                handle              
+        '''
+        try:
+            res=self._trex.emulation_dhcp_group_config(
+                mode='create',
+                handle=session_handle,
+                vlan_id=vlan_id,
+                vlan_id_step=vlan_id_step,
+                mac_addr=mac_addr,
+                mac_step=mac_step,
+                num_sessions=num_sessions,
+                dhcp_range_ip_type=dhcp_range_ip_type,
+                engine="devx"
+            )
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Failed to generate dhcp non bvm clients config") from e 
+        return res['handle'] 
