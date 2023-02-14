@@ -5,6 +5,8 @@ from unittest.mock import Mock
 from prettytable import PrettyTable
 from pyats.topology import loader
 
+from unicon.mock.mock_device import MockDeviceSSHWrapper
+
 
 class TestTrex(unittest.TestCase):
 
@@ -343,3 +345,277 @@ class TestTrex(unittest.TestCase):
         result = dev.get_dhcpv6_binding_address(interface=0)
         #Assert
         self.assertEqual(expected, result)
+
+    def test_reset_dhcp_session_config(self):
+        # Arrange
+        dev = self.dev
+        dev.default._trex = Mock()
+        dev._trex.traffic_config = Mock(return_value={'handle': None})
+        expected = True
+        #Act
+        dev.reset_dhcp_session_config(interface=1)
+        result = dev._traffic_profile_configured
+        #Assert
+        self.assertEqual(expected, result) 
+
+    def test_abort_dhcp_devx_session(self):
+        # Arrange
+        dev = self.dev
+        dev.default._trex = Mock()
+        dev._trex.traffic_config = Mock(return_value={})
+        expected = False
+        #Act
+        dev.abort_dhcp_devx_session(interface=1)
+        result = dev._traffic_profile_configured
+        #Assert
+        self.assertEqual(expected, result)  
+
+    def test_generate_dhcp_session_handle(self):
+        # Arrange
+        dev = self.dev
+        dev.default._trex = Mock()
+        dev._trex.emulation_dhcp_config = Mock(return_value={'handle': '880ec248-9d18-4305-b120-9f316bd58c92'})
+        expected = '880ec248-9d18-4305-b120-9f316bd58c92'
+        #Act
+        dev.generate_dhcp_session_handle(interface=1)
+        result = dev.generate_dhcp_session_handle(interface=1)
+        #Assert
+        self.assertEqual(expected, result)     
+    
+
+    def test_add_dhcp_emulator_bvm_client(self):
+        # Arrange
+        dev = self.dev
+        dev.default._trex = Mock()
+        dev._trex.emulation_dhcp_group_config = Mock(return_value={'handle': '880ec248-9d18-4305-b120-9f316bd58c92'})
+        expected = '880ec248-9d18-4305-b120-9f316bd58c92'
+        #Act
+        result = dev.add_dhcp_emulator_bvm_client (session_handle='handle')
+        #Assert
+        self.assertEqual(expected, result)
+    
+    def test_bind_dhcp_clients(self):
+        # Arrange
+        dev = self.dev
+        dev.default._trex = Mock()
+        dev._trex.traffic_config = Mock(return_value={})
+        expected = False
+        #Act
+        dev.bind_dhcp_clients(interface=1)
+        result = dev._traffic_profile_configured
+        #Assert
+        self.assertEqual(expected, result)        
+ 
+
+    def test_verify_num_dhcp_clients_binding(self):
+        # Arrange
+        dev = self.dev
+        dev.default._trex = Mock()
+        dev._trex.emulation_dhcp_stats = Mock(return_value=
+            {'session':
+                {0:
+                    {'acks_received': 0,
+                     'dhcp_group': 'handle',
+                     'discovers_sent': 0,
+                     'ip_address': '192.168.105.1',
+                     'lease_time': 0,
+                     'nacks_received': 0,
+                     'offers_received': 0,
+                     'port_handle': 0,
+                     'releases_sent': 0,
+                     'requests_sent': 0,
+                     'session_name': 'aa:aa:aa:aa:aa:aa',
+                     'currently_attempting': 0,
+                     'currently_idle': 0,
+                     'currently_bound': 1
+                    }
+                },
+                'group':
+                   {'handle':
+                           {'currently_attempting': 0,
+                            'currently_idle': 0,
+                            'currently_bound': 1,
+                            'bound_renewed': 0,
+                            'total_attempted': 0,
+                            'total_bound': 0,
+                            'total_failed': 0,
+                            'discover_tx_count': 0,
+                            'request_tx_count': 0,
+                            'release_tx_count': 0,
+                            'ack_rx_count': 0,
+                            'nak_rx_count': 0,
+                            'offer_rx_count': 0
+                            }
+                    }
+            })
+        
+        expected = True
+        #Act
+        result=dev.verify_num_dhcp_clients_binding(interface=1,handle='handle')
+        #Assert
+        self.assertEqual(expected, result)
+    
+    def test_get_dhcp_client_ip_mac_details(self):
+        # Arrange
+        dev = self.dev
+        dev.default._trex = Mock()
+        dev._trex.emulation_dhcp_stats = Mock(return_value=
+            {'session': 
+               {0:
+                    {'acks_received': 0,
+                     'dhcp_group': '9fdbf943-17fc-4deb-9cbd-b8a051ed04f9',
+                     'discovers_sent': 0,
+                     'ip_address': '2001:110::895f',
+                     'lease_time': 0,
+                     'nacks_received': 0,
+                     'offers_received': 0,
+                     'port_handle': 2,
+                     'releases_sent': 0,
+                     'requests_sent': 0,
+                     'session_name': '00:01:00:02:00:01',
+                     'currently_attempting': 0,
+                     'currently_idle': 0,
+                     'currently_bound': 1,
+                     'vlan_id': None},
+                1:  
+                   {'acks_received': 0,
+                    'dhcp_group': '9fdbf943-17fc-4deb-9cbd-b8a051ed04f9',
+                    'discovers_sent': 0,
+                    'ip_address': '2001:110::9831',
+                    'lease_time': 0,
+                    'nacks_received': 0,
+                    'offers_received': 0,
+                    'port_handle': 2,
+                    'releases_sent': 0,
+                    'requests_sent': 0,
+                    'session_name': '00:01:00:02:00:02',
+                    'currently_attempting': 0,
+                    'currently_idle': 0,
+                    'currently_bound': 1,
+                    'vlan_id': None}
+               },
+             'group': 
+                {'9fdbf943-17fc-4deb-9cbd-b8a051ed04f9':
+                   {'currently_attempting': 0,
+                    'currently_idle': 0,
+                    'currently_bound': 2,
+                    'bound_renewed': 0,
+                    'total_attempted': 0,
+                    'total_bound': 0,
+                    'total_failed': 0,
+                    'discover_tx_count': 0,
+                    'request_tx_count': 0,
+                    'release_tx_count': 0,
+                    'ack_rx_count': 0,
+                    'nak_rx_count': 0,
+                    'offer_rx_count': 0}
+                }
+            }
+        )
+        expected = {'2001:110::895f': '0001.0002.0001', '2001:110::9831': '0001.0002.0002'}
+        #Act
+        result=dev.get_dhcp_client_ip_mac_details(interface=1)
+        #Assert
+        self.assertEqual(expected, result)
+
+    def test_add_dhcp_emulator_non_bvm_client(self):
+        # Arrange
+        dev = self.dev
+        dev.default._trex = Mock()
+        dev._trex.emulation_dhcp_group_config = Mock(return_value={'handle': '880ec248-9d18-4305-b120-9f316bd58c92'})
+        expected = '880ec248-9d18-4305-b120-9f316bd58c92'
+        #Act
+        result = dev.add_dhcp_emulator_non_bvm_client(session_handle='handle')
+        #Assert
+        self.assertEqual(expected, result)
+
+    def test_connect_and_boot_trex_negative(self):
+        trex_ssh_connection = MockDeviceSSHWrapper(hostname='trex4', device_os='trex', port=0,
+                                                   mock_data_dir='mock_data', state='start_test_off',
+                                                   credentials={'trex': 'trex'})
+        trex_ssh_connection.start()
+        testbed = \
+        """
+        devices:
+            trex4:
+                os: trex
+                credentials:
+                    ssh:
+                        username: trex
+                        password: trex
+                connections:
+                    defaults:
+                        class: genie.trafficgen.trex.Trex
+
+                    hltapi:
+                        device_ip: localhost
+                        port: {}
+                        username: trex
+                        reset: true
+                        break_locks: true
+                        raise_errors: true
+                        verbose: critical
+                        timeout: 15
+                        port_list: [0, 1]
+                        ip_src_addr: 1.1.1.1
+                        ip_dst_addr: 2.2.2.2
+                        intf_ip_list: [None]
+                        gw_ip_list: [None]
+                        trex_path: /opt/trex
+                        autostart: True
+        """.format(trex_ssh_connection.ports[0])
+        tb = loader.load(testbed)
+        try:
+            tb.devices.trex4.instantiate(via='hltapi')
+            # Overloads disconnect key sequence because control keys do not work when passed through SSH Wrapper
+            tb.devices.trex4.default.screen_exit_keys = 'sendline(__exit_screen_in_unittest__)'
+            tb.devices.trex4.default._trex=Mock()
+            tb.devices.trex4.connect()
+        finally:
+            tb.devices.trex4.disconnect()
+        trex_ssh_connection.stop()
+
+    def test_connect_and_boot_trex_positive(self):
+        trex_ssh_connection = MockDeviceSSHWrapper(hostname='trex4', device_os='trex', port=0,
+                                                   mock_data_dir='mock_data', state='start_test_on',
+                                                   credentials={'trex': 'trex'})
+        trex_ssh_connection.start()
+        testbed = \
+        """
+        devices:
+            trex4:
+                os: trex
+                credentials:
+                    ssh:
+                        username: trex
+                        password: trex
+                connections:
+                    defaults:
+                        class: genie.trafficgen.trex.Trex
+
+                    hltapi:
+                        device_ip: localhost
+                        port: {}
+                        username: trex
+                        reset: true
+                        break_locks: true
+                        raise_errors: true
+                        verbose: critical
+                        timeout: 15
+                        port_list: [0, 1]
+                        ip_src_addr: 1.1.1.1
+                        ip_dst_addr: 2.2.2.2
+                        intf_ip_list: [None]
+                        gw_ip_list: [None]
+                        trex_path: /opt/trex
+                        autostart: True
+        """.format(trex_ssh_connection.ports[0])
+        tb = loader.load(testbed)
+        try:
+            tb.devices.trex4.instantiate(via='hltapi')
+            tb.devices.trex4.default._trex=Mock()
+            tb.devices.trex4.connect()
+        finally:
+            tb.devices.trex4.disconnect()
+            del tb
+        trex_ssh_connection.stop()

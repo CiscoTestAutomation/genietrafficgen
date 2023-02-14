@@ -1,0 +1,7 @@
+genie
+unicon
+prettytable
+IxNetwork
+ixnetwork_restpy
+setuptools
+wheel

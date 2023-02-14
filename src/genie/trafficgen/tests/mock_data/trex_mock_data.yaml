@@ -1,0 +1,134 @@
+start_test_off:
+  preface: "Hello, this is the preface for start_test_off"
+  prompt: trex@trex4:~$
+  commands:
+    "ps -aux | grep t-rex-64 | grep -v grep":
+      response: "Entering state - not_found"
+      new_state: start_trex
+
+start_trex:
+  preface: "entering state - start_trex"
+  prompt: trex@trex4:/opt/trex:~$
+  commands:
+    "cd /opt/trex; screen sudo -n ./t-rex-64 -i":
+      response: |
+        Starting Scapy server...... Scapy server is started
+        Starting IOL daemon server..... IOL daemon server is started
+        The ports are bound/configured.
+        Starting  TRex v2.99 please wait  ... 
+        set driver name net_vmxnet3
+        driver capability  : TSO  LRO 
+         set dpdk queues mode to ONE_QUE 
+         Number of ports found: 2
+        zmq publisher at: tcp://*:4500
+         wait 1 sec .
+        port : 0 
+        ------------
+        link         :  link : Link Up - speed 10000 Mbps - full-duplex
+        promiscuous  : 0 
+        port : 1 
+        ------------
+        link         :  link : Link Up - speed 10000 Mbps - full-duplex
+        promiscuous  : 0 
+         number of ports         : 2 
+         max cores for 2 ports   : 1 
+         tx queues per port      : 3 
+         -------------------------------
+         -------------------------------
+        RX core uses TX queue number 65535 on all ports
+        core, c-port, c-queue, s-port, s-queue, lat-queue
+        ------------------------------------------
+        1        0      0       1       0      0
+        -------------------------------
+        Failed resolving dest MAC for default gateway:1.1.1.2 on port 0
+        Failed resolving dest MAC for default gateway:2.2.2.1 on port 1
+        wpas_hash_table_init() size: 100
+        -Per port stats table
+             ports |               0 |               1
+        -----------------------------------------------------------------------------------------
+              opackets |               0 |               0
+                obytes |               0 |               0
+              ipackets |               0 |               0
+                ibytes |               0 |               0
+          ctl_opackets |               0 |               0
+            ctl_obytes |               0 |               0
+          ctl_ipackets |               0 |               0
+            ctl_ibytes |               0 |               0
+               ierrors |               0 |               0
+               oerrors |               0 |               0
+                 Tx Bw |       0.00  bps |       0.00  bps
+  
+        -Global stats enabled
+                Cpu Utilization : 0.0  %
+                Platform_factor : 1.0
+                Total-Tx        :       0.00  bps
+                Total-Rx        :       0.00  bps
+                Total-PPS       :       0.00  pps
+                Total-CPS       :       0.00  cps
+        
+                Expected-PPS    :       0.00  pps
+                Expected-CPS    :       0.00  cps
+                Expected-BPS    :       0.00  bps
+        
+        
+        - Per port stats table
+                    ports |               0 |               1
+        -----------------------------------------------------------------------------------------
+                 opackets |               0 |               0
+                   obytes |               0 |               0
+                 ipackets |               0 |               0
+                   ibytes |               0 |               0
+             ctl_opackets |               0 |               0
+               ctl_obytes |               0 |               0
+             ctl_ipackets |               0 |               0
+               ctl_ibytes |               0 |               0
+                  ierrors |               0 |               0
+                  oerrors |               0 |               0
+                    Tx Bw |       0.00  bps |       0.00  bps
+  
+        - Global stats enabled
+          Cpu Utilization : 0.0  %
+          Platform_factor : 1.0
+          Total-Tx        :       0.00  bps
+          Total-Rx        :       0.00  bps
+          Total-PPS       :       0.00  pps
+          Total-CPS       :       0.00  cps
+    
+          Expected-PPS    :       0.00  pps
+          Expected-CPS    :       0.00  cps
+          Expected-BPS    :       0.00  bps
+    
+          Active-flows    :        0  Clients :        0   Socket-util : 0.0000 %
+          Open-flows      :        0  Servers :        0   Socket :        0 Socket/Clients :  -nan
+          drop-rate       :       0.00  bps
+          current time    : 12.5 sec
+          test duration   : 0.0 sec
+      new_state:
+        exit_screen
+
+exit_screen:
+  preface: ""
+  prompt: ""
+  commands:
+    "__exit_screen_in_unittest__":
+      response: "[detached from 1204.pts-0.trex4]"
+      new_state: connected_via_ssh
+
+start_test_on:
+  preface: "Hello, this is the preface for start_test_on"
+  prompt: trex@trex4:~$
+  commands:
+    "ps -aux | grep t-rex-64 | grep -v grep":
+      response: |
+        trex     23880  0.0  0.0  28916  3036 ?        Ss   18:17   0:00 SCREEN sudo -n ./t-rex-64 -i
+        root     23881  0.0  0.0  56448  3820 pts/2    Ss+  18:17   0:00 sudo -n ./t-rex-64 -i
+        root     23883  0.0  0.0   9928  2944 pts/2    S+   18:17   0:00 /bin/bash ./t-rex-64 -i
+        root     23962  2.3  0.1 17418044 20572 pts/2  Sl+  18:17   1:07 ./_t-rex-64 -i
+      new_state: connected_via_ssh
+
+connected_via_ssh:
+  prompt: trex@trex4:/opt/trex:~$
+  commands:
+    "netstat -an | grep 4501 | grep -v grep":
+      response:
+        - tcp        0      0 0.0.0.0:4501            0.0.0.0:*               LISTEN
