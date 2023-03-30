@@ -619,3 +619,29 @@ class TestTrex(unittest.TestCase):
             tb.devices.trex4.disconnect()
             del tb
         trex_ssh_connection.stop()
+
+    def test_configure_traffic_profile_by_custom(self):
+        dev = self.dev
+        dev.default._trex = Mock()
+        dev._trex.traffic_config = Mock(return_value={"stream_id": 1})
+        expected = True
+
+        traffic_args = {
+            'bidirectional': False,
+            'frame_size': 70,
+            'port_handle': 0,
+            'mac_src': '00:00:01:00:00:01',
+            'mac_src_mode': 'increment',
+            'mac_src_count': 2500,
+            'mac_dst': '00:00:02:00:00:00',
+            'l3_protocol': 'ipv4',
+            'ip_src_addr': '44.44.44.44',
+            'ip_src_mode': 'fixed',
+            'ip_dst_addr': '55.55.55.55',
+            'ip_dst_mode': 'fixed',
+            'rate_pps': 2000
+        }
+        dev.configure_traffic_profile_by_custom(**traffic_args)
+        result = dev._traffic_profile_configured
+        #Assert
+        self.assertEqual(expected, result)
