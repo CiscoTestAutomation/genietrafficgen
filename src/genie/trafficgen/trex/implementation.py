@@ -993,6 +993,24 @@ class Trex(TrafficGen):
 
         self._traffic_profile_configured = True
 
+    def configure_traffic_profile_by_custom(self, **kwargs):
+        ''' Configure traffic streams by customed arguments, the profile has to be configured
+            before calling the start_traffic method.
+        '''
+        try:
+            if 'mode' not in kwargs.keys():
+                kwargs['mode'] = 'create'
+            log.info(kwargs)
+            config_status = self._trex.traffic_config(**kwargs)
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Failed to Configure Streams on TRex.")
+        else:
+            self._traffic_streams.append(config_status['stream_id'])
+            log.info('Configured streams: {}'.format(config_status['stream_id']))
+
+        self._traffic_profile_configured = True
+
     def configure_dhcpv4_request(self, interface, mac_src, requested_ip, xid=0,
                                  transmit_mode='single_burst', pkts_per_burst=1, pps=100):
         ''' Method to configure a DHCPv4 REQUEST stream '''
