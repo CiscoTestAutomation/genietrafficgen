@@ -11,7 +11,6 @@ class chassis_mock:
 
 class mock_session:
     State = 'ACTIVE'
-    UserId = '8020'
     Id = 8020
 
 class SessionMock:
@@ -19,7 +18,12 @@ class SessionMock:
         self.Ixnetwork = Mock()
         self.Ixnetwork._connection = Mock()
         self.Ixnetwork._connection._session = Mock()
-        self.Ixnetwork._connection._read = Mock(return_value={"username":"UserId-8020"})
+        self.Ixnetwork._connection._read = Mock(return_value={
+            'links': [
+                {'rel': 'self', 'method': 'GET', 'href': '/api/v1/sessions/8020/ixnetwork/globals'}, 
+                {'rel': 'meta', 'method': 'OPTIONS', 'href': '/api/v1/sessions/8020/ixnetwork/globals'}
+	        ]
+        })
         self.Ixnetwork.AvailableHardware = Mock()
         self.Ixnetwork.AvailableHardware.Chassis = Mock()
         self.Ixnetwork.AvailableHardware.Chassis.add = Mock(return_value=chassis_mock)
@@ -51,6 +55,7 @@ class TestIxiaIxNetworkRestPy(unittest.TestCase):
         dev.instantiate()
         self.assertTrue(isinstance(dev.default, IxiaRestPy))
         self.assertEqual(dev.default.via, 'tgn')
+        
         dev.connect()
         called_args = session_mock.called_args[1]
         called_args.update(SessionName=None)
