@@ -1,4 +1,4 @@
-
+import re
 import logging
 from ixnetwork_restpy import SessionAssistant
 from genie.trafficgen.trafficgen import TrafficGen
@@ -85,36 +85,48 @@ class IxiaRestPy(TrafficGen):
             # The below is added to get the active session in case of multi chassis support.
             # SessionName also can be used to find the active session from the list of sessions
             # available but currently ixnetwork doesn't support it. 
-            # This gives us the active session Id and 
-            # User info IxNetwork/DESKTOP-1MR70QB/cmgruser0-8020-9480
+            
+            # This gives us the active session hrefs
+            # links = ['/api/v1/sessions/8020/ixnetwork/globals']
             response = self.ixnetwork._connection._read(
             "%s/ixnetwork/globals?includes=buildNumber,username" % self.session.Session.href
             )
-            username = response.get("username")
+            links = [link.get('href') for link in response.get('links')]
+
+            if links:
+                # This regex gives us the 'id' from the hrefs that we got from response
+                # user_id = '8020'
+                re_link = re.match(r"^.*\/(?P<ID>[0-9]+)\/.*$", links[0])
+
+                try:
+                    user_id = re_link.groupdict()["ID"]
+                except:
+                    logger.error("Could not find the valid session.")
+                    return False
         
-            # If the SessionName is supported the code will be lot simpler by leveraging 
-            # the find api like below
-            # session = self.session.Session.find(Name=self.session_name)
+                # If the SessionName is supported the code will be lot simpler by leveraging 
+                # the find api like below
+                # session = self.session.Session.find(Name=self.session_name)
 
-            sessions = self.session.Session.find()
-            logger.info(f'Session information : {sessions}')
+                sessions = self.session.Session.find()
+                logger.info(f'Session information : {sessions}')
 
-            # The loops through all the sessions and identifies the state based on it
-            # The information would look like below,
-            # Session information : 
-            #     Sessions[0]: /api/v1/sessions/8020
-            #     ApplicationType: ixnrest
-            #     Id: 8020
-            #     Name:
-            #     State: ACTIVE
-            #     UserId: cmgruser0-8020
-            #     UserName: cmgruser0
+                # The loops through all the sessions and identifies the state based on it
+                # The information would look like below,
+                # Session information : 
+                #     Sessions[0]: /api/v1/sessions/8020
+                #     ApplicationType: ixnrest
+                #     Id: 8020
+                #     Name:
+                #     State: ACTIVE
+                #     UserId: cmgruser0-8020
+                #     UserName: cmgruser0
 
-            for session in sessions:
-                if session.UserId in username:
-                    self.session_id = session.Id
-                    logger.info(f'Session state information : {session.State}')
+                for session in sessions:
+                    if str(session.Id) == user_id:
+                        self.session_id = session.Id
+                        logger.info(f'Session state information : {session.State}')
 
-                    if session.State == 'ACTIVE':
-                        return True
+                        if session.State == 'ACTIVE':
+                            return True
         return False

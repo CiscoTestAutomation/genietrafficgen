@@ -221,7 +221,7 @@ class Trex(TrafficGen):
                                timeout=self.timeout,
                                port_list=self.port_list)
         except Exception as e:
-            log.error(e)
+            log.exception(e)
             raise GenieTgnError("Failed to connect to TRex device") from e
         else:
             self._is_connected = self.isconnected()
