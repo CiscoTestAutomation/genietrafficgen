@@ -34,7 +34,7 @@ PYPIREPO      = pypitest
 # Development pkg requirements
 DEPENDENCIES  = restview psutil Sphinx wheel asynctest asyncssh
 DEPENDENCIES += sphinx-rtd-theme
-DEPENDENCIES += Cython requests ixnetwork ixnetwork_restpy
+DEPENDENCIES += Cython==3.0.0 requests ixnetwork ixnetwork_restpy
 
 ifeq ($(MAKECMDGOALS), devnet)
 	BUILD_CMD += --devnet
@@ -166,7 +166,7 @@ changelogs:
 	@echo ""
 	@python3 -c "from ciscodistutils.make_changelog import main; main('./docs/changelog/undistributed', './docs/changelog/undistributed.rst')"
 	@echo "genietrafficgen changelog created..."
-	
+
 distribute_staging:
 	@echo ""
 	@echo "--------------------------------------------------------------------"
