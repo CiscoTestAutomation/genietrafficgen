@@ -49,6 +49,7 @@ class Trex(TrafficGen):
         self.auto_start_trex = self.connection_info.get('autostart', False)
         self.auto_start_timeout = self.connection_info.get('autostart_timeout', 60)
         self.trex_path = self.connection_info.get('trex_path', '/opt/trex')
+        self.starting_configuration = self.connection_info.get('cfg_file', None)
 
         # Don't document this
         # Allows ability to override exit key for unittesting
@@ -184,9 +185,12 @@ class Trex(TrafficGen):
                       loop_continue=True,
                       continue_timer=False),
         ])
+        start_command = f"cd {self.trex_path}; screen sudo -n ./t-rex-64 -i"
+        if self.starting_configuration:
+            start_command += f" --cfg {self.starting_configuration}"
+
         try:
-            self._conn.execute(f'cd {self.trex_path}; screen sudo -n ./t-rex-64 -i',
-                               reply=dialog, timeout=self.auto_start_timeout)
+            self._conn.execute(start_command, reply=dialog, timeout=self.auto_start_timeout)
         except SubCommandFailure as e:
             raise SubCommandFailure(f"Failed to boot the TRex process from {self.trex_path}.\n"
                                     f"Error:\n{e}")
@@ -405,6 +409,265 @@ class Trex(TrafficGen):
                 scapy_pkt = ether_part / Dot1Q(vlan=vlan_tag) / arp_part
             else:
                 scapy_pkt = ether_part / arp_part
+
+            pkt = trex_ns.trex.stl.api.STLPktBuilder(pkt=scapy_pkt)
+            bst_mode = trex_ns.trex.stl.api.STLTXSingleBurst(
+                pps=pps, total_pkts=count
+            )
+            flow = trex_ns.trex.stl.api.STLStream(packet=pkt,
+                                                  mode=bst_mode)
+            self._trex.get_stl_client().client.remove_all_streams(
+                ports=interface
+            )
+            self._trex.get_stl_client().client.add_streams(ports=interface,
+                                                           streams=flow)
+            self._trex.get_stl_client().client.start(ports=interface,
+                                                     force=True)
+            self._trex.get_stl_client().client.wait_on_traffic(
+                ports=interface
+            )
+
+    def send_ndp_ra(self, interface, mac_src, mac_dst, ip_src, ip_dst,
+                    vlan_tag=0, count=1, pps=100):
+        '''Send ndp router advertisement packet
+           Args:
+             interface ('str'): interface name
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             mac_dst ('str'): destination mac address, example aabb.bbcc.ccdd
+             ip_src ('str'): source ip address
+             ip_dst ('str'): destination ip address
+             vlan_tag ('int', optional): vlan tag, default 0
+             count ('int', optional): send packets count, default 1
+             pps ('int', optional): packets per second, default 100
+           Returns:
+             None
+           Raises:
+             None
+        '''
+        mac_src = mac_to_colon_notation(mac_src)
+        mac_dst = make_multicast_mac(ip_dst)
+        mac_dst = mac_to_colon_notation(mac_dst)
+        trex_ns = self._trex.get_trex_namespace().ns
+        with trex_ns.trex_client_context():
+            from scapy.all import Ether, Dot1Q
+            from scapy.all import IPv6, ICMPv6ND_RA
+
+            ether_p = Ether(src=mac_src, dst=mac_dst)
+
+            ipv6_p = IPv6(src=ip_src, dst=ip_dst)
+            icmpv6_p = ICMPv6ND_RA()
+            if vlan_tag:
+                scapy_pkt = \
+                    ether_p / Dot1Q(vlan=vlan_tag) / ipv6_p / icmpv6_p
+            else:
+                scapy_pkt = ether_p / ipv6_p / icmpv6_p
+
+            pkt = trex_ns.trex.stl.api.STLPktBuilder(pkt=scapy_pkt)
+            bst_mode = trex_ns.trex.stl.api.STLTXSingleBurst(
+                pps=pps, total_pkts=count
+            )
+            flow = trex_ns.trex.stl.api.STLStream(packet=pkt,
+                                                  mode=bst_mode)
+            self._trex.get_stl_client().client.remove_all_streams(
+                ports=interface
+            )
+            self._trex.get_stl_client().client.add_streams(ports=interface,
+                                                           streams=flow)
+            self._trex.get_stl_client().client.start(ports=interface,
+                                                     force=True)
+            self._trex.get_stl_client().client.wait_on_traffic(
+                ports=interface
+            )
+
+    def send_ndp_rs(self, interface, mac_src, ip_src, ip_dst,
+                    vlan_tag=0, count=1, pps=100):
+        '''Send ndp router solicitation packet
+           Args:
+             interface ('str'): interface name
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             ip_src ('str'): source ip address
+             ip_dst ('str'): destination ip address
+             vlan_tag ('int', optional): vlan tag, default 0
+             count ('int', optional): send packets count, default 1
+             pps ('int', optional): packets per second, default 100
+           Returns:
+             None
+           Raises:
+             None
+        '''
+        mac_src = mac_to_colon_notation(mac_src)
+        mac_dst = make_multicast_mac(ip_dst)
+        mac_dst = mac_to_colon_notation(mac_dst)
+        trex_ns = self._trex.get_trex_namespace().ns
+        with trex_ns.trex_client_context():
+            from scapy.all import Ether, Dot1Q
+            from scapy.all import IPv6, ICMPv6ND_RS
+
+            ether_p = Ether(src=mac_src, dst=mac_dst)
+
+            ipv6_p = IPv6(src=ip_src, dst=ip_dst)
+            icmpv6_p = ICMPv6ND_RS()
+            if vlan_tag:
+                scapy_pkt = \
+                  ether_p / Dot1Q(vlan=vlan_tag) / ipv6_p / icmpv6_p
+            else:
+                scapy_pkt = ether_p / ipv6_p / icmpv6_p
+
+            pkt = trex_ns.trex.stl.api.STLPktBuilder(pkt=scapy_pkt)
+            bst_mode = trex_ns.trex.stl.api.STLTXSingleBurst(
+                pps=pps, total_pkts=count
+            )
+            flow = trex_ns.trex.stl.api.STLStream(packet=pkt,
+                                                  mode=bst_mode)
+            self._trex.get_stl_client().client.remove_all_streams(
+                ports=interface
+            )
+            self._trex.get_stl_client().client.add_streams(ports=interface,
+                                                           streams=flow)
+            self._trex.get_stl_client().client.start(ports=interface,
+                                                     force=True)
+            self._trex.get_stl_client().client.wait_on_traffic(
+                ports=interface
+            )
+
+    def send_ndp_redirect(self, interface, mac_src, mac_dst, ip_src, ip_dst,
+                          vlan_tag=0, count=1, pps=100):
+        '''Send ndp router redirect packet
+           Args:
+             interface ('str'): interface name
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             mac_dst ('str'): destination mac address, example aabb.bbcc.ccdd
+             ip_src ('str'): source ip address
+             ip_dst ('str'): destination ip address
+             vlan_tag ('int', optional): vlan tag, default 0
+             count ('int', optional): send packets count, default 1
+             pps ('int', optional): packets per second, default 100
+           Returns:
+             None
+           Raises:
+             None
+        '''
+        mac_src = mac_to_colon_notation(mac_src)
+        mac_dst = make_multicast_mac(ip_dst)
+        mac_dst = mac_to_colon_notation(mac_dst)
+        trex_ns = self._trex.get_trex_namespace().ns
+        with trex_ns.trex_client_context():
+            from scapy.all import Ether, Dot1Q
+            from scapy.all import IPv6, ICMPv6ND_Redirect
+
+            ether_p = Ether(src=mac_src, dst=mac_dst)
+
+            ipv6_p = IPv6(src=ip_src, dst=ip_dst)
+            icmpv6_p = ICMPv6ND_Redirect()
+            if vlan_tag:
+                scapy_pkt = \
+                  ether_p / Dot1Q(vlan=vlan_tag) / ipv6_p / icmpv6_p
+            else:
+                scapy_pkt = ether_p / ipv6_p / icmpv6_p
+
+            pkt = trex_ns.trex.stl.api.STLPktBuilder(pkt=scapy_pkt)
+            bst_mode = trex_ns.trex.stl.api.STLTXSingleBurst(
+                pps=pps, total_pkts=count
+            )
+            flow = trex_ns.trex.stl.api.STLStream(packet=pkt,
+                                                  mode=bst_mode)
+            self._trex.get_stl_client().client.remove_all_streams(
+                ports=interface
+            )
+            self._trex.get_stl_client().client.add_streams(ports=interface,
+                                                           streams=flow)
+            self._trex.get_stl_client().client.start(ports=interface,
+                                                     force=True)
+            self._trex.get_stl_client().client.wait_on_traffic(
+                ports=interface
+            )
+
+    def send_ndp_ns_nud(self, interface, mac_src, mac_dst, ip_src, ip_dst,
+                        vlan_tag=0, count=1, pps=100):
+        '''Send ndp neighbor solicitation nud packet
+           Args:
+             interface ('str'): interface name
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             mac_dst ('str'): destination mac address, example aabb.bbcc.ccdd
+             ip_src ('str'): source ip address
+             ip_dst ('str'): destination ip address
+             vlan_tag ('int', optional): vlan tag, default 0
+             count ('int', optional): send packets count, default 1
+             pps ('int', optional): packets per second, default 100
+           Returns:
+             None
+           Raises:
+             None
+        '''
+        mac_src = mac_to_colon_notation(mac_src)
+        mac_dst = mac_to_colon_notation(mac_dst)
+        trex_ns = self._trex.get_trex_namespace().ns
+        with trex_ns.trex_client_context():
+            from scapy.all import Ether, Dot1Q
+            from scapy.all import IPv6, ICMPv6ND_NS
+            from scapy.all import ICMPv6NDOptSrcLLAddr
+
+            ether_p = Ether(src=mac_src, dst=mac_dst)
+
+            ipv6_p = IPv6(src=ip_src, dst=ip_dst)
+            icmpv6_p = ICMPv6ND_NS(tgt=ip_dst)
+            icmpv6_opt = ICMPv6NDOptSrcLLAddr(lladdr=mac_src)
+            if vlan_tag:
+                scapy_pkt = \
+                  ether_p / Dot1Q(vlan=vlan_tag) / ipv6_p / icmpv6_p / icmpv6_opt
+            else:
+                scapy_pkt = ether_p / ipv6_p / icmpv6_p / icmpv6_opt
+
+            pkt = trex_ns.trex.stl.api.STLPktBuilder(pkt=scapy_pkt)
+            bst_mode = trex_ns.trex.stl.api.STLTXSingleBurst(
+                pps=pps, total_pkts=count
+            )
+            flow = trex_ns.trex.stl.api.STLStream(packet=pkt,
+                                                  mode=bst_mode)
+            self._trex.get_stl_client().client.remove_all_streams(
+                ports=interface
+            )
+            self._trex.get_stl_client().client.add_streams(ports=interface,
+                                                           streams=flow)
+            self._trex.get_stl_client().client.start(ports=interface,
+                                                     force=True)
+            self._trex.get_stl_client().client.wait_on_traffic(
+                ports=interface
+            )
+
+    def send_ndp_ns_dad(self, interface, mac_src, ip_dst, ip_target,
+                        vlan_tag=0, count=1, pps=100):
+        '''Send ndp neighbor solicitation dad packet
+           Args:
+             interface ('str'): interface name
+             mac_src ('str'): source mac address, example aabb.bbcc.ccdd
+             ip_src ('str'): source ip address
+             ip_dst ('str'): destination ip address
+             vlan_tag ('int', optional): vlan tag, default 0
+             count ('int', optional): send packets count, default 1
+             pps ('int', optional): packets per second, default 100
+           Returns:
+             None
+           Raises:
+             None
+        '''
+        ip_src = "::"
+        mac_src = mac_to_colon_notation(mac_src)
+        trex_ns = self._trex.get_trex_namespace().ns
+        with trex_ns.trex_client_context():
+            from scapy.all import Ether, Dot1Q
+            from scapy.all import IPv6, ICMPv6ND_NS
+
+            ether_p = Ether(src=mac_src, dst=make_multicast_mac(ip_dst))
+
+            ipv6_p = IPv6(src=ip_src, dst=make_multicast_ipv6(ip_dst))
+            icmpv6_p = ICMPv6ND_NS(tgt=ip_target)
+
+            if vlan_tag:
+                scapy_pkt = \
+                  ether_p / Dot1Q(vlan=vlan_tag) / ipv6_p / icmpv6_p
+            else:
+                scapy_pkt = ether_p / ipv6_p / icmpv6_p
 
             pkt = trex_ns.trex.stl.api.STLPktBuilder(pkt=scapy_pkt)
             bst_mode = trex_ns.trex.stl.api.STLTXSingleBurst(

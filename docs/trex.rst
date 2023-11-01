@@ -21,11 +21,12 @@ Trex requires the `trex_hltapi` package. Check https://trex.cisco.com/hltapi/ins
                     raise_errors: true # should raise an exception on error, if false will return status = 0 and error message.
                     verbose: none # verbosity level of TRex client, available levels are: none, critical, error, info, debug
                     timeout: 15 # timeout of connection to TRex (increase if you have big delay)
-                    port_list: []  #
-                    ip_src_addr: 1.1.1.1 #
-                    ip_dst_addr: 2.2.2.2 #
+                    port_list: []
+                    ip_src_addr: 1.1.1.1
+                    ip_dst_addr: 2.2.2.2
                     intf_ip_list: []
                     gw_ip_list: []
                     trex_path: /path/to/trex # path to the TRex installation, default /opt/trex
+                    cfg_file: /path/to/trex_cfg_file # reference an existing config file when booting trex, default None
                     autostart: Boolean # check if the TRex process is running, and start it if not, default False
                     autostart_timeout: 30 # timeout value for attempting to start trex, default 60
