@@ -22,6 +22,7 @@ from pyats.easypy import runtime
 from pyats.log.utils import banner
 from pyats.connections import BaseConnection
 from pyats.utils.secret_strings import SecretString, to_plaintext
+from pyats.connections.utils import set_hltapi_environment_variables
 
 # Genie
 from genie.utils.timeout import Timeout
@@ -106,6 +107,9 @@ class IxiaNative(TrafficGen):
         if isinstance(self.password, SecretString):
             self.password = to_plaintext(self.password)
 
+        # Set environment variables for IXIA connection
+        set_hltapi_environment_variables(self.ixnetwork_version)
+
         # Ixia Chassis Details
         header = "Ixia Chassis Details"
         summary = Summary(title=header, width=48)
@@ -159,7 +163,6 @@ class IxiaNative(TrafficGen):
     @BaseConnection.locked
     def connect(self):
         '''Connect to Ixia'''
-
         log.info(banner("Connecting to IXIA"))
         apiKey = None
         if self.username and self.password:
