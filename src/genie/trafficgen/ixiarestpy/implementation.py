@@ -8,6 +8,7 @@ import uuid
 from genie.utils.timeout import Timeout
 
 from pyats.utils.secret_strings import SecretString, to_plaintext
+from pyats.connections.utils import set_hltapi_environment_variables
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,14 @@ class IxiaRestPy(TrafficGen):
         self.master_chassis = connection_args.get('master_chassis')
         self.sequence_id = connection_args.get('sequence_id')
         self.cable_length = connection_args.get('cable_length')
+
+        # Set environment variables for IXIA connection
+        ixnetwork_version = self.connection_info.get('ixnetwork_version')
+        if ixnetwork_version:
+            set_hltapi_environment_variables(ixnetwork_version)
+        else:
+            logger.warning(f'ixnetwork_version not defined for device '
+                           f'{str(self.device)} via {self.via}')
 
     def connect(self):
         logger.info(f'Connecting to IxNetwork API via {self.rest_server_ip}:{self.port}')
@@ -84,8 +93,8 @@ class IxiaRestPy(TrafficGen):
 
             # The below is added to get the active session in case of multi chassis support.
             # SessionName also can be used to find the active session from the list of sessions
-            # available but currently ixnetwork doesn't support it. 
-            
+            # available but currently ixnetwork doesn't support it.
+
             # This gives us the active session hrefs
             # links = ['/api/v1/sessions/8020/ixnetwork/globals']
             response = self.ixnetwork._connection._read(
@@ -103,8 +112,8 @@ class IxiaRestPy(TrafficGen):
                 except:
                     logger.error("Could not find the valid session.")
                     return False
-        
-                # If the SessionName is supported the code will be lot simpler by leveraging 
+
+                # If the SessionName is supported the code will be lot simpler by leveraging
                 # the find api like below
                 # session = self.session.Session.find(Name=self.session_name)
 
@@ -113,7 +122,7 @@ class IxiaRestPy(TrafficGen):
 
                 # The loops through all the sessions and identifies the state based on it
                 # The information would look like below,
-                # Session information : 
+                # Session information :
                 #     Sessions[0]: /api/v1/sessions/8020
                 #     ApplicationType: ixnrest
                 #     Id: 8020
