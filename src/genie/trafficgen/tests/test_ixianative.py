@@ -445,6 +445,39 @@ class TestIxiaIxNative2(unittest.TestCase):
         self.assertEqual(traffic_table._rows[0][-1], '1.0')
         self.assertEqual(traffic_table._rows[1][-1], '0.0')
 
+    def test_create_l2_traffic_stream(self):
+
+        #L2_traffic stream creation
+        dev = self.dev7
+        dev.default._genie_view = Mock()
+        dev.default._genie_page = Mock()
+        ixnet_mock = dev.default.ixNet
+        ixnet_mock.connect = Mock(return_value=True)
+        ixnet_mock.OK = True
+
+        ixnet_mock.getList = Mock(return_value=['::ixNet::OBJ-/traffic/trafficItem:1/configElement:1'])
+        ixnet_mock.getRoot = Mock(return_value='::ixNet::OBJ-/')
+        ixnet_mock.remapIds = Mock(return_value= ['::ixNet::OBJ-/traffic/trafficItem:1'])
+        ixnet_mock.vport = ['::ixNet::OBJ-/vport:1', '::ixNet::OBJ-/vport:2']
+
+        self.assertEqual("::ixNet::OBJ-/traffic/trafficItem:1", dev.create_l2_traffic_stream(ixnet_mock.vport))
+
+    def test_create_l3_traffic_stream(self):
+        #L3_traffic stream creation
+        dev = self.dev7
+        dev.default._genie_view = Mock()
+        dev.default._genie_page = Mock()
+        ixnet_mock = dev.default.ixNet
+        ixnet_mock.connect = Mock(return_value=True)
+        ixnet_mock.OK = True
+
+        ixnet_mock.getList = Mock(return_value=['::ixNet::OBJ-/traffic/trafficItem:1/configElement:1'])
+        ixnet_mock.getRoot = Mock(return_value='::ixNet::OBJ-/')
+        ixnet_mock.remapIds = Mock(return_value= ['::ixNet::OBJ-/traffic/trafficItem:1'])
+        ixnet_mock.vport = ['::ixNet::OBJ-/vport:1', '::ixNet::OBJ-/vport:2']
+
+        self.assertEqual("::ixNet::OBJ-/traffic/trafficItem:1", dev.create_l3_traffic_stream(ixnet_mock.vport))
+
 
 if __name__ == "__main__":
     unittest.main()
