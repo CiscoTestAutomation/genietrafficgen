@@ -3968,6 +3968,228 @@ class IxiaNative(TrafficGen):
                 log.info("Successfully exported Quicktest '{q}' PDF report to "
                          "'{d}'".format(q=quicktest, d=dest_pdf_file))
 
+    @BaseConnection.locked
+    @isconnected
+    def create_l2_traffic_stream(self, vports, biDirectional=False, sourceMacAddress='00:00:00:00:00:00',destinationMacAddress='00:00:00:00:00:00',\
+                               frameRateType='percentLineRate', rate=10, frameSize=64):
+        """Creates a L2 traffic stream with the provided information of the API
+        Args:
+            vports               (`obj`): Ixia virtul ports
+            biDirectional       ('bool'): Flag for biderectional traffic 
+                                          Defalut set to false
+            sourceMacAddress     ('str'): sourceMacAddress of the traffic port
+                                          Default to '00:00:00:00:00:00'
+            destinationMacAddress('str'): SestinationeMacAddress of the traffic port
+                                          Default to '00:00:00:00:00:00'
+            frameRateType        ('str'): FrameRateType of of the mentioned ports it can be percentLineRate or framesPerSecond
+                                          Default to percentLineRate
+            rate                 ('int'): Rate of the mentioned ports it can be percentage=eg:(1% - 100%)  
+                                          or packetsPerSec = (10 - 10000)pps 
+                                          Default to percentage = 10%
+            frameSize            ('int'): FrameSize of the packet Default to 64
+        Returns:
+            Returns L2 TrafficItem
+        """
+        log.info(banner("Creating a L2 traffic stream"))
+
+        #global trafficItem
+        try:
+            trafficItem = self.ixNet.add(self.ixNet.getRoot() + '/traffic', 'trafficItem')
+            self.ixNet.commit()
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Error while adding trafficItem for IxNetwork")
+        
+        trafficItem = self.ixNet.remapIds(trafficItem)[-1]
+        log.info(trafficItem)
+
+        try:
+            self.ixNet.setMultiAttribute( trafficItem,
+                    '-name'                 ,'stream-1',
+                    '-trafficType'          ,'raw',
+                    '-allowSelfDestined'    ,False,
+                    '-trafficItemType'      ,'l2L3',
+                    '-mergeDestinations'    ,True,
+                    '-egressEnabled'        ,False,
+                    '-srcDestMesh'          ,'manyToMany',
+                    '-enabled'              ,True,
+                    '-routeMesh'            ,'fullMesh',
+                    '-transmitMode'         ,'interleaved',
+                    '-biDirectional'        ,biDirectional,
+                    '-hostsPerNetwork'      ,1)
+            self.ixNet.commit()
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Error while setting attributes to traffic stream")
+
+        endpointSet1 = self.ixNet.add(trafficItem, 'endpointSet')
+        self.ixNet.commit()
+
+        #Map source and destination for the endpoint set
+        endpointSet1 = self.ixNet.remapIds(endpointSet1)[-1]
+        source = [vports[0]+"/protocols"]
+        destination = [vports[1]+"/protocols"]
+        try:
+            self.ixNet.setMultiAttribute(endpointSet1,
+                            '-sources', source,
+                            '-destinations', destination)
+            self.ixNet.commit()
+
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Error while adding source and destination ports to endpontSet")
+        
+        try:
+            configelementhndle = self.ixNet.getList(trafficItem,'configElement')[-1]
+            stackhandles = self.ixNet.getList(configelementhndle,'stack')
+            self.ixNet.commit()
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to get config elements for trafficItem'{}'".format(trafficItem))
+        
+        try:
+            for stackhandle in stackhandles:
+                stacktypeidname = self.ixNet.getAttribute(stackhandle,'-stackTypeId')
+                if stacktypeidname == 'ethernet':
+                    fieldhandles = self.ixNet.getList(stackhandle,'field')
+                    for fieldhandle in fieldhandles:
+                        fieldtypeidname = self.ixNet.getAttribute(fieldhandle, '-fieldTypeId')
+                        if fieldtypeidname == 'ethernet.header.destinationAddress':
+                            self.ixNet.setMultiAttribute(fieldhandle,'-singleValue', destinationMacAddress)
+                        elif fieldtypeidname == 'ethernet.header.sourceAddress':
+                            self.ixNet.setMultiAttribute(fieldhandle, '-singleValue', sourceMacAddress)
+            self.ixNet.commit()
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to add source eand destination mac addresess for trafficItem'{}'".format(trafficItem))
+        else: 
+            log.info("Sucessfully added Source/Destination MacAddress")
+
+        try:
+            #Providing fixed framesize
+            self.ixNet.setMultiAttribute(trafficItem + "/configElement:1/frameSize",
+                '-type',        'fixed',
+                '-fixedSize',   frameSize)
+            self.ixNet.commit()
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to add framesize for trafficItem'{}'".format(trafficItem))
+        else:
+            log.info("Successfully set trafficStream with packet size '{p}'".format(p=frameSize))
+        time.sleep(5)
+
+        try:
+            #FrameType in percentLineRate (or) framePerSecond
+            if frameRateType in ('percentLineRate', 'framesPerSecond'):
+                self.ixNet.setMultiAttribute(trafficItem + "/configElement:1/frameRate",
+                    '-type',        frameRateType,
+                    '-rate',        rate)
+            self.ixNet.commit()
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to add frameType '{f}' and rate '{r}' for trafficItem'{}'".\
+                                                                            format(f=frameRateType,
+                                                                                   r=rate,
+                                                                                   t=trafficItem,))
+        else:
+            log.info("Successfully set trafficStream with frameType '{f}' and Rate '{r}'".format(f=frameRateType,
+                                                                                                 r=rate))
+        time.sleep(5)
+
+        self.ixNet.setMultiAttribute(trafficItem + "/configElement:1/transmissionControl",
+                '-duration'               ,1,
+                '-iterationCount'         ,1,
+                '-startDelayUnits'        ,'bytes',
+                '-minGapBytes'            ,12,
+                '-frameCount'             ,10000,
+                '-type'                   ,'continuous',
+                '-interBurstGapUnits'     ,'nanoseconds',
+                '-interBurstGap'          , 0,
+                '-enableInterBurstGap'    ,False,
+                '-interStreamGap'         ,0,
+                '-repeatBurst'            ,1,
+                '-enableInterStreamGap'   ,False,
+                '-startDelay'             ,0,
+                '-burstPacketCount'       ,1,)
+        self.ixNet.commit()
+
+        try:
+            self.ixNet.setMultiAttribute(trafficItem + '/tracking',
+                '-trackBy',        ['trackingenabled0'])
+            self.ixNet.commit()
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Failed to add ethernet header for trafficItem'{}'".format(t=trafficItem))
+        else:
+            log.info('Successfully created the L2 traffic stream')
+        return trafficItem
+
+    @BaseConnection.locked
+    @isconnected
+    def create_l3_traffic_stream(self, vports, biDirectional=False, sourceMacAddress='00:00:00:00:00:00', destinationMacAddress='00:00:00:00:00:00',\
+                               sourceIpAddress='0.0.0.0', destinationIpAddress='0.0.0.0',frameRateType='percentLineRate', rate=10, frameSize=64):
+        """Creates a L3 traffic stream with the provided information of the API
+        Args:
+            vports               (`obj`): Ixia virtul ports
+            biDirectional       ('bool'): Flag for biderectional traffic 
+                                          Defalut set to false
+            sourceMacAddress     ('str'): sourceMacAddress of the traffic port
+                                          Default to '00:00:00:00:00:00'
+            destinationMacAddress('str'): SestinationeMacAddress of the traffic port
+                                          Default to '00:00:00:00:00:00'
+            sourceIpAddress      ('str'): sourceIpAddress of the traffic port
+                                          Default to '0.0.0.0'
+            destinationIpAddress ('str'): DestinationIpAddress address of the traffic port
+                                          Default to '0.0.0.0'
+            frameRateType        ('str'): FrameRateType of of the mentioned ports it can be percentLineRate or framesPerSecond
+                                          Default to percentLineRate
+            rate                 ('int'): Rate of the mentioned ports it can be percentage=eg:(1% - 100%)  
+                                          or packetsPerSec = (10 - 10000)pps 
+                                          Default to percentage = 10%
+            frameSize            ('int'): FrameSize of the packet Default to 64
+        Returns:
+
+            Returns L3 TrafficItem
+        """
+        log.info(banner('Receving basic ethernet traffic item from the L2_traffic stream.....'))
+        trafficItem = self.create_l2_traffic_stream(vports, biDirectional=biDirectional, sourceMacAddress=sourceMacAddress, destinationMacAddress=destinationMacAddress,\
+                                                 frameRateType=frameRateType, rate=rate, frameSize=frameSize)
+        configelementhndle = self.ixNet.getList(trafficItem,'configElement')[-1]
+
+        try:
+            stackhandles = self.ixNet.getList(configelementhndle,'stack')
+        except Exception as e:
+            raise GenieTgnError("Unable to get stack handles from configelement which are configured already")
+        log.info(banner('Adding the L3 header to the existing L2 header'))
+
+        try:
+            self.ixNet.execute('append',stackhandles[0],'::ixNet::OBJ-/traffic/protocolTemplate:"ipv4"')
+            stackhandles = self.ixNet.getList(configelementhndle,'stack')
+        except Exception as e:
+            raise GenieTgnError("Unable to add ipv4 stack handle to existing stack")
+        
+        '''Getting all fields under ipv4 stackhandle'''
+        try:
+            for stackhandle in stackhandles:
+                stacktypeidname = self.ixNet.getAttribute(stackhandle,'-stackTypeId')
+                if stacktypeidname == 'ipv4':
+                    fieldhandles = self.ixNet.getList(stackhandle,'field')
+                    '''Getting fieldTypeId for the ipv4 fieldhandle'''
+                    for fieldhandle in fieldhandles:
+                        fieldtypeidname = self.ixNet.getAttribute(fieldhandle, '-fieldTypeId')
+                        '''Matching the source and destination fieldTypeIds to set the source and destinatip addresess'''
+                        if fieldtypeidname in 'ipv4.header.srcIp':
+                            self.ixNet.setMultiAttribute(fieldhandle,'-singleValue', sourceIpAddress)
+                        if fieldtypeidname in 'ipv4.header.dstIp':
+                            self.ixNet.setMultiAttribute(fieldhandle,'-singleValue', destinationIpAddress)
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to add ipv4 source and destination address for the existing stack")
+        else: 
+            log.info("Successfully added L3 header to the ethernet header")
+
+        self.ixNet.commit()
+        return trafficItem
 
 def isfloat(string):
     try:
