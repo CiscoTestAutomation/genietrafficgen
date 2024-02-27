@@ -603,6 +603,532 @@ class TestPagentAPIs(unittest.TestCase):
             call('tgn send 5'),
             call('tgn clear all')])
 
+    def test_send_igmpv3_source_group_report_general(self):
+        dev = self.dev
+
+        intf = 'eth0'
+        mac_src = 'aabb.0011.0018'
+        clientip = '192.168.1.11'
+        groupip = '234.1.1.11'
+        filter_mode='include'
+        max_resp = 100
+        vlanid = '105'
+
+        client_handler = dev.create_igmp_client(interface=intf,
+                                                clientip=clientip,
+                                                version=3,
+                                                vlanid=vlanid)
+        group_handler = dev.create_multicast_group(groupip)
+        source_handler = dev.create_multicast_source(clientip)
+
+        handler = dev.igmp_client_add_group(client_handler=client_handler,
+                                            group_handler=group_handler,
+                                            source_handler=source_handler,
+                                            filter_mode=filter_mode)
+
+        dev.igmp_client_control(interface=intf, client_handler=client_handler,
+                                mode='start')
+
+        dev.tg.execute.assert_has_calls([
+            call('tgn clear all'),
+            call('tgn eth0'),
+            call('tgn add igmp'),
+            call('tgn name c_1'),
+            call('tgn layer 2 ethernet'),
+            call('tgn l2-shim is dot1q'),
+            call('tgn l2-shim vlan-id 105'),
+            call('tgn L2-src-addr aabb.bb28.010B'),
+            call('tgn L2-dest-addr 0100.5E00.0016'),
+            call('tgn L3-src-addr 192.168.1.11'),
+            call('tgn L3-dest-addr 224.0.0.22'),
+            call('tgn L4-version 2'),
+            call('tgn L4-type 2'),
+            call('tgn L4-max-resp 0'),
+            call('tgn L4-group-address 0.0.0.1'),
+            call('tgn data-length 12'),
+            call('tgn data 0 01000001EA01010BC0A8010B'),
+            call('tgn on'),
+            call('tgn rate 1'),
+            call('tgn send 1'),
+            call('tgn clear all')])
+
+        dev.igmp_client_control(interface=intf, client_handler=client_handler,
+                                mode='stop')
+
+        dev.igmp_client_del_group(client_handler=client_handler,
+                                  handler=handler)
+
+        dev.delete_multicast_group(group_handler)
+        dev.delete_multicast_source(source_handler)
+
+
+    def test_send_igmpv3_source_group_report_include_allow(self):
+        dev = self.dev
+
+        intf = 'eth0'
+        mac_src = 'aabb.0011.0018'
+        clientip = '192.168.1.11'
+        groupip = '234.1.1.11'
+        filter_mode='include'
+        max_resp = 100
+        vlanid = '105'
+        allowip = '192.168.2.12'
+
+        client_handler = dev.create_igmp_client(interface=intf,
+                                                clientip=clientip,
+                                                version=3,
+                                                vlanid=vlanid)
+        group_handler = dev.create_multicast_group(groupip)
+        source_handler = dev.create_multicast_source(clientip)
+
+        handler = dev.igmp_client_add_group(client_handler=client_handler,
+                                            group_handler=group_handler,
+                                            source_handler=source_handler,
+                                            filter_mode=filter_mode)
+
+        dev.igmp_client_control(interface=intf, client_handler=client_handler,
+                                mode='start')
+
+        # Join
+        dev.tg.execute.assert_has_calls([
+            call('tgn clear all'),
+            call('tgn eth0'),
+            call('tgn add igmp'),
+            call('tgn name c_1'),
+            call('tgn layer 2 ethernet'),
+            call('tgn l2-shim is dot1q'),
+            call('tgn l2-shim vlan-id 105'),
+            call('tgn L2-src-addr aabb.bb28.010B'),
+            call('tgn L2-dest-addr 0100.5E00.0016'),
+            call('tgn L3-src-addr 192.168.1.11'),
+            call('tgn L3-dest-addr 224.0.0.22'),
+            call('tgn L4-version 2'),
+            call('tgn L4-type 2'),
+            call('tgn L4-max-resp 0'),
+            call('tgn L4-group-address 0.0.0.1'),
+            call('tgn data-length 12'),
+            call('tgn data 0 01000001EA01010BC0A8010B'),
+            call('tgn on'),
+            call('tgn rate 1'),
+            call('tgn send 1'),
+            call('tgn clear all')])
+
+        source_handler_allow = dev.create_multicast_source(allowip)
+        handler_allow = dev.igmp_client_group_allow_source(
+            client_handler=client_handler,
+            group_handler=group_handler,
+            source_handler=source_handler_allow,
+        )
+
+        # Allow
+        dev.tg.execute.assert_has_calls([
+            call('tgn clear all'),
+            call('tgn eth0'),
+            call('tgn add igmp'),
+            call('tgn name c_1'),
+            call('tgn layer 2 ethernet'),
+            call('tgn l2-shim is dot1q'),
+            call('tgn l2-shim vlan-id 105'),
+            call('tgn L2-src-addr aabb.bb28.010B'),
+            call('tgn L2-dest-addr 0100.5E00.0016'),
+            call('tgn L3-src-addr 192.168.1.11'),
+            call('tgn L3-dest-addr 224.0.0.22'),
+            call('tgn L4-version 2'),
+            call('tgn L4-type 2'),
+            call('tgn L4-max-resp 0'),
+            call('tgn L4-group-address 0.0.0.1'),
+            call('tgn data-length 12'),
+            call('tgn data 0 05000001EA01010BC0A8020C'),
+            call('tgn on'),
+            call('tgn rate 1'),
+            call('tgn send 1'),
+            call('tgn clear all')])
+
+        dev.igmp_client_control(interface=intf, client_handler=client_handler,
+                                mode='stop')
+
+        # Leave (by BLOCKs)
+        dev.tg.execute.assert_has_calls([
+            call('tgn clear all'),
+            call('tgn eth0'),
+            call('tgn add igmp'),
+            call('tgn name c_1'),
+            call('tgn layer 2 ethernet'),
+            call('tgn l2-shim is dot1q'),
+            call('tgn l2-shim vlan-id 105'),
+            call('tgn L2-src-addr aabb.bb28.010B'),
+            call('tgn L2-dest-addr 0100.5E00.0016'),
+            call('tgn L3-src-addr 192.168.1.11'),
+            call('tgn L3-dest-addr 224.0.0.22'),
+            call('tgn L4-version 2'),
+            call('tgn L4-type 2'),
+            call('tgn L4-max-resp 0'),
+            call('tgn L4-group-address 0.0.0.1'),
+            call('tgn data-length 12'),
+            call('tgn data 0 06000001EA01010BC0A8010B'),
+            call('tgn on'),
+            call('tgn rate 1'),
+            call('tgn send 1'),
+            call('tgn clear all'),
+            call('tgn clear all'),
+            call('tgn eth0'),
+            call('tgn add igmp'),
+            call('tgn name c_1'),
+            call('tgn layer 2 ethernet'),
+            call('tgn l2-shim is dot1q'),
+            call('tgn l2-shim vlan-id 105'),
+            call('tgn L2-src-addr aabb.bb28.010B'),
+            call('tgn L2-dest-addr 0100.5E00.0016'),
+            call('tgn L3-src-addr 192.168.1.11'),
+            call('tgn L3-dest-addr 224.0.0.22'),
+            call('tgn L4-version 2'),
+            call('tgn L4-type 2'),
+            call('tgn L4-max-resp 0'),
+            call('tgn L4-group-address 0.0.0.1'),
+            call('tgn data-length 12'),
+            call('tgn data 0 06000001EA01010BC0A8020C'),
+            call('tgn on'),
+            call('tgn rate 1'),
+            call('tgn send 1'),
+            call('tgn clear all')])
+
+        dev.igmp_client_del_group(client_handler=client_handler,
+                                  handler=handler)
+        dev.igmp_client_del_group(client_handler=client_handler,
+                                  handler=handler_allow)
+
+        dev.delete_multicast_group(group_handler)
+        dev.delete_multicast_source(source_handler)
+        dev.delete_multicast_source(source_handler_allow)
+
+    def test_send_igmpv3_source_group_report_exclude_allow(self):
+        dev = self.dev
+
+        intf = 'eth0'
+        mac_src = 'aabb.0011.0018'
+        clientip = '192.168.1.11'
+        groupip = '234.1.1.11'
+        filter_mode='exclude'
+        max_resp = 100
+        vlanid = '105'
+
+        client_handler = dev.create_igmp_client(interface=intf,
+                                                clientip=clientip,
+                                                version=3,
+                                                vlanid=vlanid)
+        group_handler = dev.create_multicast_group(groupip)
+        source_handler = dev.create_multicast_source(clientip)
+
+        handler = dev.igmp_client_add_group(client_handler=client_handler,
+                                            group_handler=group_handler,
+                                            source_handler=source_handler,
+                                            filter_mode=filter_mode)
+
+        dev.igmp_client_control(interface=intf, client_handler=client_handler,
+                                mode='start')
+
+        # Join
+        dev.tg.execute.assert_has_calls([
+            call('tgn clear all'),
+            call('tgn eth0'),
+            call('tgn add igmp'),
+            call('tgn name c_1'),
+            call('tgn layer 2 ethernet'),
+            call('tgn l2-shim is dot1q'),
+            call('tgn l2-shim vlan-id 105'),
+            call('tgn L2-src-addr aabb.bb28.010B'),
+            call('tgn L2-dest-addr 0100.5E00.0016'),
+            call('tgn L3-src-addr 192.168.1.11'),
+            call('tgn L3-dest-addr 224.0.0.22'),
+            call('tgn L4-version 2'),
+            call('tgn L4-type 2'),
+            call('tgn L4-max-resp 0'),
+            call('tgn L4-group-address 0.0.0.1'),
+            call('tgn data-length 12'),
+            call('tgn data 0 02000001EA01010BC0A8010B'),
+            call('tgn on'),
+            call('tgn rate 1'),
+            call('tgn send 1'),
+            call('tgn clear all')])
+
+        handler_allow = dev.igmp_client_group_allow_source(
+            client_handler=client_handler,
+            group_handler=group_handler,
+            source_handler=source_handler,
+            handler=handler,
+        )
+
+        # Allow
+        dev.tg.execute.assert_has_calls([
+            call('tgn clear all'),
+            call('tgn eth0'),
+            call('tgn add igmp'),
+            call('tgn name c_1'),
+            call('tgn layer 2 ethernet'),
+            call('tgn l2-shim is dot1q'),
+            call('tgn l2-shim vlan-id 105'),
+            call('tgn L2-src-addr aabb.bb28.010B'),
+            call('tgn L2-dest-addr 0100.5E00.0016'),
+            call('tgn L3-src-addr 192.168.1.11'),
+            call('tgn L3-dest-addr 224.0.0.22'),
+            call('tgn L4-version 2'),
+            call('tgn L4-type 2'),
+            call('tgn L4-max-resp 0'),
+            call('tgn L4-group-address 0.0.0.1'),
+            call('tgn data-length 12'),
+            call('tgn data 0 05000001EA01010BC0A8010B'),
+            call('tgn on'),
+            call('tgn rate 1'),
+            call('tgn send 1'),
+            call('tgn clear all')])
+
+        dev.igmp_client_control(interface=intf, client_handler=client_handler,
+                                mode='stop')
+
+        # Leave (by TO_IN)
+        dev.tg.execute.assert_has_calls([
+            call('tgn on'),
+            call('tgn rate 1'),
+            call('tgn send 1'),
+            call('tgn clear all'),
+            call('tgn clear all'),
+            call('tgn eth0'),
+            call('tgn add igmp'),
+            call('tgn name c_1'),
+            call('tgn layer 2 ethernet'),
+            call('tgn l2-shim is dot1q'),
+            call('tgn l2-shim vlan-id 105'),
+            call('tgn L2-src-addr aabb.bb28.010B'),
+            call('tgn L2-dest-addr 0100.5E00.0016'),
+            call('tgn L3-src-addr 192.168.1.11'),
+            call('tgn L3-dest-addr 224.0.0.22'),
+            call('tgn L4-version 2'),
+            call('tgn L4-type 2'),
+            call('tgn L4-max-resp 0'),
+            call('tgn L4-group-address 0.0.0.1'),
+            call('tgn data-length 8'),
+            call('tgn data 0 03000000EA01010B'),
+            call('tgn on'),
+            call('tgn rate 1'),
+            call('tgn send 1'),
+            call('tgn clear all')])
+
+        dev.igmp_client_del_group(client_handler=client_handler,
+                                  handler=handler_allow)
+
+        dev.delete_multicast_group(group_handler)
+        dev.delete_multicast_source(source_handler)
+
+    def test_send_igmpv3_source_group_report_include_block(self):
+        dev = self.dev
+
+        intf = 'eth0'
+        mac_src = 'aabb.0011.0018'
+        clientip = '192.168.1.11'
+        groupip = '234.1.1.11'
+        filter_mode='include'
+        max_resp = 100
+        vlanid = '105'
+
+        client_handler = dev.create_igmp_client(interface=intf,
+                                                clientip=clientip,
+                                                version=3,
+                                                vlanid=vlanid)
+        group_handler = dev.create_multicast_group(groupip)
+        source_handler = dev.create_multicast_source(clientip)
+
+        handler = dev.igmp_client_add_group(client_handler=client_handler,
+                                            group_handler=group_handler,
+                                            source_handler=source_handler,
+                                            filter_mode=filter_mode)
+
+        dev.igmp_client_control(interface=intf, client_handler=client_handler,
+                                mode='start')
+
+        # Join
+        dev.tg.execute.assert_has_calls([
+            call('tgn clear all'),
+            call('tgn eth0'),
+            call('tgn add igmp'),
+            call('tgn name c_1'),
+            call('tgn layer 2 ethernet'),
+            call('tgn l2-shim is dot1q'),
+            call('tgn l2-shim vlan-id 105'),
+            call('tgn L2-src-addr aabb.bb28.010B'),
+            call('tgn L2-dest-addr 0100.5E00.0016'),
+            call('tgn L3-src-addr 192.168.1.11'),
+            call('tgn L3-dest-addr 224.0.0.22'),
+            call('tgn L4-version 2'),
+            call('tgn L4-type 2'),
+            call('tgn L4-max-resp 0'),
+            call('tgn L4-group-address 0.0.0.1'),
+            call('tgn data-length 12'),
+            call('tgn data 0 01000001EA01010BC0A8010B'),
+            call('tgn on'),
+            call('tgn rate 1'),
+            call('tgn send 1'),
+            call('tgn clear all')])
+
+        dev.igmp_client_group_block_source(
+            client_handler=client_handler,
+            group_handler=group_handler,
+            source_handler=source_handler,
+            handler=handler,
+        )
+
+        # Block/Leave
+        dev.tg.execute.assert_has_calls([
+            call('tgn clear all'),
+            call('tgn eth0'),
+            call('tgn add igmp'),
+            call('tgn name c_1'),
+            call('tgn layer 2 ethernet'),
+            call('tgn l2-shim is dot1q'),
+            call('tgn l2-shim vlan-id 105'),
+            call('tgn L2-src-addr aabb.bb28.010B'),
+            call('tgn L2-dest-addr 0100.5E00.0016'),
+            call('tgn L3-src-addr 192.168.1.11'),
+            call('tgn L3-dest-addr 224.0.0.22'),
+            call('tgn L4-version 2'),
+            call('tgn L4-type 2'),
+            call('tgn L4-max-resp 0'),
+            call('tgn L4-group-address 0.0.0.1'),
+            call('tgn data-length 12'),
+            call('tgn data 0 06000001EA01010BC0A8010B'),
+            call('tgn on'),
+            call('tgn rate 1'),
+            call('tgn send 1'),
+            call('tgn clear all')])
+
+        dev.igmp_client_control(interface=intf, client_handler=client_handler,
+                                mode='stop')
+
+        dev.delete_multicast_group(group_handler)
+        dev.delete_multicast_source(source_handler)
+
+    def test_send_igmpv3_source_group_report_exclude_block(self):
+        dev = self.dev
+
+        intf = 'eth0'
+        mac_src = 'aabb.0011.0018'
+        clientip = '192.168.1.11'
+        groupip = '234.1.1.11'
+        filter_mode='exclude'
+        max_resp = 100
+        vlanid = '105'
+        blockip = '192.168.2.12'
+
+        client_handler = dev.create_igmp_client(interface=intf,
+                                                clientip=clientip,
+                                                version=3,
+                                                vlanid=vlanid)
+        group_handler = dev.create_multicast_group(groupip)
+        source_handler = dev.create_multicast_source(clientip)
+
+        handler = dev.igmp_client_add_group(client_handler=client_handler,
+                                            group_handler=group_handler,
+                                            source_handler=source_handler,
+                                            filter_mode=filter_mode)
+
+        dev.igmp_client_control(interface=intf, client_handler=client_handler,
+                                mode='start')
+
+        # Join
+        dev.tg.execute.assert_has_calls([
+            call('tgn clear all'),
+            call('tgn eth0'),
+            call('tgn add igmp'),
+            call('tgn name c_1'),
+            call('tgn layer 2 ethernet'),
+            call('tgn l2-shim is dot1q'),
+            call('tgn l2-shim vlan-id 105'),
+            call('tgn L2-src-addr aabb.bb28.010B'),
+            call('tgn L2-dest-addr 0100.5E00.0016'),
+            call('tgn L3-src-addr 192.168.1.11'),
+            call('tgn L3-dest-addr 224.0.0.22'),
+            call('tgn L4-version 2'),
+            call('tgn L4-type 2'),
+            call('tgn L4-max-resp 0'),
+            call('tgn L4-group-address 0.0.0.1'),
+            call('tgn data-length 12'),
+            call('tgn data 0 02000001EA01010BC0A8010B'),
+            call('tgn on'),
+            call('tgn rate 1'),
+            call('tgn send 1'),
+            call('tgn clear all')])
+
+        source_handler_block = dev.create_multicast_source(blockip)
+        handler_block = dev.igmp_client_group_block_source(
+            client_handler=client_handler,
+            group_handler=group_handler,
+            source_handler=source_handler_block,
+        )
+
+        # Block
+        dev.tg.execute.assert_has_calls([
+            call('tgn clear all'),
+            call('tgn eth0'),
+            call('tgn add igmp'),
+            call('tgn name c_1'),
+            call('tgn layer 2 ethernet'),
+            call('tgn l2-shim is dot1q'),
+            call('tgn l2-shim vlan-id 105'),
+            call('tgn L2-src-addr aabb.bb28.010B'),
+            call('tgn L2-dest-addr 0100.5E00.0016'),
+            call('tgn L3-src-addr 192.168.1.11'),
+            call('tgn L3-dest-addr 224.0.0.22'),
+            call('tgn L4-version 2'),
+            call('tgn L4-type 2'),
+            call('tgn L4-max-resp 0'),
+            call('tgn L4-group-address 0.0.0.1'),
+            call('tgn data-length 12'),
+            call('tgn data 0 06000001EA01010BC0A8020C'),
+            call('tgn on'),
+            call('tgn rate 1'),
+            call('tgn send 1'),
+            call('tgn clear all')])
+
+        dev.igmp_client_control(interface=intf, client_handler=client_handler,
+                                mode='stop')
+
+        # Leave (by TO_IN)
+        dev.tg.execute.assert_has_calls([
+            call('tgn on'),
+            call('tgn rate 1'),
+            call('tgn send 1'),
+            call('tgn clear all'),
+            call('tgn clear all'),
+            call('tgn eth0'),
+            call('tgn add igmp'),
+            call('tgn name c_1'),
+            call('tgn layer 2 ethernet'),
+            call('tgn l2-shim is dot1q'),
+            call('tgn l2-shim vlan-id 105'),
+            call('tgn L2-src-addr aabb.bb28.010B'),
+            call('tgn L2-dest-addr 0100.5E00.0016'),
+            call('tgn L3-src-addr 192.168.1.11'),
+            call('tgn L3-dest-addr 224.0.0.22'),
+            call('tgn L4-version 2'),
+            call('tgn L4-type 2'),
+            call('tgn L4-max-resp 0'),
+            call('tgn L4-group-address 0.0.0.1'),
+            call('tgn data-length 8'),
+            call('tgn data 0 03000000EA01010B'),
+            call('tgn on'),
+            call('tgn rate 1'),
+            call('tgn send 1'),
+            call('tgn clear all')])
+
+        dev.igmp_client_del_group(client_handler=client_handler,
+                                  handler=handler)
+        dev.igmp_client_del_group(client_handler=client_handler,
+                                  handler=handler_block)
+
+        dev.delete_multicast_group(group_handler)
+        dev.delete_multicast_source(source_handler)
+        dev.delete_multicast_source(source_handler_block)
+
+
     def test_send_mldv1_query_general(self):
         dev = self.dev
 
@@ -642,6 +1168,564 @@ class TestPagentAPIs(unittest.TestCase):
             call('tgn rate 100'),
             call('tgn send 5'),
             call('tgn clear all')])
+
+    def test_send_mldv2_source_group_report_general(self):
+        dev = self.dev
+
+        intf = 'eth0'
+        mac_src = 'aabb.0011.0018'
+        clientip = '2001:105::11'
+        groupip = 'FF0E:11::11'
+        filter_mode='include'
+        max_resp = 100
+        vlanid = '105'
+
+        client_handler = dev.create_mld_client(interface=intf,
+                                               clientip=clientip,
+                                               version=2,
+                                               vlanid=vlanid)
+        group_handler = dev.create_multicast_group(groupip, ip_prefix_len=128)
+        source_handler = dev.create_multicast_source(clientip, ip_prefix_len=128)
+
+        handler = dev.mld_client_add_group(client_handler=client_handler,
+                                           group_handler=group_handler,
+                                           source_handler=source_handler,
+                                           filter_mode=filter_mode)
+
+        dev.mld_client_control(interface=intf, client_handler=client_handler,
+                               mode='start')
+
+        dev.tg.execute.assert_has_calls([
+            call('tgn clear all'),
+            call('tgn eth0'),
+            call('tgn add icmpv6'),
+            call('tgn name c_2'),
+            call('tgn layer 2 ethernet'),
+            call('tgn l2-shim is dot1q'),
+            call('tgn l2-shim vlan-id 105'),
+            call('tgn L2-src-addr aabb.bb00.0011'),
+            call('tgn L2-dest-addr 3333.0000.0016'),
+            call('tgn L3-src-addr 2001:105::11'),
+            call('tgn L3-dest-addr FF02::16'),
+            call('tgn L3-hop-limit 1'),
+            call('tgn L3-next-header 0'),
+            call('tgn L3-header total 1 modules'),
+            call('tgn L3-header 0 is hop_by_hop'),
+            call('tgn L3-header 0 next-header 58'),
+            call('tgn L3-header 0 option 0 0 0502'),
+            call('tgn L4-type 143'),
+            call('tgn L4-message 0 0000000101000001FF0E00110000000000000000' +\
+                 '0000001120010105000000000000000000000011'),
+            call('tgn on'),
+            call('tgn rate 1'),
+            call('tgn send 1'),
+            call('tgn clear all')])
+
+        dev.mld_client_control(interface=intf, client_handler=client_handler,
+                               mode='stop')
+
+        dev.mld_client_del_group(client_handler=client_handler,
+                                 handler=handler)
+
+        dev.delete_multicast_group(group_handler)
+        dev.delete_multicast_source(source_handler)
+
+
+    def test_send_mldv2_source_group_report_include_allow(self):
+        dev = self.dev
+
+        intf = 'eth0'
+        mac_src = 'aabb.0011.0018'
+        clientip = '2001:105::11'
+        groupip = 'FF0E:11::11'
+        filter_mode='include'
+        max_resp = 100
+        vlanid = '105'
+        allowip = '2001:105::12'
+
+        client_handler = dev.create_mld_client(interface=intf,
+                                               clientip=clientip,
+                                               version=2,
+                                               vlanid=vlanid)
+        group_handler = dev.create_multicast_group(groupip, ip_prefix_len=128)
+        source_handler = dev.create_multicast_source(clientip, ip_prefix_len=128)
+
+        handler = dev.mld_client_add_group(client_handler=client_handler,
+                                           group_handler=group_handler,
+                                           source_handler=source_handler,
+                                           filter_mode=filter_mode)
+
+        dev.mld_client_control(interface=intf, client_handler=client_handler,
+                               mode='start')
+
+        # Join
+        dev.tg.execute.assert_has_calls([
+            call('tgn clear all'),
+            call('tgn eth0'),
+            call('tgn add icmpv6'),
+            call('tgn name c_2'),
+            call('tgn layer 2 ethernet'),
+            call('tgn l2-shim is dot1q'),
+            call('tgn l2-shim vlan-id 105'),
+            call('tgn L2-src-addr aabb.bb00.0011'),
+            call('tgn L2-dest-addr 3333.0000.0016'),
+            call('tgn L3-src-addr 2001:105::11'),
+            call('tgn L3-dest-addr FF02::16'),
+            call('tgn L3-hop-limit 1'),
+            call('tgn L3-next-header 0'),
+            call('tgn L3-header total 1 modules'),
+            call('tgn L3-header 0 is hop_by_hop'),
+            call('tgn L3-header 0 next-header 58'),
+            call('tgn L3-header 0 option 0 0 0502'),
+            call('tgn L4-type 143'),
+            call('tgn L4-message 0 0000000101000001FF0E00110000000000000000' +\
+                 '0000001120010105000000000000000000000011'),
+            call('tgn on'),
+            call('tgn rate 1'),
+            call('tgn send 1'),
+            call('tgn clear all')])
+
+        source_handler_allow = dev.create_multicast_source(allowip,
+                                                           ip_prefix_len=128)
+        handler_allow = dev.mld_client_group_allow_source(
+            client_handler=client_handler,
+            group_handler=group_handler,
+            source_handler=source_handler_allow,
+        )
+
+        # Allow
+        dev.tg.execute.assert_has_calls([
+            call('tgn clear all'),
+            call('tgn eth0'),
+            call('tgn add icmpv6'),
+            call('tgn name c_2'),
+            call('tgn layer 2 ethernet'),
+            call('tgn l2-shim is dot1q'),
+            call('tgn l2-shim vlan-id 105'),
+            call('tgn L2-src-addr aabb.bb00.0011'),
+            call('tgn L2-dest-addr 3333.0000.0016'),
+            call('tgn L3-src-addr 2001:105::11'),
+            call('tgn L3-dest-addr FF02::16'),
+            call('tgn L3-hop-limit 1'),
+            call('tgn L3-next-header 0'),
+            call('tgn L3-header total 1 modules'),
+            call('tgn L3-header 0 is hop_by_hop'),
+            call('tgn L3-header 0 next-header 58'),
+            call('tgn L3-header 0 option 0 0 0502'),
+            call('tgn L4-type 143'),
+            call('tgn L4-message 0 0000000105000001FF0E00110000000000000000' +\
+                 '0000001120010105000000000000000000000012'),
+            call('tgn on'),
+            call('tgn rate 1'),
+            call('tgn send 1'),
+            call('tgn clear all')])
+
+        dev.mld_client_control(interface=intf, client_handler=client_handler,
+                               mode='stop')
+
+        # Leave (by BLOCKs)
+        dev.tg.execute.assert_has_calls([
+            call('tgn clear all'),
+            call('tgn eth0'),
+            call('tgn add icmpv6'),
+            call('tgn name c_2'),
+            call('tgn layer 2 ethernet'),
+            call('tgn l2-shim is dot1q'),
+            call('tgn l2-shim vlan-id 105'),
+            call('tgn L2-src-addr aabb.bb00.0011'),
+            call('tgn L2-dest-addr 3333.0000.0016'),
+            call('tgn L3-src-addr 2001:105::11'),
+            call('tgn L3-dest-addr FF02::16'),
+            call('tgn L3-hop-limit 1'),
+            call('tgn L3-next-header 0'),
+            call('tgn L3-header total 1 modules'),
+            call('tgn L3-header 0 is hop_by_hop'),
+            call('tgn L3-header 0 next-header 58'),
+            call('tgn L3-header 0 option 0 0 0502'),
+            call('tgn L4-type 143'),
+            call('tgn L4-message 0 0000000106000001FF0E00110000000000000000' +\
+                 '0000001120010105000000000000000000000011'),
+            call('tgn on'),
+            call('tgn rate 1'),
+            call('tgn send 1'),
+            call('tgn clear all'),
+            call('tgn clear all'),
+            call('tgn eth0'),
+            call('tgn add icmpv6'),
+            call('tgn name c_2'),
+            call('tgn layer 2 ethernet'),
+            call('tgn l2-shim is dot1q'),
+            call('tgn l2-shim vlan-id 105'),
+            call('tgn L2-src-addr aabb.bb00.0011'),
+            call('tgn L2-dest-addr 3333.0000.0016'),
+            call('tgn L3-src-addr 2001:105::11'),
+            call('tgn L3-dest-addr FF02::16'),
+            call('tgn L3-hop-limit 1'),
+            call('tgn L3-next-header 0'),
+            call('tgn L3-header total 1 modules'),
+            call('tgn L3-header 0 is hop_by_hop'),
+            call('tgn L3-header 0 next-header 58'),
+            call('tgn L3-header 0 option 0 0 0502'),
+            call('tgn L4-type 143'),
+            call('tgn L4-message 0 0000000106000001FF0E00110000000000000000' +\
+                 '0000001120010105000000000000000000000012'),
+            call('tgn on'),
+            call('tgn rate 1'),
+            call('tgn send 1'),
+            call('tgn clear all')])
+
+        dev.mld_client_del_group(client_handler=client_handler,
+                                 handler=handler)
+        dev.mld_client_del_group(client_handler=client_handler,
+                                 handler=handler_allow)
+
+        dev.delete_multicast_group(group_handler)
+        dev.delete_multicast_source(source_handler)
+        dev.delete_multicast_source(source_handler_allow)
+
+    def test_send_mldv2_source_group_report_exclude_allow(self):
+        dev = self.dev
+
+        intf = 'eth0'
+        mac_src = 'aabb.0011.0018'
+        clientip = '2001:105::11'
+        groupip = 'FF0E:11::11'
+        filter_mode='exclude'
+        max_resp = 100
+        vlanid = '105'
+
+        client_handler = dev.create_mld_client(interface=intf,
+                                               clientip=clientip,
+                                               version=2,
+                                               vlanid=vlanid)
+        group_handler = dev.create_multicast_group(groupip, ip_prefix_len=128)
+        source_handler = dev.create_multicast_source(clientip, ip_prefix_len=128)
+
+        handler = dev.mld_client_add_group(client_handler=client_handler,
+                                           group_handler=group_handler,
+                                           source_handler=source_handler,
+                                           filter_mode=filter_mode)
+
+        dev.mld_client_control(interface=intf, client_handler=client_handler,
+                               mode='start')
+
+        # Join
+        dev.tg.execute.assert_has_calls([
+            call('tgn clear all'),
+            call('tgn eth0'),
+            call('tgn add icmpv6'),
+            call('tgn name c_2'),
+            call('tgn layer 2 ethernet'),
+            call('tgn l2-shim is dot1q'),
+            call('tgn l2-shim vlan-id 105'),
+            call('tgn L2-src-addr aabb.bb00.0011'),
+            call('tgn L2-dest-addr 3333.0000.0016'),
+            call('tgn L3-src-addr 2001:105::11'),
+            call('tgn L3-dest-addr FF02::16'),
+            call('tgn L3-hop-limit 1'),
+            call('tgn L3-next-header 0'),
+            call('tgn L3-header total 1 modules'),
+            call('tgn L3-header 0 is hop_by_hop'),
+            call('tgn L3-header 0 next-header 58'),
+            call('tgn L3-header 0 option 0 0 0502'),
+            call('tgn L4-type 143'),
+            call('tgn L4-message 0 0000000102000001FF0E00110000000000000000' +\
+                 '0000001120010105000000000000000000000011'),
+            call('tgn on'),
+            call('tgn rate 1'),
+            call('tgn send 1'),
+            call('tgn clear all')])
+
+        handler_allow = dev.mld_client_group_allow_source(
+            client_handler=client_handler,
+            group_handler=group_handler,
+            source_handler=source_handler,
+            handler=handler,
+        )
+
+        # Allow
+        dev.tg.execute.assert_has_calls([
+            call('tgn clear all'),
+            call('tgn eth0'),
+            call('tgn add icmpv6'),
+            call('tgn name c_2'),
+            call('tgn layer 2 ethernet'),
+            call('tgn l2-shim is dot1q'),
+            call('tgn l2-shim vlan-id 105'),
+            call('tgn L2-src-addr aabb.bb00.0011'),
+            call('tgn L2-dest-addr 3333.0000.0016'),
+            call('tgn L3-src-addr 2001:105::11'),
+            call('tgn L3-dest-addr FF02::16'),
+            call('tgn L3-hop-limit 1'),
+            call('tgn L3-next-header 0'),
+            call('tgn L3-header total 1 modules'),
+            call('tgn L3-header 0 is hop_by_hop'),
+            call('tgn L3-header 0 next-header 58'),
+            call('tgn L3-header 0 option 0 0 0502'),
+            call('tgn L4-type 143'),
+            call('tgn L4-message 0 0000000105000001FF0E00110000000000000000' +\
+                 '0000001120010105000000000000000000000011'),
+            call('tgn on'),
+            call('tgn rate 1'),
+            call('tgn send 1'),
+            call('tgn clear all')])
+
+        dev.mld_client_control(interface=intf, client_handler=client_handler,
+                               mode='stop')
+
+        # Leave (by TO_IN)
+        dev.tg.execute.assert_has_calls([
+            call('tgn clear all'),
+            call('tgn eth0'),
+            call('tgn add icmpv6'),
+            call('tgn name c_2'),
+            call('tgn layer 2 ethernet'),
+            call('tgn l2-shim is dot1q'),
+            call('tgn l2-shim vlan-id 105'),
+            call('tgn L2-src-addr aabb.bb00.0011'),
+            call('tgn L2-dest-addr 3333.0000.0016'),
+            call('tgn L3-src-addr 2001:105::11'),
+            call('tgn L3-dest-addr FF02::16'),
+            call('tgn L3-hop-limit 1'),
+            call('tgn L3-next-header 0'),
+            call('tgn L3-header total 1 modules'),
+            call('tgn L3-header 0 is hop_by_hop'),
+            call('tgn L3-header 0 next-header 58'),
+            call('tgn L3-header 0 option 0 0 0502'),
+            call('tgn L4-type 143'),
+            call('tgn L4-message 0 0000000103000000FF0E00110000000000000000' +\
+                 '00000011'),
+            call('tgn on'),
+            call('tgn rate 1'),
+            call('tgn send 1'),
+            call('tgn clear all')])
+
+        dev.mld_client_del_group(client_handler=client_handler,
+                                 handler=handler_allow)
+
+        dev.delete_multicast_group(group_handler)
+        dev.delete_multicast_source(source_handler)
+
+    def test_send_mldv2_source_group_report_include_block(self):
+        dev = self.dev
+
+        intf = 'eth0'
+        mac_src = 'aabb.0011.0018'
+        clientip = '2001:105::11'
+        groupip = 'FF0E:11::11'
+        filter_mode='include'
+        max_resp = 100
+        vlanid = '105'
+
+        client_handler = dev.create_mld_client(interface=intf,
+                                               clientip=clientip,
+                                               version=2,
+                                               vlanid=vlanid)
+        group_handler = dev.create_multicast_group(groupip, ip_prefix_len=128)
+        source_handler = dev.create_multicast_source(clientip, ip_prefix_len=128)
+
+        handler = dev.mld_client_add_group(client_handler=client_handler,
+                                           group_handler=group_handler,
+                                           source_handler=source_handler,
+                                           filter_mode=filter_mode)
+
+        dev.mld_client_control(interface=intf, client_handler=client_handler,
+                               mode='start')
+
+        # Join
+        dev.tg.execute.assert_has_calls([
+            call('tgn clear all'),
+            call('tgn eth0'),
+            call('tgn add icmpv6'),
+            call('tgn name c_2'),
+            call('tgn layer 2 ethernet'),
+            call('tgn l2-shim is dot1q'),
+            call('tgn l2-shim vlan-id 105'),
+            call('tgn L2-src-addr aabb.bb00.0011'),
+            call('tgn L2-dest-addr 3333.0000.0016'),
+            call('tgn L3-src-addr 2001:105::11'),
+            call('tgn L3-dest-addr FF02::16'),
+            call('tgn L3-hop-limit 1'),
+            call('tgn L3-next-header 0'),
+            call('tgn L3-header total 1 modules'),
+            call('tgn L3-header 0 is hop_by_hop'),
+            call('tgn L3-header 0 next-header 58'),
+            call('tgn L3-header 0 option 0 0 0502'),
+            call('tgn L4-type 143'),
+            call('tgn L4-message 0 0000000101000001FF0E00110000000000000000' +\
+                 '0000001120010105000000000000000000000011'),
+            call('tgn on'),
+            call('tgn rate 1'),
+            call('tgn send 1'),
+            call('tgn clear all')])
+
+        dev.mld_client_group_block_source(
+            client_handler=client_handler,
+            group_handler=group_handler,
+            source_handler=source_handler,
+            handler=handler,
+        )
+
+        # Block/Leave
+        dev.tg.execute.assert_has_calls([
+            call('tgn clear all'),
+            call('tgn eth0'),
+            call('tgn add icmpv6'),
+            call('tgn name c_2'),
+            call('tgn layer 2 ethernet'),
+            call('tgn l2-shim is dot1q'),
+            call('tgn l2-shim vlan-id 105'),
+            call('tgn L2-src-addr aabb.bb00.0011'),
+            call('tgn L2-dest-addr 3333.0000.0016'),
+            call('tgn L3-src-addr 2001:105::11'),
+            call('tgn L3-dest-addr FF02::16'),
+            call('tgn L3-hop-limit 1'),
+            call('tgn L3-next-header 0'),
+            call('tgn L3-header total 1 modules'),
+            call('tgn L3-header 0 is hop_by_hop'),
+            call('tgn L3-header 0 next-header 58'),
+            call('tgn L3-header 0 option 0 0 0502'),
+            call('tgn L4-type 143'),
+            call('tgn L4-message 0 0000000106000001FF0E00110000000000000000' +\
+                 '0000001120010105000000000000000000000011'),
+            call('tgn on'),
+            call('tgn rate 1'),
+            call('tgn send 1'),
+            call('tgn clear all')])
+
+        dev.mld_client_control(interface=intf, client_handler=client_handler,
+                               mode='stop')
+
+        dev.delete_multicast_group(group_handler)
+        dev.delete_multicast_source(source_handler)
+
+    def test_send_mldv2_source_group_report_exclude_block(self):
+        dev = self.dev
+
+        intf = 'eth0'
+        mac_src = 'aabb.0011.0018'
+        clientip = '2001:105::11'
+        groupip = 'FF0E:11::11'
+        filter_mode='exclude'
+        max_resp = 100
+        vlanid = '105'
+        blockip = '2001:105::12'
+
+        client_handler = dev.create_mld_client(interface=intf,
+                                               clientip=clientip,
+                                               version=2,
+                                               vlanid=vlanid)
+        group_handler = dev.create_multicast_group(groupip, ip_prefix_len=128)
+        source_handler = dev.create_multicast_source(clientip, ip_prefix_len=128)
+
+        handler = dev.mld_client_add_group(client_handler=client_handler,
+                                           group_handler=group_handler,
+                                           source_handler=source_handler,
+                                           filter_mode=filter_mode)
+
+        dev.mld_client_control(interface=intf, client_handler=client_handler,
+                               mode='start')
+
+        # Join
+        dev.tg.execute.assert_has_calls([
+            call('tgn clear all'),
+            call('tgn eth0'),
+            call('tgn add icmpv6'),
+            call('tgn name c_2'),
+            call('tgn layer 2 ethernet'),
+            call('tgn l2-shim is dot1q'),
+            call('tgn l2-shim vlan-id 105'),
+            call('tgn L2-src-addr aabb.bb00.0011'),
+            call('tgn L2-dest-addr 3333.0000.0016'),
+            call('tgn L3-src-addr 2001:105::11'),
+            call('tgn L3-dest-addr FF02::16'),
+            call('tgn L3-hop-limit 1'),
+            call('tgn L3-next-header 0'),
+            call('tgn L3-header total 1 modules'),
+            call('tgn L3-header 0 is hop_by_hop'),
+            call('tgn L3-header 0 next-header 58'),
+            call('tgn L3-header 0 option 0 0 0502'),
+            call('tgn L4-type 143'),
+            call('tgn L4-message 0 0000000102000001FF0E00110000000000000000' +\
+                 '0000001120010105000000000000000000000011'),
+            call('tgn on'),
+            call('tgn rate 1'),
+            call('tgn send 1'),
+            call('tgn clear all')])
+
+        source_handler_block = dev.create_multicast_source(blockip,
+                                                           ip_prefix_len=128)
+        handler_block = dev.mld_client_group_block_source(
+            client_handler=client_handler,
+            group_handler=group_handler,
+            source_handler=source_handler_block,
+        )
+
+        # Block
+        dev.tg.execute.assert_has_calls([
+            call('tgn clear all'),
+            call('tgn eth0'),
+            call('tgn add icmpv6'),
+            call('tgn name c_2'),
+            call('tgn layer 2 ethernet'),
+            call('tgn l2-shim is dot1q'),
+            call('tgn l2-shim vlan-id 105'),
+            call('tgn L2-src-addr aabb.bb00.0011'),
+            call('tgn L2-dest-addr 3333.0000.0016'),
+            call('tgn L3-src-addr 2001:105::11'),
+            call('tgn L3-dest-addr FF02::16'),
+            call('tgn L3-hop-limit 1'),
+            call('tgn L3-next-header 0'),
+            call('tgn L3-header total 1 modules'),
+            call('tgn L3-header 0 is hop_by_hop'),
+            call('tgn L3-header 0 next-header 58'),
+            call('tgn L3-header 0 option 0 0 0502'),
+            call('tgn L4-type 143'),
+            call('tgn L4-message 0 0000000106000001FF0E00110000000000000000' +\
+                 '0000001120010105000000000000000000000012'),
+            call('tgn on'),
+            call('tgn rate 1'),
+            call('tgn send 1'),
+            call('tgn clear all')])
+
+        dev.mld_client_control(interface=intf, client_handler=client_handler,
+                               mode='stop')
+
+        # Leave (by TO_IN)
+        dev.tg.execute.assert_has_calls([
+            call('tgn clear all'),
+            call('tgn eth0'),
+            call('tgn add icmpv6'),
+            call('tgn name c_2'),
+            call('tgn layer 2 ethernet'),
+            call('tgn l2-shim is dot1q'),
+            call('tgn l2-shim vlan-id 105'),
+            call('tgn L2-src-addr aabb.bb00.0011'),
+            call('tgn L2-dest-addr 3333.0000.0016'),
+            call('tgn L3-src-addr 2001:105::11'),
+            call('tgn L3-dest-addr FF02::16'),
+            call('tgn L3-hop-limit 1'),
+            call('tgn L3-next-header 0'),
+            call('tgn L3-header total 1 modules'),
+            call('tgn L3-header 0 is hop_by_hop'),
+            call('tgn L3-header 0 next-header 58'),
+            call('tgn L3-header 0 option 0 0 0502'),
+            call('tgn L4-type 143'),
+            call('tgn L4-message 0 0000000103000000FF0E00110000000000000000' +\
+                 '00000011'),
+            call('tgn on'),
+            call('tgn rate 1'),
+            call('tgn send 1'),
+            call('tgn clear all')])
+
+        dev.mld_client_del_group(client_handler=client_handler,
+                                 handler=handler)
+        dev.mld_client_del_group(client_handler=client_handler,
+                                 handler=handler_block)
+
+        dev.delete_multicast_group(group_handler)
+        dev.delete_multicast_source(source_handler)
+        dev.delete_multicast_source(source_handler_block)
 
 
     def test_start_pkt_count_arp(self):

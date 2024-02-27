@@ -138,4 +138,9 @@ class IxiaRestPy(TrafficGen):
 
                         if session.State == 'ACTIVE':
                             return True
-        return False
+        return False    
+    
+    def disconnect(self):
+        if self.session_id:
+            self.session.Session.find(Id=self.session_id)[0].remove()
+            logger.info(f"The session {self.session_id} is removed successfully.")

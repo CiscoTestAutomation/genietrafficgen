@@ -1160,6 +1160,222 @@ class Pagent(TrafficGen):
 
         return handler
 
+    def igmp_client_group_allow_source(self, client_handler, group_handler,
+                                       source_handler, handler=None):
+        '''IGMP Client modify group member source list by allow, Only IGMP v3
+           client is supported
+           Args:
+             client_handler ('obj'): IGMP Client handler
+             group_handler ('obj'):
+                Multicast group pool handler created by create_multicast_group
+             source_handler ('obj'):
+                Multicast source handler created by create_multicast_source
+             handler ('obj'), Optional:
+                Group membership handler created by igmp_client_add_group
+                Required if the current mode is 'exclude'.
+           Returns:
+             New/updated group membership handler, or none if the current mode
+             is 'exclude' and there are more than one source.
+           Raises:
+             KeyError
+        '''
+        hkey = client_handler
+        gkey = group_handler
+        skey = source_handler
+
+        grps = self._get_igmpclient_field(hkey, 'grps')
+        grp_attr = self._get_igmpclient_field(hkey, 'grp_attr')
+        if gkey not in grps:
+            log.error('Group not exist')
+            raise KeyError
+
+        version = self._get_igmpclient_field(hkey, 'version')
+        if version != 3:
+            # Not supported operation, only IGMPv3 has filters support.
+            log.error(
+                'Not supported operation: change client {hkey} '
+                'version {ver}'.format(
+                    hkey=hkey, ver=version,
+                )
+            )
+            return
+
+        interface, client_ip = hkey.split(',')
+
+        vlan = self._get_igmpclient_field(hkey, 'vlan')
+        c_name = self._get_igmpclient_field(hkey, 'name')
+
+        smac = self._tgn_client_mac_by_ip(client_ip)
+
+        group = self.mcast_grps[gkey]['grp_ip']
+
+        # Filter number for ALLOW
+        mode = 5
+
+        first_key = list(grp_attr[gkey].keys())[0]
+        filter_mode = grp_attr[gkey][first_key]['fmode']
+        if filter_mode == 'include':
+            # Filter mode is 'include' (IS_IN). ALLOW should add the new source
+            # address to the source list.
+
+            new_handler = self.igmp_client_add_group(
+                client_handler=client_handler,
+                group_handler=group_handler,
+                source_handler=source_handler,
+                filter_mode=filter_mode
+            )
+
+            src_num = self.mcast_srcs[skey]['src_num']
+            src_list = self._get_ippool_ips(self.mcast_srcs[skey]['src_ip'],
+                                            self.mcast_srcs[skey]['steps'],
+                                            src_num)
+
+            flow = PG_flow_igmpv3_report(c_name, smac, client_ip, group,
+                                         src_num, src_list, mode, vlan)
+
+            self.pg.send_traffic(flow, interface, 1, 1)
+            self.pg.clear_tgn()
+
+            return new_handler
+        else:
+            # Filter mode is 'exclude' (IS_EX). ALLOW should remove the new
+            # source address from the source list. In the case where only one
+            # source is remaining in the source list, the filter will become
+            # IS_EX 0.0.0.0, namely (*,G).
+
+            src_num = self.mcast_srcs[skey]['src_num']
+            src_list = self._get_ippool_ips(self.mcast_srcs[skey]['src_ip'],
+                                            self.mcast_srcs[skey]['steps'],
+                                            src_num)
+
+            flow = PG_flow_igmpv3_report(c_name, smac, client_ip, group,
+                                         src_num, src_list, mode, vlan)
+
+            self.pg.send_traffic(flow, interface, 1, 1)
+            self.pg.clear_tgn()
+
+            if handler is None:
+                log.warn('handler should not be None')
+            else:
+                self.igmp_client_del_group(
+                    client_handler=client_handler,
+                    handler=handler
+                )
+
+            if not grps:
+                # Return handler for (*,G)
+                new_handler = self.igmp_client_add_group(
+                    client_handler=client_handler,
+                    group_handler=group_handler,
+                    filter_mode=filter_mode
+                )
+
+                return new_handler
+
+    def igmp_client_group_block_source(self, client_handler, group_handler,
+                                       source_handler, handler=None):
+        '''IGMP Client modify group member source list by block, Only IGMP v3
+           client is supported
+           Args:
+             client_handler ('obj'): IGMP Client handler
+             group_handler ('obj'):
+                Multicast group pool handler created by create_multicast_group
+             source_handler ('obj'):
+                Multicast source handler created by create_multicast_source
+             handler ('obj'), Optional:
+                Group membership handler created by igmp_client_add_group
+                Required if the current mode is 'include'.
+           Returns:
+             New/updated group membership handler, or none if the current mode
+             is 'include'.
+           Raises:
+             KeyError
+        '''
+        hkey = client_handler
+        gkey = group_handler
+        skey = source_handler
+
+        grps = self._get_igmpclient_field(hkey, 'grps')
+        grp_attr = self._get_igmpclient_field(hkey, 'grp_attr')
+        if gkey not in grps:
+            log.error('Group not exist')
+            raise KeyError
+
+        version = self._get_igmpclient_field(hkey, 'version')
+        if version != 3:
+            # Not supported operation, only IGMPv3 has filters support.
+            log.error(
+                'Not supported operation: change client {hkey} '
+                'version {ver}'.format(
+                    hkey=hkey, ver=version,
+                )
+            )
+            return
+
+        interface, client_ip = hkey.split(',')
+
+        vlan = self._get_igmpclient_field(hkey, 'vlan')
+        c_name = self._get_igmpclient_field(hkey, 'name')
+
+        smac = self._tgn_client_mac_by_ip(client_ip)
+
+        group = self.mcast_grps[gkey]['grp_ip']
+
+        # Filter number for BLOCK
+        mode = 6
+
+        first_key = list(grp_attr[gkey].keys())[0]
+        filter_mode = grp_attr[gkey][first_key]['fmode']
+        if filter_mode == 'include':
+            # Filter mode is 'include' (IS_IN). BLOCK should remove the new
+            # source address from the source list. In the case where only one
+            # source is remaining in the source list, the filter will become
+            # IS_IN 0.0.0.0, unsubscribing to the group.
+
+            src_num = self.mcast_srcs[skey]['src_num']
+            src_list = self._get_ippool_ips(self.mcast_srcs[skey]['src_ip'],
+                                            self.mcast_srcs[skey]['steps'],
+                                            src_num)
+
+            flow = PG_flow_igmpv3_report(c_name, smac, client_ip, group,
+                                         src_num, src_list, mode, vlan)
+
+            self.pg.send_traffic(flow, interface, 1, 1)
+            self.pg.clear_tgn()
+
+            if handler is None:
+                log.warn('handler should not be None')
+            else:
+                # Unsubscribe
+                self.igmp_client_del_group(
+                    client_handler=client_handler,
+                    handler=handler
+                )
+        else:
+            # Filter mode is 'exclude' (IS_EX). BLOCK should add the new source
+            # address to the source list.
+
+            new_handler = self.igmp_client_add_group(
+                client_handler=client_handler,
+                group_handler=group_handler,
+                source_handler=source_handler,
+                filter_mode=filter_mode
+            )
+
+            src_num = self.mcast_srcs[skey]['src_num']
+            src_list = self._get_ippool_ips(self.mcast_srcs[skey]['src_ip'],
+                                            self.mcast_srcs[skey]['steps'],
+                                            src_num)
+
+            flow = PG_flow_igmpv3_report(c_name, smac, client_ip, group,
+                                         src_num, src_list, mode, vlan)
+
+            self.pg.send_traffic(flow, interface, 1, 1)
+            self.pg.clear_tgn()
+
+            return new_handler
+
+
     def igmp_client_del_group(self, client_handler, handler):
         '''IGMP Client delete group membership
            Args:
@@ -1363,6 +1579,221 @@ class Pagent(TrafficGen):
         self.pg.clear_tgn()
 
         return handler
+
+    def mld_client_group_allow_source(self, client_handler, group_handler,
+                                      source_handler, handler=None):
+        '''MLD Client modify group member source list by allow, Only MLD v2
+           client is supported
+           Args:
+             client_handler ('obj'): MLD Client handler
+             group_handler ('obj'):
+                Multicast group pool handler created by create_multicast_group
+             source_handler ('obj'):
+                Multicast source handler created by create_multicast_source
+             handler ('obj'), Optional:
+                Group membership handler created by mld_client_add_group
+                Required if the current mode is 'exclude'.
+           Returns:
+             New/updated group membership handler, or none if the current mode
+             is 'exclude' and there are more than one source.
+           Raises:
+             KeyError
+        '''
+        hkey = client_handler
+        gkey = group_handler
+        skey = source_handler
+
+        grps = self._get_mldclient_field(hkey, 'grps')
+        grp_attr = self._get_mldclient_field(hkey, 'grp_attr')
+        if gkey not in grps:
+            log.error('Group not exist')
+            raise KeyError
+
+        version = self._get_mldclient_field(hkey, 'version')
+        if version != 2:
+            # Not supported operation, only MLDv2 has filters support.
+            log.error(
+                'Not supported operation: change client {hkey} '
+                'version {ver}'.format(
+                    hkey=hkey, ver=version,
+                )
+            )
+            return
+
+        interface, client_ip = hkey.split(',')
+
+        vlan = self._get_mldclient_field(hkey, 'vlan')
+        c_name = self._get_mldclient_field(hkey, 'name')
+
+        smac = self._tgn_client_mac_by_ip(client_ip)
+
+        group = self.mcast_grps[gkey]['grp_ip']
+
+        # Filter number for ALLOW
+        mode = 5
+
+        first_key = list(grp_attr[gkey].keys())[0]
+        filter_mode = grp_attr[gkey][first_key]['fmode']
+        if filter_mode == 'include':
+            # Filter mode is 'include' (IS_IN). ALLOW should add the new source
+            # address to the source list.
+
+            new_handler = self.mld_client_add_group(
+                client_handler=client_handler,
+                group_handler=group_handler,
+                source_handler=source_handler,
+                filter_mode=filter_mode
+            )
+
+            src_num = self.mcast_srcs[skey]['src_num']
+            src_list = self._get_ippool_ips(self.mcast_srcs[skey]['src_ip'],
+                                            self.mcast_srcs[skey]['steps'],
+                                            src_num)
+
+            flow = PG_flow_mldv2_report(c_name, smac, client_ip, group,
+                                         src_num, src_list, mode, vlan)
+
+            self.pg.send_traffic(flow, interface, 1, 1)
+            self.pg.clear_tgn()
+
+            return new_handler
+        else:
+            # Filter mode is 'exclude' (IS_EX). ALLOW should remove the new
+            # source address from the source list. In the case where only one
+            # source is remaining in the source list, the filter will become
+            # IS_EX ::, namely (::,G).
+
+            src_num = self.mcast_srcs[skey]['src_num']
+            src_list = self._get_ippool_ips(self.mcast_srcs[skey]['src_ip'],
+                                            self.mcast_srcs[skey]['steps'],
+                                            src_num)
+
+            flow = PG_flow_mldv2_report(c_name, smac, client_ip, group,
+                                         src_num, src_list, mode, vlan)
+
+            self.pg.send_traffic(flow, interface, 1, 1)
+            self.pg.clear_tgn()
+
+            if handler is None:
+                log.warn('handler should not be None')
+            else:
+                self.mld_client_del_group(
+                    client_handler=client_handler,
+                    handler=handler
+                )
+
+            if not grps:
+                # Return handler for (::,G)
+                new_handler = self.mld_client_add_group(
+                    client_handler=client_handler,
+                    group_handler=group_handler,
+                    filter_mode=filter_mode
+                )
+
+                return new_handler
+
+    def mld_client_group_block_source(self, client_handler, group_handler,
+                                      source_handler, handler=None):
+        '''MLD Client modify group member source list by block, Only MLD v2
+           client is supported
+           Args:
+             client_handler ('obj'): MLD Client handler
+             group_handler ('obj'):
+                Multicast group pool handler created by create_multicast_group
+             source_handler ('obj'):
+                Multicast source handler created by create_multicast_source
+             handler ('obj'), Optional:
+                Group membership handler created by mld_client_add_group
+                Required if the current mode is 'include'.
+           Returns:
+             New/updated group membership handler, or none if the current mode
+             is 'include'.
+           Raises:
+             KeyError
+        '''
+        hkey = client_handler
+        gkey = group_handler
+        skey = source_handler
+
+        grps = self._get_mldclient_field(hkey, 'grps')
+        grp_attr = self._get_mldclient_field(hkey, 'grp_attr')
+        if gkey not in grps:
+            log.error('Group not exist')
+            raise KeyError
+
+        version = self._get_mldclient_field(hkey, 'version')
+        if version != 2:
+            # Not supported operation, only MLDv2 has filters support.
+            log.error(
+                'Not supported operation: change client {hkey} '
+                'version {ver}'.format(
+                    hkey=hkey, ver=version,
+                )
+            )
+            return
+
+        interface, client_ip = hkey.split(',')
+
+        vlan = self._get_mldclient_field(hkey, 'vlan')
+        c_name = self._get_mldclient_field(hkey, 'name')
+
+        smac = self._tgn_client_mac_by_ip(client_ip)
+
+        group = self.mcast_grps[gkey]['grp_ip']
+
+        # Filter number for BLOCK
+        mode = 6
+
+        first_key = list(grp_attr[gkey].keys())[0]
+        filter_mode = grp_attr[gkey][first_key]['fmode']
+        if filter_mode == 'include':
+            # Filter mode is 'include' (IS_IN). BLOCK should remove the new
+            # source address from the source list. In the case where only one
+            # source is remaining in the source list, the filter will become
+            # IS_IN ::, unsubscribing to the group.
+
+            src_num = self.mcast_srcs[skey]['src_num']
+            src_list = self._get_ippool_ips(self.mcast_srcs[skey]['src_ip'],
+                                            self.mcast_srcs[skey]['steps'],
+                                            src_num)
+
+            flow = PG_flow_mldv2_report(c_name, smac, client_ip, group,
+                                         src_num, src_list, mode, vlan)
+
+            self.pg.send_traffic(flow, interface, 1, 1)
+            self.pg.clear_tgn()
+
+            if handler is None:
+                log.warn('handler should not be None')
+            else:
+                # Unsubscribe
+                self.mld_client_del_group(
+                    client_handler=client_handler,
+                    handler=handler
+                )
+        else:
+            # Filter mode is 'exclude' (IS_EX). BLOCK should add the new source
+            # address to the source list.
+
+            new_handler = self.mld_client_add_group(
+                client_handler=client_handler,
+                group_handler=group_handler,
+                source_handler=source_handler,
+                filter_mode=filter_mode
+            )
+
+            src_num = self.mcast_srcs[skey]['src_num']
+            src_list = self._get_ippool_ips(self.mcast_srcs[skey]['src_ip'],
+                                            self.mcast_srcs[skey]['steps'],
+                                            src_num)
+
+            flow = PG_flow_mldv2_report(c_name, smac, client_ip, group,
+                                         src_num, src_list, mode, vlan)
+
+            self.pg.send_traffic(flow, interface, 1, 1)
+            self.pg.clear_tgn()
+
+            return new_handler
 
     def mld_client_del_group(self, client_handler, handler):
         '''MLD Client delete group membership
