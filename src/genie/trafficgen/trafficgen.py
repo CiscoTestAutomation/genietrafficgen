@@ -1,7 +1,6 @@
 '''
 Connection Implementation class for traffic generator device
 '''
-import warnings
 
 # pyATS
 from pyats.connections import BaseConnection
@@ -15,16 +14,8 @@ class TrafficGen(BaseConnection):
     def __new__(cls, device, *args, **kwargs):
         if '.'.join([cls.__module__, cls.__name__]) == \
                 'genie.trafficgen.trafficgen.TrafficGen':
-            if hasattr(device, 'platform') and device.platform:
-                tgen_abstract = Lookup.from_device(device, packages={'tgn': trafficgen}, default_tokens=['os', 'platform'])
-                try:
-                  new_cls = getattr(tgen_abstract.tgn, device.platform).TrafficGen
-                except LookupError:
-                  new_cls = tgen_abstract.tgn.TrafficGen
-            else:
-                tgen_abstract = Lookup.from_device(device, packages={'tgn': trafficgen}, default_tokens=['os'])
-                new_cls = tgen_abstract.tgn.TrafficGen
-
+            tgen_abstract = Lookup.from_device(device, package=trafficgen)
+            new_cls = tgen_abstract.TrafficGen
             return super().__new__(new_cls)
         else:
             return super().__new__(cls)
