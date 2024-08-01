@@ -8,7 +8,7 @@ See:
 import re
 import os
 
-from setuptools import setup, find_packages
+from setuptools import setup, find_namespace_packages
 
 
 def read(*paths):
@@ -74,11 +74,8 @@ setup(
     # project keywords
     keywords='genie traffic pyats cisco',
 
-    # uses namespace package
-    namespace_packages=['genie'],
-
     # project packages
-    packages=find_packages(where='src'),
+    packages=find_namespace_packages(where='src'),
 
     # project directory
     package_dir={
