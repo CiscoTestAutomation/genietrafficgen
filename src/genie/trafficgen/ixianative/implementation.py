@@ -4190,6 +4190,21 @@ class IxiaNative(TrafficGen):
 
         self.ixNet.commit()
         return trafficItem
+    
+
+    @BaseConnection.locked
+    @isconnected
+    def get_vports(self):
+        ''' Get all the Virtual ports Added '''
+        try:
+            vports = self.ixNet.getList(self.ixNet.getRoot(),'vport')
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Error while getting ports")
+        else:
+            log.info("Added Ports are '{}'". \
+                     format(vports))
+        return vports    
 
 def isfloat(string):
     try:

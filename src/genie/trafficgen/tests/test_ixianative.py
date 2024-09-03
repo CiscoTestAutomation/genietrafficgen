@@ -479,5 +479,20 @@ class TestIxiaIxNative2(unittest.TestCase):
         self.assertEqual("::ixNet::OBJ-/traffic/trafficItem:1", dev.create_l3_traffic_stream(ixnet_mock.vport))
 
 
+    def test_get_vports_success(self):
+
+        dev = self.dev7
+        ixnet_mock = dev.default.ixNet
+        # Set up the mock to return a list of vports
+        vports = ['vport1', 'vport2']
+        ixnet_mock.getList.return_value = vports
+        
+        # Call the function
+        result = ixnet_mock.get_vports()
+
+        # Assert that the result is as expected
+        self.assertEqual(ixnet_mock.getList.return_value, vports)
+                
+        
 if __name__ == "__main__":
     unittest.main()
