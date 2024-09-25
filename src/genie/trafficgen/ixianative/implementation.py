@@ -4205,6 +4205,36 @@ class IxiaNative(TrafficGen):
             log.info("Added Ports are '{}'". \
                      format(vports))
         return vports    
+    
+
+    @BaseConnection.locked
+    @isconnected
+    def enable_vlan_on_interface(self, vport, enable_val, vlan_id):
+        '''
+        Enable vlan on the interface
+        Args:
+            vport (`str`): vport object
+            enable_val (`bool`): enable or disable vlan
+            vlan_id (`int`): vlan id
+
+        Returns:
+            None    
+        '''
+        try:
+            interface_handle = []    
+            interface = self.ixNet.add(vport, 'interface')
+            self.ixNet.commit()
+            interface_handle.append(self.ixNet.remapIds(interface)[0])
+            log.info(f"interface_handle : {interface_handle}")
+            self.ixNet.setAttribute(interface_handle[0], '-enabled', 'true')
+            self.ixNet.setMultiAttribute(interface_handle[0] + '/vlan', '-vlanEnable', enable_val, '-vlanId', vlan_id)
+            self.ixNet.commit()
+            log.info("Vlan is enabled on the interface")
+
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Error while enabling vlan on the interface")
+        
 
 def isfloat(string):
     try:
