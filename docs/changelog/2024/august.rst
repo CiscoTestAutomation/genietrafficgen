@@ -17,3 +17,9 @@ August 27 - Genietrafficgen v24.8
 
 Changelogs
 ^^^^^^^^^^
+--------------------------------------------------------------------------------
+                                      New                                       
+--------------------------------------------------------------------------------
+
+* ixia
+    * Added new API get_vports to get vports from the traffic generator.
