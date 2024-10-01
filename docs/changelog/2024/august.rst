@@ -23,5 +23,3 @@ Changelogs
 
 * ixia
     * Added new API get_vports to get vports from the traffic generator.
-
-

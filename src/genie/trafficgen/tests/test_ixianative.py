@@ -492,6 +492,49 @@ class TestIxiaIxNative2(unittest.TestCase):
 
         # Assert that the result is as expected
         self.assertEqual(ixnet_mock.getList.return_value, vports)
+
+    
+    def test_enable_vlan_on_interface(self):
+        # Mock methods of ixNet
+        dev = self.dev7
+        ixnet_mock = dev.default.ixNet
+        mock_ixnet = ixnet_mock
+
+        # Mock the methods called in enable_vlan_on_interface
+        mock_add = mock_ixnet.add
+        mock_add.return_value = 'interface'
+
+        mock_remapIds = mock_ixnet.remapIds
+        mock_remapIds.return_value = ['interface1']
+
+        mock_setMultiAttribute = mock_ixnet.setMultiAttribute
+        mock_setAttribute = mock_ixnet.setAttribute
+
+        mock_commit = mock_ixnet.commit
+        mock_commit.return_value = mock_ixnet.OK
+
+        # Create an instance of BaseConnection
+        connection = dev.default
+
+        # Call the function under test
+        connection.enable_vlan_on_interface('vport1', 'true', 200)
+
+        # Assertions: method calls and expected behavior
+        mock_add.assert_any_call('vport1', 'interface')
+        mock_commit.assert_called()  # Assert commit is called at least once
+
+        # Assert remapIds was called with the result of add
+        mock_remapIds.assert_any_call('interface')
+
+        # Assert VLAN configuration on the interface
+        expected_vlan_attributes = {
+            '-vlanEnable': 'true',
+            '-vlanId': 200
+        }
+        mock_setMultiAttribute.assert_any_call(
+            'interface1/vlan', '-vlanEnable', 'true', '-vlanId', 200 
+        )
+        mock_setAttribute.assert_any_call('interface1', '-enabled', 'true')
                 
         
 if __name__ == "__main__":
