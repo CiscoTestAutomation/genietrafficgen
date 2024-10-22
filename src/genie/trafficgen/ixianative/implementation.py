@@ -3975,7 +3975,7 @@ class IxiaNative(TrafficGen):
         """Creates a L2 traffic stream with the provided information of the API
         Args:
             vports               (`obj`): Ixia virtul ports
-            biDirectional       ('bool'): Flag for biderectional traffic 
+            biDirectional       ('bool'): Flag for biderectional traffic
                                           Defalut set to false
             sourceMacAddress     ('str'): sourceMacAddress of the traffic port
                                           Default to '00:00:00:00:00:00'
@@ -3983,8 +3983,8 @@ class IxiaNative(TrafficGen):
                                           Default to '00:00:00:00:00:00'
             frameRateType        ('str'): FrameRateType of of the mentioned ports it can be percentLineRate or framesPerSecond
                                           Default to percentLineRate
-            rate                 ('int'): Rate of the mentioned ports it can be percentage=eg:(1% - 100%)  
-                                          or packetsPerSec = (10 - 10000)pps 
+            rate                 ('int'): Rate of the mentioned ports it can be percentage=eg:(1% - 100%)
+                                          or packetsPerSec = (10 - 10000)pps
                                           Default to percentage = 10%
             frameSize            ('int'): FrameSize of the packet Default to 64
         Returns:
@@ -3999,7 +3999,7 @@ class IxiaNative(TrafficGen):
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Error while adding trafficItem for IxNetwork")
-        
+
         trafficItem = self.ixNet.remapIds(trafficItem)[-1]
         log.info(trafficItem)
 
@@ -4038,7 +4038,7 @@ class IxiaNative(TrafficGen):
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Error while adding source and destination ports to endpontSet")
-        
+
         try:
             configelementhndle = self.ixNet.getList(trafficItem,'configElement')[-1]
             stackhandles = self.ixNet.getList(configelementhndle,'stack')
@@ -4046,7 +4046,7 @@ class IxiaNative(TrafficGen):
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Unable to get config elements for trafficItem'{}'".format(trafficItem))
-        
+
         try:
             for stackhandle in stackhandles:
                 stacktypeidname = self.ixNet.getAttribute(stackhandle,'-stackTypeId')
@@ -4062,7 +4062,7 @@ class IxiaNative(TrafficGen):
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Unable to add source eand destination mac addresess for trafficItem'{}'".format(trafficItem))
-        else: 
+        else:
             log.info("Sucessfully added Source/Destination MacAddress")
 
         try:
@@ -4131,7 +4131,7 @@ class IxiaNative(TrafficGen):
         """Creates a L3 traffic stream with the provided information of the API
         Args:
             vports               (`obj`): Ixia virtul ports
-            biDirectional       ('bool'): Flag for biderectional traffic 
+            biDirectional       ('bool'): Flag for biderectional traffic
                                           Defalut set to false
             sourceMacAddress     ('str'): sourceMacAddress of the traffic port
                                           Default to '00:00:00:00:00:00'
@@ -4143,8 +4143,8 @@ class IxiaNative(TrafficGen):
                                           Default to '0.0.0.0'
             frameRateType        ('str'): FrameRateType of of the mentioned ports it can be percentLineRate or framesPerSecond
                                           Default to percentLineRate
-            rate                 ('int'): Rate of the mentioned ports it can be percentage=eg:(1% - 100%)  
-                                          or packetsPerSec = (10 - 10000)pps 
+            rate                 ('int'): Rate of the mentioned ports it can be percentage=eg:(1% - 100%)
+                                          or packetsPerSec = (10 - 10000)pps
                                           Default to percentage = 10%
             frameSize            ('int'): FrameSize of the packet Default to 64
         Returns:
@@ -4167,7 +4167,7 @@ class IxiaNative(TrafficGen):
             stackhandles = self.ixNet.getList(configelementhndle,'stack')
         except Exception as e:
             raise GenieTgnError("Unable to add ipv4 stack handle to existing stack")
-        
+
         '''Getting all fields under ipv4 stackhandle'''
         try:
             for stackhandle in stackhandles:
@@ -4185,12 +4185,12 @@ class IxiaNative(TrafficGen):
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Unable to add ipv4 source and destination address for the existing stack")
-        else: 
+        else:
             log.info("Successfully added L3 header to the ethernet header")
 
         self.ixNet.commit()
         return trafficItem
-    
+
 
     @BaseConnection.locked
     @isconnected
@@ -4204,8 +4204,8 @@ class IxiaNative(TrafficGen):
         else:
             log.info("Added Ports are '{}'". \
                      format(vports))
-        return vports    
-    
+        return vports
+
 
     @BaseConnection.locked
     @isconnected
@@ -4218,10 +4218,10 @@ class IxiaNative(TrafficGen):
             vlan_id (`int`): vlan id
 
         Returns:
-            None    
+            None
         '''
         try:
-            interface_handle = []    
+            interface_handle = []
             interface = self.ixNet.add(vport, 'interface')
             self.ixNet.commit()
             interface_handle.append(self.ixNet.remapIds(interface)[0])
@@ -4234,7 +4234,115 @@ class IxiaNative(TrafficGen):
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Error while enabling vlan on the interface")
-        
+
+
+    @BaseConnection.locked
+    @isconnected
+    def change_l1config_media(self, media='', vport=''):
+       '''
+       Change L1 config media of the given port
+       Args:
+           media (`str`): media type
+           vport (`str`): vport object
+       '''
+       log.info(banner("Change L1 config media"))
+
+       media_type = ''
+       result = None  # Set result to None to handle unexpected cases properly
+
+       if vport:
+           try:
+               # Get the port type (fiber, copper, etc.)
+               portType = self.ixNet.getAttribute(vport + '/l1Config', '-currentType')
+               log.info(f"Detected port type: {portType}")
+
+               init_media_type = self.ixNet.getAttribute(vport + '/l1Config/' + portType, '-media')
+               log.info(f"Initial media type for vPort {vport}: {init_media_type}")
+
+               # Change media type if it's different
+               if init_media_type != media:
+                   log.info(f"Changing media type for vPort {vport} from {init_media_type} to {media}")
+                   self.ixNet.setAttribute(vport + '/l1Config/' + portType, '-media', media)
+                   result = self.ixNet.commit()
+                   log.info(f"Commit result: {result}")
+                   changed_media_type = self.ixNet.getAttribute(vport + '/l1Config/' + portType, '-media')
+                   log.info(f"Changed media type for vPort {vport}: {changed_media_type}")
+               else:
+                   log.info(f"Media type for vPort {vport} is already set to {media}. No change required.")
+                   return self.ixNet.OK  # Return OK if no change needed
+
+           except Exception as e:
+               log.error(f"Error while changing media type: {str(e)}")
+               raise GenieTgnError(f"Error while changing media type for port {vport}: {str(e)}")
+
+           # Verify commit success
+           if result != self.ixNet.OK:
+               log.error(f"Commit failed while changing media type for port {vport} to {media}")
+               raise GenieTgnError(f"Commit failed while changing media type for port {vport} to {media}")
+
+           return self.ixNet.OK
+
+
+    @BaseConnection.locked
+    @isconnected
+    def get_stats(self,view):
+        '''
+        getStatsByoptions(casesensitive):
+        :param view :
+        "Port Statistics"
+        "Tx-Rx Frame Rate Statistics"
+        "Port CPU Statistics"
+        "Global Protocol Statistics"
+        "Protocols Summary"
+        "Port Summary"
+        "OSPFv2-RTR Drill Down"
+        "OSPFv2-RTR Per Port"
+        "IPv4 Drill Down"
+        "L2-L3 Test Summary Statistics"
+        "Flow Statistics"
+        "Traffic Item Statistics"
+        '''
+
+        #global statistics_dict
+        statistics_dict = {}
+        statsViewList = self.ixNet.getList(self.ixNet.getRoot() + '/statistics', 'view')
+        #ourView = str(None)
+        ourView = None
+        try:
+            for statsView in statsViewList:
+                caption = self.ixNet.getAttribute(statsView, '-caption')
+                if caption == view:
+                    log.info("statsView below")
+                    log.info(statsView)
+                    ourView = statsView
+                    break
+
+            # If a matching view is found
+            if ourView:
+               page = ourView + '/page'
+               if self.ixNet.getAttribute(page, '-isReady') == 'true':
+                  statNames = self.ixNet.getAttribute(page, '-columnCaptions')
+                  pageList = self.ixNet.getAttribute(page, '-rowValues')
+                  log.info("statNames below")
+                  log.info(statNames)
+                  log.info("pageList below")
+                  log.info(pageList)
+
+                  # Process the rows and map column names to the values
+                  for statRow in pageList:
+                     final_stats = statRow
+                     statistics_dict = dict(zip(statNames, final_stats))
+                     log.info(f" **** '{view}' ****** for stream ****** '{statRow}' ****** ")
+                     log.info(statistics_dict)
+            else:
+               raise ValueError(f"View '{view}' not found in the statistics view list.")
+
+        except Exception as e:
+               log.error(e)
+               raise GenieTgnError("Error while getting view statistics")
+
+        return statistics_dict
+
 
 def isfloat(string):
     try:

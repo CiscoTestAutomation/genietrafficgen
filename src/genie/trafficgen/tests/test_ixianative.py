@@ -486,14 +486,14 @@ class TestIxiaIxNative2(unittest.TestCase):
         # Set up the mock to return a list of vports
         vports = ['vport1', 'vport2']
         ixnet_mock.getList.return_value = vports
-        
+
         # Call the function
         result = ixnet_mock.get_vports()
 
         # Assert that the result is as expected
         self.assertEqual(ixnet_mock.getList.return_value, vports)
 
-    
+
     def test_enable_vlan_on_interface(self):
         # Mock methods of ixNet
         dev = self.dev7
@@ -532,10 +532,89 @@ class TestIxiaIxNative2(unittest.TestCase):
             '-vlanId': 200
         }
         mock_setMultiAttribute.assert_any_call(
-            'interface1/vlan', '-vlanEnable', 'true', '-vlanId', 200 
+            'interface1/vlan', '-vlanEnable', 'true', '-vlanId', 200
         )
         mock_setAttribute.assert_any_call('interface1', '-enabled', 'true')
-                
-        
+
+
+    def test_change_l1config_media_single_vport(self):
+        """Test changing media for a single vport"""
+
+        # Mock methods of ixNet
+        dev = self.dev7
+        ixnet_mock = dev.default.ixNet
+        mock_ixnet = ixnet_mock
+
+        # Mock the methods called in change_l1config_media
+        mock_getAttribute = mock_ixnet.getAttribute
+        mock_setAttribute = mock_ixnet.setAttribute
+        mock_commit = mock_ixnet.commit
+
+        # Ensure self.ixNet.OK is mocked as 'OK'
+        mock_ixnet.OK = 'OK'
+
+        # Simulate different return values for '-currentType' and '-media'
+        def mock_getAttribute_side_effect(vport, attr):
+            if attr == '-currentType':
+                return 'fiber'  # Assume the current port type is 'fiber'
+            elif attr == '-media':
+                return 'fiber'  # Assume the initial media is 'fiber', so we expect it to change to 'copper'
+
+        mock_getAttribute.side_effect = mock_getAttribute_side_effect
+        mock_setAttribute.return_value = None
+        mock_commit.return_value = 'OK'  # Ensure the mock returns 'OK'
+
+        # Create an instance of BaseConnection
+        connection = dev.default
+
+        # Call the function under test
+        result = connection.change_l1config_media('copper', '/vport1')
+
+        # Assertions: method calls and expected behavior
+        mock_getAttribute.assert_any_call('/vport1/l1Config', '-currentType')
+        mock_getAttribute.assert_any_call('/vport1/l1Config/fiber', '-media')  # Check the initial media type
+        mock_setAttribute.assert_called_with('/vport1/l1Config/fiber', '-media', 'copper')  # Ensure media change happens
+        mock_commit.assert_called()
+        self.assertEqual(result, 'OK')
+
+
+    def test_get_stats(self):
+
+        # Mock methods of ixNet
+        dev = self.dev7
+        ixnet_mock = dev.default.ixNet
+        mock_ixnet = ixnet_mock
+
+        # Define the input view that we are going to test
+        view = "Port Statistics"
+
+        # Mock the return values of the ixNet methods
+        ixnet_mock.getList.return_value = ['/statistics/view1', '/statistics/view2']
+        ixnet_mock.getAttribute.side_effect = [
+            "Port Statistics",  # first call for caption of view1
+            "Port Statistics",  # second call for caption of view2 (not used)
+            'true',             # third call for -isReady of view1
+            ['Stat1', 'Stat2'],  # fourth call for -columnCaptions of view1
+            [['Value1', 'Value2']]  # fifth call for -rowValues of view1
+        ]
+
+        connection = dev.default
+
+        # Call the function under test
+        result = connection.get_stats(view)
+
+        # Verify that the correct calls were made
+        ixnet_mock.getList.assert_called_once_with(ixnet_mock.getRoot() + '/statistics', 'view')
+        ixnet_mock.getAttribute.assert_any_call('/statistics/view1', '-caption')
+        ixnet_mock.getAttribute.assert_any_call('/statistics/view1/page', '-isReady')
+
+        # Check that the correct values are returned
+        expected_result = {
+            'Stat1': 'Value1',
+            'Stat2': 'Value2'
+        }
+        self.assertEqual(result, expected_result)
+
+
 if __name__ == "__main__":
     unittest.main()
