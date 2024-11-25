@@ -114,7 +114,7 @@ develop:
 	@pip uninstall -y genie.trafficgen || true
 	@pip install $(DEPENDENCIES)
 
-	@$(PYTHON) setup.py develop --no-deps
+	@pip install -e . --no-deps
 
 	@echo ""
 	@echo "Completed building and installing: $@"
@@ -128,7 +128,7 @@ undevelop:
 	@echo "Uninstalling $(PKG_NAME) development distributable: $@"
 	@echo ""
 
-	@$(PYTHON) setup.py develop --no-deps -q --uninstall
+	@pip uninstall $(PKG_NAME) -y
 
 	@echo ""
 	@echo "Completed uninstalling: $@"

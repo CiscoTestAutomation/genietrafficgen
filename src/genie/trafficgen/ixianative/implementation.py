@@ -4303,11 +4303,13 @@ class IxiaNative(TrafficGen):
         "Traffic Item Statistics"
         '''
 
-        #global statistics_dict
-        statistics_dict = {}
-        statsViewList = self.ixNet.getList(self.ixNet.getRoot() + '/statistics', 'view')
-        #ourView = str(None)
-        ourView = None
+        statistics_dict = {} 
+        statsViewList = self.ixNet.getList(self.ixNet.getRoot() + '/statistics', 'view')        
+        ourView = str(None)
+      
+        # To accumulate the stats from all streams
+        combined_stats = {}  # To accumulate the stats from all streams
+
         try:
             for statsView in statsViewList:
                 caption = self.ixNet.getAttribute(statsView, '-caption')
@@ -4316,32 +4318,73 @@ class IxiaNative(TrafficGen):
                     log.info(statsView)
                     ourView = statsView
                     break
+                  
+            page = ourView + '/page'
+            if self.ixNet.getAttribute(page, '-isReady') == 'true':
+                statNames = self.ixNet.getAttribute(page, '-columnCaptions')
+                pageList = self.ixNet.getAttribute(page, '-rowValues')
+                log.debug("statNames below")
+                log.debug(statNames)
+                log.debug("pageList below")
+                
+                # Initialize combined stats dictionary
+                for name in statNames:
+                    combined_stats[name] = 0  # Initialize numerical columns to 0
 
-            # If a matching view is found
-            if ourView:
-               page = ourView + '/page'
-               if self.ixNet.getAttribute(page, '-isReady') == 'true':
-                  statNames = self.ixNet.getAttribute(page, '-columnCaptions')
-                  pageList = self.ixNet.getAttribute(page, '-rowValues')
-                  log.info("statNames below")
-                  log.info(statNames)
-                  log.info("pageList below")
-                  log.info(pageList)
+                # Iterate through each stream's row values
+                for statRow in pageList:
+                    final_stats = statRow[0]
+                    log.info(f"Processing stats for stream: {final_stats[0]}")
 
-                  # Process the rows and map column names to the values
-                  for statRow in pageList:
-                     final_stats = statRow
-                     statistics_dict = dict(zip(statNames, final_stats))
-                     log.info(f" **** '{view}' ****** for stream ****** '{statRow}' ****** ")
-                     log.info(statistics_dict)
-            else:
-               raise ValueError(f"View '{view}' not found in the statistics view list.")
+                    for i, value in enumerate(final_stats):
+                        # Try to add numerical values; if not a number, skip or handle appropriately
+                        try:
+                            combined_stats[statNames[i]] += int(value)
+                        except ValueError:
+                            pass  # Skip non-numeric values (like names, timestamps, etc.)
+
+                log.debug("Combined stats from all streams:")
+                log.debug(combined_stats)    
 
         except Exception as e:
-               log.error(e)
-               raise GenieTgnError("Error while getting view statistics")
+            log.error(e)
+            raise GenieTgnError("Error while getting view statistics")
 
-        return statistics_dict
+        return combined_stats   
+
+
+    @BaseConnection.locked
+    @isconnected
+    def configure_autonegotiate(self, enable='True', vport=''):
+        '''
+        Enable/Disable auto-negotitate on port
+        Args:
+            enable (`str`): enable or disable auto-negotiate
+            vport (`str`): vport object
+        '''
+        port_type = ''
+        log.info(banner("Enable/Disable auto-negotiate"))
+        
+        def set_autonegotiate(vport):
+            try:
+                port_type = self.ixNet.getAttribute(vport + '/l1Config', '-currentType')
+                self.ixNet.setAttribute(vport + '/l1Config/' + port_type, '-autoNegotiate', enable)
+            except Exception as e:
+                log.error(e)
+                raise GenieTgnError("Error while enabling/disabling auto-negotitation")
+            else:
+                log.info(f"Enable/Disable auto-negotiate '{vport}'")
+
+        if vport:
+            set_autonegotiate(vport)
+        else:
+            vportList = self.ixNet.getList(self.ixNet.getRoot(), 'vport')
+            for vport in vportList:
+                log.debug(f"for Vport  '{vport}'")
+                set_autonegotiate(vport)
+
+        # Call commit only once after setting all attributes
+        self.ixNet.commit()
 
 
 def isfloat(string):
