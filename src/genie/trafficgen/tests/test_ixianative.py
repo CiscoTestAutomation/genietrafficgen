@@ -575,45 +575,86 @@ class TestIxiaIxNative2(unittest.TestCase):
         mock_getAttribute.assert_any_call('/vport1/l1Config/fiber', '-media')  # Check the initial media type
         mock_setAttribute.assert_called_with('/vport1/l1Config/fiber', '-media', 'copper')  # Ensure media change happens
         mock_commit.assert_called()
-        self.assertEqual(result, 'OK')
-
+        self.assertEqual(result, 'OK')        
+  
 
     def test_get_stats(self):
-
         # Mock methods of ixNet
         dev = self.dev7
         ixnet_mock = dev.default.ixNet
-        mock_ixnet = ixnet_mock
-
-        # Define the input view that we are going to test
-        view = "Port Statistics"
-
-        # Mock the return values of the ixNet methods
+                
+        # Define the test inputs and expected outputs
+        view_name = "Port Statistics"
+        
+        # Mock the ixNet methods used in get_stats
+        # Mock getList to return a list of views
         ixnet_mock.getList.return_value = ['/statistics/view1', '/statistics/view2']
-        ixnet_mock.getAttribute.side_effect = [
-            "Port Statistics",  # first call for caption of view1
-            "Port Statistics",  # second call for caption of view2 (not used)
-            'true',             # third call for -isReady of view1
-            ['Stat1', 'Stat2'],  # fourth call for -columnCaptions of view1
-            [['Value1', 'Value2']]  # fifth call for -rowValues of view1
-        ]
+        
+        # Mock getAttribute to simulate different responses based on input
+        def mock_getAttribute(path, attr):
+            attribute_map = {
+                ('/statistics/view1', '-caption'): 'Other View',
+                ('/statistics/view2', '-caption'): view_name,
+                ('/statistics/view2/page', '-isReady'): 'true',
+                ('/statistics/view2/page', '-columnCaptions'): ['Stream Name', 'Tx Frames', 'Rx Frames'],
+                ('/statistics/view2/page', '-rowValues'): [
+                    [['Stream 1', '100', '90']],
+                    [['Stream 2', '150', '120']]
+                ]
+            }
+            return attribute_map.get((path, attr))
+
+        # Set the side effect for getAttribute
+        ixnet_mock.getAttribute.side_effect = mock_getAttribute
+        
+        connection = dev.default
+
+        # Call the function with the mocked ixNet object
+        result = connection.get_stats(view_name)
+
+        # Ensure that ixNet.getList and ixNet.getAttribute were called correctly
+        ixnet_mock.getList.assert_called_once_with(ixnet_mock.getRoot() + '/statistics', 'view')
+        ixnet_mock.getAttribute.assert_any_call('/statistics/view2/page', '-columnCaptions')
+        ixnet_mock.getAttribute.assert_any_call('/statistics/view2/page', '-rowValues')
+        
+        # Expected result after accumulating the values for 'Tx Frames' and 'Rx Frames'
+
+        expected_result = {
+            'Stream Name': 0,   # Non-numeric values stay 0
+            'Tx Frames': 250,   # 100 + 150
+            'Rx Frames': 210    # 90 + 120
+        }
+
+        # Assertions to check if the result matches the expected output
+        self.assertEqual(result, expected_result)              
+
+
+    def test_configure_autonegotiate_with_vport(self):
+            
+        # Mock methods of ixNet
+        dev = self.dev7
+        ixnet_mock = dev.default.ixNet
+        
+        # Mocking the behavior of ixNet methods
+        vport = 'vport1'
+        port_type = 'ethernet'
+            
+        ixnet_mock.getAttribute.side_effect = lambda vport_path, attr: port_type if attr == '-currentType' else 'fiber'
 
         connection = dev.default
 
-        # Call the function under test
-        result = connection.get_stats(view)
+        # Run the function
+        connection.configure_autonegotiate(enable='True', vport=vport)
 
-        # Verify that the correct calls were made
-        ixnet_mock.getList.assert_called_once_with(ixnet_mock.getRoot() + '/statistics', 'view')
-        ixnet_mock.getAttribute.assert_any_call('/statistics/view1', '-caption')
-        ixnet_mock.getAttribute.assert_any_call('/statistics/view1/page', '-isReady')
-
-        # Check that the correct values are returned
-        expected_result = {
-            'Stat1': 'Value1',
-            'Stat2': 'Value2'
-        }
-        self.assertEqual(result, expected_result)
+        # Check that the correct call to getAttribute was made
+        relevant_calls = [call for call in ixnet_mock.getAttribute.mock_calls
+        if call[1][0] == vport + '/l1Config' and call[1][1] == '-currentType']
+        
+        self.assertEqual(len(relevant_calls), 1)
+        
+        # Assertions for the setAttribute and commit calls
+        ixnet_mock.setAttribute.assert_any_call(vport + '/l1Config/' + port_type, '-autoNegotiate', 'True')
+        ixnet_mock.commit.assert_called()        
 
 
 if __name__ == "__main__":
