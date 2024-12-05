@@ -1,6 +1,6 @@
 '''
 Connection Implementation class for Spirent traffic generator using
-ixnetwork Python package to interact with Spirent device:
+stcrestclient Python package to interact with Spirent device:
 https://pypi.org/project/stcrestclient/
 
 
