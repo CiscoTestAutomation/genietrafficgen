@@ -133,6 +133,14 @@ class IxiaNative(TrafficGen):
         summary.add_message(msg='Ixnetwork TCL Port: {}'
                             .format(self.ixnetwork_tcl_port))
         summary.add_sep_line()
+        # SSH Tunnel support for ixianative
+        try:
+            if self.connection_info['sshtunnel']:
+                summary.add_message(msg='SSH Tunnel required to server: {}'
+                            .format(self.connection_info['sshtunnel']['host']))
+                summary.add_sep_line()
+        except: pass
+        #
         summary.print()
 
         # Genie Traffic Documentation
@@ -181,6 +189,24 @@ class IxiaNative(TrafficGen):
             '-setAttribute', 'strict'
         ]
 
+        # SSH Tunnel support for ixianative
+        try:
+            if self.connection_info['sshtunnel']:
+                from unicon.sshutils import sshtunnel
+                tunnel_port = sshtunnel.auto_tunnel_add(self.device, self.via)
+                tunnel_ip = self.device.connections[self.via]['sshtunnel']['tunnel_ip']
+                log.info("Connecting to Ixia via SSH tunnel IP '{}' and port '{}'".\
+                                format(tunnel_ip, tunnel_port))
+                #
+                connect_args = [
+                    tunnel_ip,
+                    '-port', tunnel_port,
+                    '-version', self.ixnetwork_version,
+                    '-setAttribute', 'strict'
+                ]
+        except: pass
+
+        #
         if apiKey:
             connect_args.extend([
                 '-apiKey', apiKey,
@@ -4386,6 +4412,28 @@ class IxiaNative(TrafficGen):
         # Call commit only once after setting all attributes
         self.ixNet.commit()
 
+
+    @BaseConnection.locked
+    @isconnected
+    def regenerate_all_traffic_items(self):
+        '''
+        Regenerate all traffic items
+        '''
+        try:
+            for trafficItem in self.ixNet.getList(self.ixNet.getRoot() + '/traffic', 'trafficItem'):
+                try:
+                    regenerateResult = self.ixNet.execute('generate', trafficItem)
+                    assert regenerateResult == self.ixNet.OK
+                    log.info(f"\nRegenerateAllTrafficItem  for : '{trafficItem}'")
+                    
+                except Exception as e:
+                    log.error(e)
+                    log.error(f"\nRegenerateAllTrafficItem error: '{trafficItem}'")
+                    raise GenieTgnError("Error while Regenerating Traffic")
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Error in getting Traffic Stream List")
+        
 
 def isfloat(string):
     try:
