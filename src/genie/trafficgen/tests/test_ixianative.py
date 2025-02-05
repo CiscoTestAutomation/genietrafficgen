@@ -5,7 +5,8 @@ from prettytable import PrettyTable
 from pyats.topology import loader
 
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, MagicMock, patch, call 
+
 try:
     from IxNetwork import IxNet, IxNetError
 except ImportError as e:
@@ -654,8 +655,35 @@ class TestIxiaIxNative2(unittest.TestCase):
         
         # Assertions for the setAttribute and commit calls
         ixnet_mock.setAttribute.assert_any_call(vport + '/l1Config/' + port_type, '-autoNegotiate', 'True')
-        ixnet_mock.commit.assert_called()        
+        ixnet_mock.commit.assert_called()
 
+
+    def test_regenerate_all_traffic_items_success(self):
+        # Mock the ixNet object and its methods
+        dev = self.dev7
+        ixnet_mock = dev.default.ixNet
+
+        ixnet_mock.getRoot.return_value = 'root'
+        ixnet_mock.getList.side_effect = [['/traffic/trafficItem1', '/traffic/trafficItem2'],  # For traffic
+        []  # If getList is called for 'view' or other purposes
+        ]
+        #ixnet_mock.getList.return_value = ['/traffic/trafficItem1', '/traffic/trafficItem2']
+        ixnet_mock.execute.return_value = 'Success'
+        ixnet_mock.OK = 'Success'
+
+        # Instantiate the class and replace ixNet with mock
+        connection = dev.default
+
+        # Call the method
+        connection.regenerate_all_traffic_items()
+
+        # Validate multiple calls
+        ixnet_mock.getList.assert_has_calls([
+        call(ixnet_mock.getRoot() + '/statistics', 'view'),
+        call(ixnet_mock.getRoot() + '/traffic', 'trafficItem')  # Adjust as per expected extra call
+        ])
+        self.assertEqual(ixnet_mock.getList.call_count, 2)
+        
 
 if __name__ == "__main__":
     unittest.main()
