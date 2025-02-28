@@ -3106,7 +3106,7 @@ class IxiaNative(TrafficGen):
 
         # Verify rate value provided is <=100 as line rate is a percentage
         try:
-            assert rate in range(100)
+            assert rate in range(101)
         except AssertionError as e:
             raise GenieTgnError("Invalid input rate={} provided. Line rate must"
                                 " be between 0 to 100%".format(rate))
