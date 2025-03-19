@@ -3,18 +3,19 @@
 Spirent
 =======
 
-``genie.trafficgen`` can connect to Spirent traffic generator devices that are running
-Spirent LabServer versions 5.52 or above. Refer to the user guide below for
-detailed information on using ``Genie`` to control Spirent using the public PyPI
-Package stcrestclient versions 1.9.3 or above.
+``genie.trafficgen`` can connect to Spirent TestCenter via the ReST API. You can 
+pre-install either the Spirent TestCenter application or Spirent LabServer to 
+provide the ReST API service.
+
 
 
 System Requirements
 -------------------
 
-1. Spirent chassis with ports and active Spirent licenses
-2. Spirent LabServer version 5.52 or above
-3. Installed: `stcrestclient <https://pypi.org/project/stcrestclient/>`_ PyPI package (version 1.9.3 or above)
+1. Spirent TestCenter version 5.52 or later is recommended.
+2. The `stcrestclient <https://pypi.org/project/stcrestclient/>`_ PyPI package (version 1.9.3 or above) must be Installed.
+3. Using an internal network to connect to Spirent TestCenter is recommended to minimize security risks and latency issues.
+
 
 Adding Spirent device
 ----------------------
@@ -233,60 +234,63 @@ The following code block demonstrates how to check for traffic loss on an Spiren
     |                         Create traffic stream table                          |
     +------------------------------------------------------------------------------+
     Create Traffic Stream Table of DRV type
-    +-----------------------+----------------+-----------+-----------+--------------+--------+---------------+---------------+------------------+
-    | Source/Dest Port Pair | Traffic Item   | Tx Frames | Rx Frames | Frames Delta | Loss % | Tx Frame Rate | Rx Frame Rate | Outage (seconds) |
-    +-----------------------+----------------+-----------+-----------+--------------+--------+---------------+---------------+------------------+
-    | PortA-PortB           | Traffic IPv4-1 | 11445947  | 11453819  | 1149         | 0.01   | 36170         | 36155         | 0.032            |
-    | PortA-PortB           | Traffic IPv6-4 | 11445947  | 11453818  | 1150         | 0.01   | 36170         | 36155         | 0.032            |
-    | PortB-PortA           | Traffic IPv4-0 | 13637814  | 11863085  | 1768024      | 12.97  | 42226         | 37273         | 41.871           |
-    | PortB-PortA           | Traffic IPv6-3 | 13637813  | 11867720  | 1763388      | 12.94  | 42226         | 37262         | 41.761           |
-    +-----------------------+----------------+-----------+-----------+--------------+--------+---------------+---------------+------------------+
+    +-------------------------------------+
+    | Trying to get dynamic view of GENIE |
+    +-------------------------------------+
+    No DynamicResultView with name GENIE found!
+    Create Spirent Dynamic View
+    Create Dynamic view with DRV:dynamicresultview2, DRV Result:presentationresultquery2
+    +-----------------------+------------------+-----------+-----------+--------------+---------------+---------------+--------+------------------+
+    | Source/Dest Port Pair | Traffic Item     | Tx Frames | Rx Frames | Frames Delta | Tx Frame Rate | Rx Frame Rate | Loss % | Outage (seconds) |
+    +-----------------------+------------------+-----------+-----------+--------------+---------------+---------------+--------+------------------+
+    | port2-port1           | StreamBlock 8-2  | 49260     | 50537     | 0            | 4223          | 4223          | 0.0    | 0.0              |
+    | port2-port1           | StreamBlock 11-2 | 49260     | 50536     | 0            | 4223          | 4223          | 0.0    | 0.0              |
+    | port1-port2           | StreamBlock 8-1  | 49249     | 50488     | 0            | 4223          | 4223          | 0.0    | 0.0              |
+    | port1-port2           | StreamBlock 11-1 | 49248     | 50488     | 0            | 4223          | 4223          | 0.0    | 0.0              |
+    +-----------------------+------------------+-----------+-----------+--------------+---------------+---------------+--------+------------------+
 
     Attempt #1: Checking for traffic outage/loss
-    Traffic IPv4-1
     +------------------------------------------------------------------------------+
-    |            Checking traffic stream: 'Port-Port | Traffic IPv4-1'             |
-    +------------------------------------------------------------------------------+
-    1. Verify traffic outage (in seconds) is less than tolerance threshold of '120' seconds
-    * Traffic outage of '0.032' seconds is within expected maximum outage threshold of '120' seconds
-    outage: 0.032 120 True
-    2. Verify current loss % is less than tolerance threshold of '15' %
-    * Current traffic loss of 0.01% is within maximum expected loss tolerance of 15%
-    loss_percentage: 0.01 15 True
-    Traffic IPv6-4
-    +------------------------------------------------------------------------------+
-    |            Checking traffic stream: 'Port-Port | Traffic IPv6-4'             |
+    |           Checking traffic stream: 'port2-port1 | StreamBlock 8-2'           |
     +------------------------------------------------------------------------------+
     1. Verify traffic outage (in seconds) is less than tolerance threshold of '120' seconds
-    * Traffic outage of '0.032' seconds is within expected maximum outage threshold of '120' seconds
-    outage: 0.032 120 True
+    * Traffic outage of '0.0' seconds is within expected maximum outage threshold of '120' seconds
+    outage: 0.0 120 True
     2. Verify current loss % is less than tolerance threshold of '15' %
-    * Current traffic loss of 0.01% is within maximum expected loss tolerance of 15%
-    loss_percentage: 0.01 15 True
-    Traffic IPv4-0
+    * Current traffic loss of 0.0% is within maximum expected loss tolerance of 15%
+    loss_percentage: 0.0 15 True
     +------------------------------------------------------------------------------+
-    |            Checking traffic stream: 'Port-Port | Traffic IPv4-0'             |
+    |          Checking traffic stream: 'port2-port1 | StreamBlock 11-2'           |
     +------------------------------------------------------------------------------+
     1. Verify traffic outage (in seconds) is less than tolerance threshold of '120' seconds
-    * Traffic outage of '41.871' seconds is within expected maximum outage threshold of '120' seconds
-    outage: 41.871 120 True
+    * Traffic outage of '0.0' seconds is within expected maximum outage threshold of '120' seconds
+    outage: 0.0 120 True
     2. Verify current loss % is less than tolerance threshold of '15' %
-    * Current traffic loss of 12.97% is within maximum expected loss tolerance of 15%
-    loss_percentage: 12.97 15 True
-    Traffic IPv6-3
+    * Current traffic loss of 0.0% is within maximum expected loss tolerance of 15%
+    loss_percentage: 0.0 15 True
     +------------------------------------------------------------------------------+
-    |            Checking traffic stream: 'Port-Port | Traffic IPv6-3'             |
+    |           Checking traffic stream: 'port1-port2 | StreamBlock 8-1'           |
     +------------------------------------------------------------------------------+
     1. Verify traffic outage (in seconds) is less than tolerance threshold of '120' seconds
-    * Traffic outage of '41.761' seconds is within expected maximum outage threshold of '120' seconds
-    outage: 41.761 120 True
+    * Traffic outage of '0.0' seconds is within expected maximum outage threshold of '120' seconds
+    outage: 0.0 120 True
     2. Verify current loss % is less than tolerance threshold of '15' %
-    * Current traffic loss of 12.94% is within maximum expected loss tolerance of 15%
-    loss_percentage: 12.94 15 True
+    * Current traffic loss of 0.0% is within maximum expected loss tolerance of 15%
+    loss_percentage: 0.0 15 True
+    +------------------------------------------------------------------------------+
+    |          Checking traffic stream: 'port1-port2 | StreamBlock 11-1'           |
+    +------------------------------------------------------------------------------+
+    1. Verify traffic outage (in seconds) is less than tolerance threshold of '120' seconds
+    * Traffic outage of '0.0' seconds is within expected maximum outage threshold of '120' seconds
+    outage: 0.0 120 True
+    2. Verify current loss % is less than tolerance threshold of '15' %
+    * Current traffic loss of 0.0% is within maximum expected loss tolerance of 15%
+    loss_percentage: 0.0 15 True
 
     Successfully verified traffic outages/loss is within tolerance for given traffic streams
-    [{'stream': {'Port-Port': {'Source/Dest Port Pair': 'Port-Port', 'Traffic Item': 'Traffic IPv6-3', 'Tx Frames': 13637813, 'Rx Frames': 11867720, 'Frames Delta': 1763388, 'Loss %': 12.94, 'Tx Frame Rate': 42226, 'Rx Frame Rate': 37262, 'Outage (seconds)': 41.761}}}]
+    [{'stream': {'port2-port1': {'Source/Dest Port Pair': 'port2-port1', 'Traffic Item': 'StreamBlock 11-2', 'Tx Frames': 49260, 'Rx Frames': 50536, 'Frames Delta': 0, 'Tx Frame Rate': 4223, 'Rx Frame Rate': 4223, 'Loss %': 0.0, 'Outage (seconds)': 0.0}, 'port1-port2': {'Source/Dest Port Pair': 'port1-port2', 'Traffic Item': 'StreamBlock 11-1', 'Tx Frames': 49248, 'Rx Frames': 50488, 'Frames Delta': 0, 'Tx Frame Rate': 4223, 'Rx Frame Rate': 4223, 'Loss %': 0.0, 'Outage (seconds)': 0.0}}}]
     >>>
+
 
 Traffic Generator Methods
 -------------------------
@@ -395,6 +399,11 @@ an Spirent traffic generator device:
     |                                 |     * [O] check_iteration - max iterations for |
     |                                 |           traffic loss checks.                 |
     |                                 |           Default: 10.                         |
+    |                                 |     * [O] outage_dict - user provided Python   |
+    |                                 |           dictionary containing traffic stream |
+    |                                 |           specific max_outage, loss_tolerance  |
+    |                                 |           and rate_tolerance values for checks.|
+    |                                 |           Default: None                        |    
     |                                 |     * [O] clear_stats - flag to enable clearing|
     |                                 |           of all traffic statistics before     |
     |                                 |           checking for traffic loss/outage.    |
@@ -403,6 +412,9 @@ an Spirent traffic generator device:
     |                                 |           clearing all traffic statistics if   |
     |                                 |           enabled by user.                     |
     |                                 |           Default: 30 (seconds)                |
+    |                                 |     * [O] pre_check_wait - time to wait before |
+    |                                 |           checking for traffic loss/outage.    |
+    |                                 |           Default: None                        |
     |                                 |     * [0] raise_on_loss - raise exception if   |
     |                                 |           traffic loss observed.               |
     |                                 |           Default: True.                       |
@@ -423,6 +435,205 @@ an Spirent traffic generator device:
     |                                 |           clearing protocol, traffic statistics|
     |                                 |           while creating traffic profile.      |
     |                                 |           Default: 60 (seconds)                |
+    |---------------------------------+------------------------------------------------|
+    | compare_traffic_profile         | Compares values between two Spirent traffic    |
+    |                                 | table statistics created.                      |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] profile1 - 1st traffic profile       |
+    |                                 |     * [M] profile2 - 2nd traffic profile       |
+    |                                 |     * [O] loss_tolerance - maximum expected    |
+    |                                 |           difference between loss % statistics |
+    |                                 |           between both traffic profiles.       |
+    |                                 |           Default: 5%                          |
+    |                                 |     * [O] rate_tolerance - maximum expected    |
+    |                                 |           difference of Tx Rate & Rx Rate      |
+    |                                 |           between both traffic profiles.       |
+    |                                 |           Default: 2 (packets per second)      |
+    |----------------------------------------------------------------------------------|
+    |                               Others                                             |
+    |----------------------------------------------------------------------------------|
+    | get_golden_profile              | Returns the "golden" traffic profile in Python |
+    |                                 | PrettyTable format. If not set, returns empty  |
+    |                                 | table.                                         |
+    |                                 | Arguments:                                     |
+    |                                 |     None                                       |
+    |----------------------------------------------------------------------------------|
+    | start_traffic_stream            | Start specific traffic item/stream via name    |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic_stream - traffic stream name |
+    |                                 |           to start traffic on.                 |
+    |                                 |     * [O] check_stream - check traffic stream  |
+    |                                 |           to ensure Tx Rate is greater than    |
+    |                                 |            0 pps.                              |
+    |                                 |           Default: True                        |
+    |                                 |     * [O] wait_time - time to wait after       |
+    |                                 |           starting traffic stream to ensure Tx |
+    |                                 |           Rate is greater than 0 pps.          |
+    |                                 |           Default: 15 (seconds)                |
+    |                                 |     * [O] max_time - the max time to wait after|
+    |                                 |           starting traffic stream.             |
+    |                                 |           Default: 180 (seconds)               |
+    |---------------------------------+------------------------------------------------|
+    | stop_traffic_stream             | Stop specific traffic item/stream via name     |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic_stream - traffic stream name |
+    |                                 |           to stop traffic on.                  |
+    |                                 |     * [O] wait_time - time to wait after       |
+    |                                 |           stopping traffic stream to ensure Tx |
+    |                                 |           Rate is 0 pps.                       |
+    |                                 |           Default: 15 (seconds)                |
+    |---------------------------------+------------------------------------------------|
+    | set_line_rate                   | Set the line rate for given traffic stream.    |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic_stream - traffic stream name |
+    |                                 |           to modify the line rate.             |
+    |                                 |     * [M] rate - New value to set/configure the|
+    |                                 |           line rate to.                        |
+    |                                 |     * [O] apply_traffic_time - time to wait    |
+    |                                 |           after applying traffic for setting   |
+    |                                 |           line rate for given traffic stream.  |
+    |                                 |           Default: 15 (seconds)                |
+    |                                 |     * [O] start_traffic - enable/disable       |
+    |                                 |           starting traffic after setting the   |
+    |                                 |           line rate.                           |
+    |                                 |           Default: True                        |
+    |                                 |     * [O] start_traffic_time - time to wait    |
+    |                                 |           after starting traffic for setting   |
+    |                                 |           line rate for given traffic stream.  |
+    |                                 |           Default: 15 (seconds)                |
+    |---------------------------------+------------------------------------------------|
+    | set_packet_rate                 | Set the packet rate for given traffic stream.  |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic_stream - traffic stream name |
+    |                                 |           to modify the packet rate.           |
+    |                                 |     * [M] rate - New value to set/configure the|
+    |                                 |           packet rate to.                      |
+    |                                 |     * [O] apply_traffic_time - time to wait    |
+    |                                 |           after applying traffic for setting   |
+    |                                 |           packet rate for given traffic stream.|
+    |                                 |           Default: 15 (seconds)                |
+    |                                 |     * [O] start_traffic - enable/disable       |
+    |                                 |           starting traffic after setting the   |
+    |                                 |           line rate.                           |
+    |                                 |           Default: True                        |
+    |                                 |     * [O] start_traffic_time - time to wait    |
+    |                                 |           after starting traffic for setting   |
+    |                                 |           packet rate for given traffic stream.|
+    |                                 |           Default: 15 (seconds)                |
+    |---------------------------------+------------------------------------------------|
+    | set_layer2_bit_rate             | Set the layer2 bit rate for given traffic      |
+    |                                 | stream.                                        |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic_stream - traffic stream name |
+    |                                 |           to modify the layer2 bit rate.       |
+    |                                 |     * [M] rate - New value to set/configure the|
+    |                                 |           layer2 bit rate to.                  |
+    |                                 |     * [M] rate_units - For layer2 bit rate,    |
+    |                                 |           specify the units to set the value.  |
+    |                                 |           Valid Options: - bps                 |
+    |                                 |                          - kbps                |
+    |                                 |                          - mbps                |
+    |                                 |                          - l2_bps              |
+    |                                 |     * [O] apply_traffic_time - time to wait    |
+    |                                 |           after applying traffic for setting   |
+    |                                 |           layer2 bit rate for given traffic    |
+    |                                 |           stream.                              |
+    |                                 |           Default: 15 (seconds)                |
+    |                                 |     * [O] start_traffic - enable/disable       |
+    |                                 |           starting traffic after setting the   |
+    |                                 |           layer2 bit rate.                     |
+    |                                 |           Default: True                        |
+    |                                 |     * [O] start_traffic_time - time to wait    |
+    |                                 |           after starting traffic for setting   |
+    |                                 |           layer2 bit rate for given traffic    |
+    |                                 |           stream.                              |
+    |                                 |           Default: 15 (seconds)                |
+    |---------------------------------+------------------------------------------------|
+    | set_packet_size_fixed           | Set the packet size for given traffic stream   |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic_stream - traffic stream name |
+    |                                 |           to modify the packet size.           |
+    |                                 |     * [M] packet_size - New value to set/config|
+    |                                 |           the packet size to.                  |
+    |                                 |     * [O] apply_traffic_time - time to wait    |
+    |                                 |           after applying traffic for setting   |
+    |                                 |           packet rate for given traffic stream.|
+    |                                 |           Default: 15 (seconds)                |
+    |                                 |     * [O] start_traffic - enable/disable       |
+    |                                 |           starting traffic after setting the   |
+    |                                 |           packet rate.                         |
+    |                                 |           Default: True                        |
+    |                                 |     * [O] start_traffic_time - time to wait    |
+    |                                 |           after starting traffic for setting   |
+    |                                 |           packet rate for given traffic stream.|
+    |                                 |           Default: 15 (seconds)                |
+    |---------------------------------+------------------------------------------------|
+    | get_line_rate                   | Returns the currently configured line rate for |
+    |                                 | the traffic stream provided.                   |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic_stream - traffic stream name |
+    |                                 |           to get the line rate of.             |
+    |---------------------------------+------------------------------------------------|
+    | get_packet_rate                 | Returns the currently configured packet rate   |
+    |                                 | for the traffic stream provided.               |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic_stream - traffic stream name |
+    |                                 |           to get the packet rate of.           |
+    |---------------------------------+------------------------------------------------|
+    | get_layer2_bit_rate             | Returns the currently configured layer2 bit    |
+    |                                 | rate for the traffic stream provided.          |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic_stream - traffic stream name |
+    |                                 |           to get the layer2 bit rate of.       |
+    |---------------------------------+------------------------------------------------|
+    | get_packet_size                 | Returns the currently configured packet size   |
+    |                                 | for the traffic stream provided.               |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] traffic_stream - traffic stream name |
+    |                                 |           to get the packet size of.           |
+    |---------------------------------+------------------------------------------------|
+    | start_packet_capture            | Starts packet capture on all ports.            |
+    |                                 | Arguments:                                     |
+    |                                 |     * [O] capture_time - Time to wait while    |
+    |                                 |           packet capture is occurring.         |
+    |                                 |           Default: 60 (seconds)                |
+    |---------------------------------+------------------------------------------------|
+    | stop_packet_capture             | Stops packet capture on all ports.             |
+    |                                 | Arguments:                                     |
+    |                                 |     None                                       |
+    |---------------------------------+------------------------------------------------|
+    | save_packet_capture_file        | Saves the packet capture file as specified     |
+    |                                 | filename to desired location.                  |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] port_name - port on which packet     |
+    |                                 |           capture session was performed.       |
+    |                                 |     * [M] pcap_type - specify either data or   |
+    |                                 |           control packet capture type.         |
+    |                                 |     * [M] filename - destination filename to   |
+    |                                 |           save packet capture file.            |
+    |                                 |     * [O] directory - destination directory to |
+    |                                 |           save packet capture file.            |
+    |                                 |           Default: '/tmp' on linux server      |
+    |---------------------------------+------------------------------------------------|
+    | export_packet_capture_file      | Export packet capture file to runtime logs as  |
+    |                                 | the given filename and return file path of the |
+    |                                 | copied file to caller.                         |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] src_file - the name of packet capture|
+    |                                 |           on spirent ReST API server.          |
+    |                                 |     * [O] dest_file - filename to download the |
+    |                                 |           packet capture file to runtime logs. |
+    |                                 |           Default: 'spirent.pcap'              |
+    |----------------------------------------------------------------------------------|
+    | get_traffic_stream_names        | Returns a list of all traffic stream names     |
+    |                                 | present in current configuration.              |
+    |                                 | Arguments:                                     |
+    |                                 |     None                                       |
+    |----------------------------------------------------------------------------------|
+    | get_traffic_stream_objects      | Returns a list of all traffic stream objects   |
+    |                                 | in current configuration.                      |
+    |                                 | Arguments:                                     |
+    |                                 |     None                                       |
     +==================================================================================+
 
 The methods listed above can be executed directly on an Spirent traffic generator
@@ -476,7 +687,7 @@ This sections covers sample usage of executing Spirent Traffic Generator via gRu
 
 .. code-block:: bash
 
-    pyats run job job.py --testbed-file spirent_testbed.yaml --tgn-disable-assign-ports True
+    pyats run job job.py --testbed-file spirent_testbed.yaml
 
 Below is the example of job.py, which contains: trigger_datafile, subsection_datafile and config_datafile.
 
@@ -492,6 +703,7 @@ Below is the example of job.py, which contains: trigger_datafile, subsection_dat
             trigger_datafile=test_path+'/spirent_trigger_datafile.yaml',
             subsection_datafile=test_path+'/spirent_subsession_datafile.yaml',
             config_datafile=test_path+'/spirent_config_datafile.yaml',
+            tgn_disable_assign_ports=True,
         )
 
 
@@ -519,7 +731,8 @@ into controllable subsections that can be executed within ``Genie`` harness.
 
 The harness provides the following subsections:
     1. common_setup: initialize_traffic
-    2. common_cleanup: stop_traffic
+    2. common_setup: profile_traffic
+    3. common_cleanup: stop_traffic
 
 To add/remove execution of the above mentioned subsections simply "enable" or
 "disable" them by adding/removing the subsection name from the execution order
@@ -544,7 +757,7 @@ key, as shown below:
         profile_traffic:
           method: genie.harness.commons.profile_traffic
 
-      order: ['connect', 'initialize_traffic']
+      order: ['connect', 'initialize_traffic', 'profile_traffic']
 
     cleanup:
       sections:
@@ -573,6 +786,89 @@ It performs the following steps in order:
     8. Clear traffic statistics after streams have converged to steady state
     9. Create custom traffic statistics view on Spirent named "Genie"
     10. Check traffic loss % and frames loss across all configured traffic streams
+
+
+common_setup: profile_traffic
+"""""""""""""""""""""""""""""
+
+This subsection packages all the steps associated with "profiling" traffic
+streams configured on spirent.
+
+It creates a snapshot/profile of all configured traffic streams and then copies 
+this profile to the runtime logs as the "golden_traffic_profile" for the
+current job/run. 
+
+It also saves this snapshot/profile as the "golden" traffic profile for the
+current ``Genie`` run. This snapshot profile will then be used to compare traffic
+profiles generated after trigger execution to ensure that the trigger did not
+impact configured traffic streams. 
+
+This profile can also be saved and reused as a reference for comparison of
+subsequent runs of ``profile_traffic`` subsection.
+
+The user can pass in a ``golden`` traffic profile via the ``tgn-golden-profile``
+argument to enable comparison of the current profile against the previously
+established/verified/golden traffic profile snapshot.
+
+This subsection performs the following:
+
+    1. Connect to Spirent
+    2. Create a snapshot profile of traffic streams configured on Spirent
+    3. Copy the snapshot profile as "golden_traffic_profile" to Genie runtime logs
+    4. (Optional) If the user provided a ``tgn-golden-profile``:
+        a. Verify that the difference for Loss % between the current traffic
+           profile and golden traffic profile is less than user provided
+           threshold of ``tgn-profile-traffic-loss-tolerance``
+        b. Verify that the difference for Tx Frames Rate between the current
+           traffic profile and golden traffic profile is less than user provided
+           threshold of ``tgn-profile-rate-loss-tolerance``
+        c. Verify that the difference for Rx Frames Rate between the current
+           traffic profile and golden traffic profile is less than user provided
+           threshold of ``tgn-profile-rate-loss-tolerance`` 
+
+To enable/disable execution of this subsection, simply add or remove the
+'profile_traffic' subsection from the execution order of the 'setup' in the
+`subsection_datafile` YAML.
+
+
+Below is the example of job.py, which contains: golden profile.
+
+.. code-block:: python
+    :emphasize-lines: 15
+    :linenos:
+
+    import os
+    from pyats import aetest
+    # Needed for logic
+    from pyats.datastructures.logic import And, Not, Or
+    from genie.harness.main import gRun
+
+    def main():
+        test_path = os.path.dirname(os.path.abspath(__file__))
+        gRun(
+            trigger_datafile=test_path+'/blitz.yaml',
+            subsection_datafile=test_path+'/spirent_subsession_datafile.yaml',
+            mapping_datafile=test_path+'/mapping_datafile.yaml',
+            config_datafile=test_path+'/spirent_config_datafile.yaml',
+            tgn_disable_assign_ports=True,
+            tgn_golden_profile=test_path+'/golden_profile',
+            trigger_groups=And('all'),
+        )
+
+
+Spirent `golden_profile` is something like below:
+
+.. code-block:: text
+
+    +-----------------------+------------------+-----------+-----------+--------------+---------------+---------------+--------+------------------+
+    | Source/Dest Port Pair | Traffic Item     | Tx Frames | Rx Frames | Frames Delta | Tx Frame Rate | Rx Frame Rate | Loss % | Outage (seconds) |
+    +-----------------------+------------------+-----------+-----------+--------------+---------------+---------------+--------+------------------+
+    | port2-port1           | StreamBlock 8-2  | 702693    | 705409    | 0            | 4223          | 4223          | 0.0    | 0.0              |
+    | port2-port1           | StreamBlock 11-2 | 702693    | 705409    | 0            | 4223          | 4223          | 0.0    | 0.0              |
+    | port1-port2           | StreamBlock 8-1  | 702697    | 705373    | 0            | 4223          | 4223          | 0.0    | 0.0              |
+    | port1-port2           | StreamBlock 11-1 | 702696    | 705372    | 0            | 4223          | 4223          | 0.0    | 0.0              |
+    +-----------------------+------------------+-----------+-----------+--------------+---------------+---------------+--------+------------------+
+
 
 
 common_cleanup: stop_traffic
@@ -606,7 +902,7 @@ This sections covers the sample usage of executing Spirent Traffic Generator via
 
 .. code-block:: bash
 
-    pyats run job job.py --testbed-file spirent_testbed.yaml --tgn-disable-assign-ports True
+    pyats run job job.py --testbed-file spirent_testbed.yaml
 
 Below is the example of defining Blitz yaml in gRun:
 
@@ -624,6 +920,7 @@ Below is the example of defining Blitz yaml in gRun:
             subsection_datafile=test_path+'/spirent_subsession_datafile.yaml',
             mapping_datafile=test_path+'/mapping_datafile.yaml',
             config_datafile=test_path+'/spirent_config_datafile.yaml',
+            tgn_disable_assign_ports=True,
             trigger_groups=And('all'),
         )
 
@@ -667,7 +964,6 @@ Below gives the example of integrating Traffic generator (tgn) apis directly int
         device: R1_xe
         interfaces:
             - GigabitEthernet2
-            - GigabitEthernet3
         description: configured by pyATS
 
     config_interface:
@@ -688,6 +984,35 @@ Below gives the example of integrating Traffic generator (tgn) apis directly int
                     - tgn:
                         device: spirent
                         function: connect
+              - tgn:
+                  device: spirent
+                  function: load_configuration
+                  arguments:
+                    configuration: "/root/genietrafficgen/traffic.xml"
+              - tgn:
+                  device: spirent
+                  function: start_packet_capture
+                  arguments:
+                    capture_time: 30
+              - tgn:
+                  device: spirent
+                  function: set_line_rate
+                  arguments:
+                    traffic_stream: "Traffic IPv4-1"
+                    rate: 40
+              - tgn:
+                  device: spirent
+                  function: set_packet_rate
+                  arguments:
+                    traffic_stream: "Traffic IPv6-3"
+                    rate: 50
+              - tgn:
+                  device: spirent
+                  function: set_layer2_bit_rate
+                  arguments:
+                    traffic_stream: "Traffic IPv6-4"
+                    rate: 30
+                    rate_unit: "kbps"
 
             - configure_interfaces:
                 - loop:
