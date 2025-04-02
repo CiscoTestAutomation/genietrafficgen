@@ -24,5 +24,6 @@ Genie currently supports the following traffic generator devices:
     ixianative
     ixiarestpy
     ixiangpf
+    spirent
     pagent
     changelog/index
