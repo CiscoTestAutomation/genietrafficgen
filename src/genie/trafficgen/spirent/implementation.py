@@ -99,6 +99,7 @@ class Spirent(TrafficGen):
 
         # Init class variables
         self._is_connected = False
+        self._stc_version = ''
 
         # Spirent Chassis Details
         header = "Spirent Configuration Details"
@@ -155,6 +156,8 @@ class Spirent(TrafficGen):
             else:
                 self.stc.new_session(self.user_name, self.session_name, kill_existing=False)
                 log.info("Created new session:{}".format(self.session_id))
+            parts = self.stc.bll_version().split(".")
+            self._stc_version = '.'.join(parts[:2])
 
         except Exception as e:
             log.error(e)
@@ -921,8 +924,16 @@ class Spirent(TrafficGen):
 
         streams_info = {}
         try:
-            result = self.stc.perform("GetObjectsCommand", ClassName="StreamBlock", PropertyList="Name parent.name children-rxstreamblockresults")
-            my_dict = json.loads(result['PropertyValues'])
+            if self._stc_version >= "5.51":
+                result = self.stc.perform("GetObjectsCommand", ClassName="StreamBlock", PropertyList="Name parent.name children-rxstreamblockresults")
+                my_dict = json.loads(result['PropertyValues'])
+            else:
+                result = self.stc.perform("GetObjectsCommand", ClassName="StreamBlock")
+                streams_list = result.get("ObjectList").split()
+                my_dict = {}
+                for stream in streams_list:
+                    my_dict[stream] = self.stc.get(stream, "Name&parent.name&children-rxstreamblockresults")
+
             for key in  my_dict:
                 rxport = self.stc.get(my_dict[key]['children-rxstreamblockresults'].split()[0]+'?RxPort')
                 rxport = "Unknown" if rxport=="" else rxport
@@ -1043,8 +1054,15 @@ class Spirent(TrafficGen):
         '''Get the handle of DRV name'''
         log.info(banner("Trying to get dynamic view of {}".format(GENIE_VIEW_NAME)))
         try:
-            result = self.stc.perform("GetObjectsCommand", ClassName="DynamicResultView", PropertyList="Name children", Condition="Name='{}'".format(GENIE_VIEW_NAME))
-            my_dict = json.loads(result['PropertyValues'])
+            if self._stc_version >= "5.51":
+                result = self.stc.perform("GetObjectsCommand", ClassName="DynamicResultView",PropertyList="Name children", Condition="Name='{}'".format(GENIE_VIEW_NAME))
+                my_dict = json.loads(result['PropertyValues'])
+            else:
+                result = self.stc.perform("GetObjectsCommand", ClassName="DynamicResultView", Condition="Name='{}'".format(GENIE_VIEW_NAME))
+                drv_list = result.get("ObjectList").split()
+                my_dict = {}
+                for drv in drv_list:
+                    my_dict[drv] = self.stc.get(drv, "Name&children")
 
             assert len(my_dict) >= 1
             for key in  my_dict:
@@ -1297,9 +1315,14 @@ class Spirent(TrafficGen):
     def get_streamblock_handle(self, traffic_stream, check_port_mode=False):
         
         try:
-            results = self.stc.perform("GetObjectsCommand", ClassName="streamblock", \
+            if self._stc_version >= "5.51":
+                results = self.stc.perform("GetObjectsCommand", ClassName="streamblock", \
                                         PropertyList="parent.generator.generatorconfig.SchedulingMode", \
                                         condition="name={}".format(traffic_stream))
+            else:
+                results = self.stc.perform("GetObjectsCommand", ClassName="streamblock", \
+                                        condition="name={}".format(traffic_stream))
+    
             stream_handles = results.get("ObjectList").split()
             if len(stream_handles) > 1:
                 log.warning("More than one traffic streams({}) were found, using the first one".format(traffic_stream))
@@ -1309,8 +1332,13 @@ class Spirent(TrafficGen):
             stream_handle = stream_handles[0]
 
             if check_port_mode:
-                property_dict = json.loads(results['PropertyValues'])
-                ori_mode = property_dict.get(stream_handle).get("parent.generator.generatorconfig.SchedulingMode")
+                ori_mode = ""
+                if self._stc_version >= "5.51":
+                    property_dict = json.loads(results['PropertyValues'])
+                    ori_mode = property_dict.get(stream_handle).get("parent.generator.generatorconfig.SchedulingMode")
+                else:
+                    ori_mode = self.stc.get(stream_handle, "parent.generator.generatorconfig.SchedulingMode")
+
                 if ori_mode != "RATE_BASED":
                     log.warning("The rate set for {} won't take effect for non-RATE_BASED generator!".format(traffic_stream))
             
@@ -1518,9 +1546,17 @@ class Spirent(TrafficGen):
 
         # Get all traffic stream names from spirent
         try:
-            results = self.stc.perform("GetObjectsCommand", ClassName="StreamBlock", PropertyList="Name")
-            property_values = results.get("PropertyValues")
-            property_dict = json.loads(property_values)
+            if self._stc_version >= "5.51":
+                results = self.stc.perform("GetObjectsCommand", ClassName="StreamBlock", PropertyList="Name")
+                property_values = results.get("PropertyValues")
+                property_dict = json.loads(property_values)
+            else:
+                results = self.stc.perform("GetObjectsCommand", ClassName="StreamBlock")
+                property_dict = {}
+                streams_list = results.get("ObjectList").split()
+                for stream in streams_list:
+                    property_dict[stream] = {"Name":self.stc.get(stream, "Name")}
+
             traffic_names = [value['Name'] for value in property_dict.values()]
             return traffic_names
         except Exception as e:
