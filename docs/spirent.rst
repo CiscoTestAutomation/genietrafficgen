@@ -125,7 +125,7 @@ the device using the `connect()` method:
 Load configuration onto Spirent
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The following code block demonstrates loading a static configuration file onto an Spirnet device
+The following code block demonstrates loading a static configuration file onto an Spirent device
 
 .. code-block:: python
 
@@ -142,6 +142,12 @@ The following code block demonstrates loading a static configuration file onto a
     Loaded configuration file '/root/genietrafficgen/traffic.xml' onto device 'spirent'
     Waiting for '60' seconds after loading configuration...
     >>>
+
+
+.. note::
+
+    ``traffic.xml`` is the XML configuration file generated via the Spirent TestCenter GUI. 
+    In the GUI, choose File / Save As, and then set Save as type to Xml files.
 
 
 Applying L2/L3 Traffic on Spirent
@@ -163,7 +169,7 @@ The following code block demonstrates how to apply loaded traffic on Spirent
 Start/Stop Routing Protocols on Spirent
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The following code block demonstrates starting/stopping routing protocols on an Spirnet device
+The following code block demonstrates starting/stopping routing protocols on an Spirent device
 
 .. code-block:: python
 
