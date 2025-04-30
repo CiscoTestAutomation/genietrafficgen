@@ -2823,7 +2823,7 @@ class IxiaNative(TrafficGen):
         flow_group_table = PrettyTable()
         flow_group_table.field_names = ["Flow Group Traffic Item",
                                         "VLAN:VLAN-ID",
-                                        "Source/Dest Port Pair",
+                                        "Source/Dest Endpoint Pair",
                                         "Tx Frame Rate",
                                         "Rx Frame Rate",
                                         "Frames Delta",
@@ -2852,7 +2852,7 @@ class IxiaNative(TrafficGen):
             flow_group_name = row.get_string(fields=["Traffic Item"]).strip()
             if not remove_vlan:
                 vlan_id = row.get_string(fields=["VLAN:VLAN-ID"]).strip()
-            src_dest_port_pair = row.get_string(fields=["Source/Dest Port Pair"]).strip()
+            src_dest_endpoint_pair = row.get_string(fields=["Source/Dest Endpoint Pair"]).strip()
             tx_frame_rate = row.get_string(fields=["Tx Frame Rate"]).strip()
             rx_frame_rate = row.get_string(fields=["Rx Frame Rate"]).strip()
             frames_delta = row.get_string(fields=["Frames Delta"]).strip()
@@ -2865,7 +2865,7 @@ class IxiaNative(TrafficGen):
             # Check row for loss/outage within tolerance
             if verbose:
                 log.info(banner("Checking flow group: '{t} | {vlan} | {pair}'".\
-                                format(t=flow_group_name, vlan='' if remove_vlan else vlan_id, pair=src_dest_port_pair)))
+                                format(t=flow_group_name, vlan='' if remove_vlan else vlan_id, pair=src_dest_endpoint_pair)))
 
             # 1- Verify current loss % is less than tolerance threshold
             # Get loss % value
@@ -2948,7 +2948,7 @@ class IxiaNative(TrafficGen):
             # Add data to the smaller table to display to user
             if remove_vlan:
                 flow_group_table.add_row([flow_group_name,
-                                        src_dest_port_pair,
+                                        src_dest_endpoint_pair,
                                         tx_frame_rate,
                                         rx_frame_rate,
                                         frames_delta,
@@ -2958,7 +2958,7 @@ class IxiaNative(TrafficGen):
             else:
                 flow_group_table.add_row([flow_group_name,
                                         vlan_id,
-                                        src_dest_port_pair,
+                                        src_dest_endpoint_pair,
                                         tx_frame_rate,
                                         rx_frame_rate,
                                         frames_delta,
