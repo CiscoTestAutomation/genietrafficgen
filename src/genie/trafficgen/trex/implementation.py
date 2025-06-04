@@ -265,11 +265,10 @@ class Trex(TrafficGen):
         trex_ns = self._trex.get_trex_namespace().ns
 
         with trex_ns.trex_client_context():
-            from scapy.all import IP, Ether, Dot1Q
-            ether_part = Ether(src=mac_src, dst=mac_dst)
-            ip_part = IP(src=ip_src, dst=ip_dst)
+            ether_part = trex_ns.scapy.all.Ether(src=mac_src, dst=mac_dst)
+            ip_part = trex_ns.scapy.all.IP(src=ip_src, dst=ip_dst)
             if vlanid:
-                scapy_pkt = ether_part / Dot1Q(vlan=vlanid) / ip_part
+                scapy_pkt = ether_part / trex_ns.scapy.all.Dot1Q(vlan=vlanid) / ip_part
             else:
                 scapy_pkt = ether_part / ip_part
             pkt = trex_ns.trex.stl.api.STLPktBuilder(pkt=scapy_pkt)
@@ -310,11 +309,10 @@ class Trex(TrafficGen):
         trex_ns = self._trex.get_trex_namespace().ns
 
         with trex_ns.trex_client_context():
-            from scapy.all import IPv6, Ether, Dot1Q
-            ether_part = Ether(src=mac_src, dst=mac_dst)
-            ip_part = IPv6(src=ipv6_src, dst=ipv6_dst, hlim=1)
+            ether_part = trex_ns.scapy.all.Ether(src=mac_src, dst=mac_dst)
+            ip_part = trex_ns.scapy.all.IPv6(src=ipv6_src, dst=ipv6_dst, hlim=1)
             if vlanid:
-                scapy_pkt = ether_part / Dot1Q(vlan=vlanid) / ip_part
+                scapy_pkt = ether_part / trex_ns.scapy.all.Dot1Q(vlan=vlanid) / ip_part
             else:
                 scapy_pkt = ether_part / ip_part
             pkt = trex_ns.trex.stl.api.STLPktBuilder(pkt=scapy_pkt)
@@ -394,23 +392,23 @@ class Trex(TrafficGen):
 
         trex_ns = self._trex.get_trex_namespace().ns
         with trex_ns.trex_client_context():
-            from scapy.all import IP, Ether, Dot1Q, ARP
-            ether_part = Ether(src=mac_src, dst='ff:ff:ff:ff:ff:ff')
+            ether_part = trex_ns.scapy.all.Ether(src=mac_src, dst='ff:ff:ff:ff:ff:ff')
             #Op=1 indicates ARP request and OP=2 indicates ARP reply
             if ip_src == ip_target:
-                arp_part = ARP(op=2, hwsrc=mac_src, psrc=ip_src,
+                arp_part = trex_ns.scapy.all.ARP(op=2, hwsrc=mac_src, psrc=ip_src,
                                 hwdst='ff:ff:ff:ff:ff:ff',
                                 pdst=ip_target)
             else:
-                arp_part = ARP(op=1, hwsrc=mac_src, psrc=ip_src,
+                arp_part = trex_ns.scapy.all.ARP(op=1, hwsrc=mac_src, psrc=ip_src,
                                 hwdst='00:00:00:00:00:00',
                                 pdst=ip_target)
             if vlan_tag:
-                scapy_pkt = ether_part / Dot1Q(vlan=vlan_tag) / arp_part
+                scapy_pkt = ether_part / trex_ns.scapy.all.Dot1Q(vlan=vlan_tag) / arp_part
             else:
                 scapy_pkt = ether_part / arp_part
 
             pkt = trex_ns.trex.stl.api.STLPktBuilder(pkt=scapy_pkt)
+            
             bst_mode = trex_ns.trex.stl.api.STLTXSingleBurst(
                 pps=pps, total_pkts=count
             )
@@ -449,16 +447,14 @@ class Trex(TrafficGen):
         mac_dst = mac_to_colon_notation(mac_dst)
         trex_ns = self._trex.get_trex_namespace().ns
         with trex_ns.trex_client_context():
-            from scapy.all import Ether, Dot1Q
-            from scapy.all import IPv6, ICMPv6ND_RA
 
-            ether_p = Ether(src=mac_src, dst=mac_dst)
+            ether_p = trex_ns.scapy.all.Ether(src=mac_src, dst=mac_dst)
 
-            ipv6_p = IPv6(src=ip_src, dst=ip_dst)
-            icmpv6_p = ICMPv6ND_RA()
+            ipv6_p = trex_ns.scapy.all.IPv6(src=ip_src, dst=ip_dst)
+            icmpv6_p = trex_ns.scapy.all.ICMPv6ND_RA()
             if vlan_tag:
                 scapy_pkt = \
-                    ether_p / Dot1Q(vlan=vlan_tag) / ipv6_p / icmpv6_p
+                    ether_p / trex_ns.scapy.all.Dot1Q(vlan=vlan_tag) / ipv6_p / icmpv6_p
             else:
                 scapy_pkt = ether_p / ipv6_p / icmpv6_p
 
@@ -500,16 +496,14 @@ class Trex(TrafficGen):
         mac_dst = mac_to_colon_notation(mac_dst)
         trex_ns = self._trex.get_trex_namespace().ns
         with trex_ns.trex_client_context():
-            from scapy.all import Ether, Dot1Q
-            from scapy.all import IPv6, ICMPv6ND_RS
 
-            ether_p = Ether(src=mac_src, dst=mac_dst)
+            ether_p = trex_ns.scapy.all.Ether(src=mac_src, dst=mac_dst)
 
-            ipv6_p = IPv6(src=ip_src, dst=ip_dst)
-            icmpv6_p = ICMPv6ND_RS()
+            ipv6_p = trex_ns.scapy.all.IPv6(src=ip_src, dst=ip_dst)
+            icmpv6_p = trex_ns.scapy.all.ICMPv6ND_RS()
             if vlan_tag:
                 scapy_pkt = \
-                  ether_p / Dot1Q(vlan=vlan_tag) / ipv6_p / icmpv6_p
+                  ether_p / trex_ns.scapy.all.Dot1Q(vlan=vlan_tag) / ipv6_p / icmpv6_p
             else:
                 scapy_pkt = ether_p / ipv6_p / icmpv6_p
 
@@ -552,16 +546,14 @@ class Trex(TrafficGen):
         mac_dst = mac_to_colon_notation(mac_dst)
         trex_ns = self._trex.get_trex_namespace().ns
         with trex_ns.trex_client_context():
-            from scapy.all import Ether, Dot1Q
-            from scapy.all import IPv6, ICMPv6ND_Redirect
 
-            ether_p = Ether(src=mac_src, dst=mac_dst)
+            ether_p = trex_ns.scapy.all.Ether(src=mac_src, dst=mac_dst)
 
-            ipv6_p = IPv6(src=ip_src, dst=ip_dst)
-            icmpv6_p = ICMPv6ND_Redirect()
+            ipv6_p = trex_ns.scapy.all.IPv6(src=ip_src, dst=ip_dst)
+            icmpv6_p = trex_ns.scapy.all.ICMPv6ND_Redirect()
             if vlan_tag:
                 scapy_pkt = \
-                  ether_p / Dot1Q(vlan=vlan_tag) / ipv6_p / icmpv6_p
+                  ether_p / trex_ns.scapy.all.Dot1Q(vlan=vlan_tag) / ipv6_p / icmpv6_p
             else:
                 scapy_pkt = ether_p / ipv6_p / icmpv6_p
 
@@ -603,18 +595,15 @@ class Trex(TrafficGen):
         mac_dst = mac_to_colon_notation(mac_dst)
         trex_ns = self._trex.get_trex_namespace().ns
         with trex_ns.trex_client_context():
-            from scapy.all import Ether, Dot1Q
-            from scapy.all import IPv6, ICMPv6ND_NS
-            from scapy.all import ICMPv6NDOptSrcLLAddr
 
-            ether_p = Ether(src=mac_src, dst=mac_dst)
+            ether_p = trex_ns.scapy.all.Ether(src=mac_src, dst=mac_dst)
 
-            ipv6_p = IPv6(src=ip_src, dst=ip_dst)
-            icmpv6_p = ICMPv6ND_NS(tgt=ip_dst)
-            icmpv6_opt = ICMPv6NDOptSrcLLAddr(lladdr=mac_src)
+            ipv6_p = trex_ns.scapy.all.IPv6(src=ip_src, dst=ip_dst)
+            icmpv6_p = trex_ns.scapy.all.ICMPv6ND_NS(tgt=ip_dst)
+            icmpv6_opt = trex_ns.scapy.all.ICMPv6NDOptSrcLLAddr(lladdr=mac_src)
             if vlan_tag:
                 scapy_pkt = \
-                  ether_p / Dot1Q(vlan=vlan_tag) / ipv6_p / icmpv6_p / icmpv6_opt
+                  ether_p / trex_ns.scapy.all.Dot1Q(vlan=vlan_tag) / ipv6_p / icmpv6_p / icmpv6_opt
             else:
                 scapy_pkt = ether_p / ipv6_p / icmpv6_p / icmpv6_opt
 
@@ -655,17 +644,15 @@ class Trex(TrafficGen):
         mac_src = mac_to_colon_notation(mac_src)
         trex_ns = self._trex.get_trex_namespace().ns
         with trex_ns.trex_client_context():
-            from scapy.all import Ether, Dot1Q
-            from scapy.all import IPv6, ICMPv6ND_NS
 
-            ether_p = Ether(src=mac_src, dst=make_multicast_mac(ip_dst))
+            ether_p = trex_ns.scapy.all.Ether(src=mac_src, dst=make_multicast_mac(ip_dst))
 
-            ipv6_p = IPv6(src=ip_src, dst=make_multicast_ipv6(ip_dst))
-            icmpv6_p = ICMPv6ND_NS(tgt=ip_target)
+            ipv6_p = trex_ns.scapy.all.IPv6(src=ip_src, dst=make_multicast_ipv6(ip_dst))
+            icmpv6_p = trex_ns.scapy.all.ICMPv6ND_NS(tgt=ip_target)
 
             if vlan_tag:
                 scapy_pkt = \
-                  ether_p / Dot1Q(vlan=vlan_tag) / ipv6_p / icmpv6_p
+                  ether_p / trex_ns.scapy.all.Dot1Q(vlan=vlan_tag) / ipv6_p / icmpv6_p
             else:
                 scapy_pkt = ether_p / ipv6_p / icmpv6_p
 
@@ -705,18 +692,15 @@ class Trex(TrafficGen):
         mac_src = mac_to_colon_notation(mac_src)
         trex_ns = self._trex.get_trex_namespace().ns
         with trex_ns.trex_client_context():
-            from scapy.all import Ether, Dot1Q
-            from scapy.all import IPv6, ICMPv6ND_NS
-            from scapy.all import ICMPv6NDOptSrcLLAddr
 
-            ether_p = Ether(src=mac_src, dst=make_multicast_mac(ip_dst))
+            ether_p = trex_ns.scapy.all.Ether(src=mac_src, dst=make_multicast_mac(ip_dst))
 
-            ipv6_p = IPv6(src=ip_src, dst=make_multicast_ipv6(ip_dst))
-            icmpv6_p = ICMPv6ND_NS(tgt=ip_dst)
-            icmpv6_opt = ICMPv6NDOptSrcLLAddr(lladdr=mac_src)
+            ipv6_p = trex_ns.scapy.all.IPv6(src=ip_src, dst=make_multicast_ipv6(ip_dst))
+            icmpv6_p = trex_ns.scapy.all.ICMPv6ND_NS(tgt=ip_dst)
+            icmpv6_opt = trex_ns.scapy.all.ICMPv6NDOptSrcLLAddr(lladdr=mac_src)
             if vlan_tag:
                 scapy_pkt = \
-                  ether_p / Dot1Q(vlan=vlan_tag) / ipv6_p / icmpv6_p / icmpv6_opt
+                  ether_p / trex_ns.scapy.all.Dot1Q(vlan=vlan_tag) / ipv6_p / icmpv6_p / icmpv6_opt
             else:
                 scapy_pkt = ether_p / ipv6_p / icmpv6_p / icmpv6_opt
 
@@ -765,18 +749,15 @@ class Trex(TrafficGen):
 
         trex_ns = self._trex.get_trex_namespace().ns
         with trex_ns.trex_client_context():
-            from scapy.all import Ether, Dot1Q
-            from scapy.all import IPv6, ICMPv6ND_NA
-            from scapy.all import ICMPv6NDOptSrcLLAddr
 
-            ether_p = Ether(src=mac_src, dst=mac_dst)
+            ether_p = trex_ns.scapy.all.Ether(src=mac_src, dst=mac_dst)
 
-            ipv6_p = IPv6(src=ip_src, dst=ip_dst)
-            icmpv6_p = ICMPv6ND_NA(R=0, S=solicited, O=1, tgt=ip_src)
-            icmpv6_opt = ICMPv6NDOptSrcLLAddr(type=2, lladdr=mac_src)
+            ipv6_p = trex_ns.scapy.all.IPv6(src=ip_src, dst=ip_dst)
+            icmpv6_p = trex_ns.scapy.all.ICMPv6ND_NA(R=0, S=solicited, O=1, tgt=ip_src)
+            icmpv6_opt = trex_ns.scapy.all.ICMPv6NDOptSrcLLAddr(type=2, lladdr=mac_src)
             if vlan_tag:
                 scapy_pkt = \
-                  ether_p / Dot1Q(vlan=vlan_tag) / ipv6_p / icmpv6_p / icmpv6_opt
+                  ether_p / trex_ns.scapy.all.Dot1Q(vlan=vlan_tag) / ipv6_p / icmpv6_p / icmpv6_opt
             else:
                 scapy_pkt = ether_p / ipv6_p / icmpv6_p / icmpv6_opt
 
@@ -815,19 +796,17 @@ class Trex(TrafficGen):
 
         trex_ns = self._trex.get_trex_namespace().ns
         with trex_ns.trex_client_context():
-            from scapy.all import Ether, Dot1Q
-            from scapy.all import IP
             from scapy.contrib.igmp import IGMP
 
-            ether_p = Ether(src=mac_src)
+            ether_p = trex_ns.scapy.all.Ether(src=mac_src)
 
-            ip_p = IP(src=ip_src, dst='224.0.0.1')
+            ip_p = trex_ns.scapy.all.IP(src=ip_src, dst='224.0.0.1')
             igmp_p = IGMP(type=0x11, mrtime=max_resp)
             igmp_p.igmpize(ether=ether_p, ip=ip_p)
 
             if vlan_tag:
                 scapy_pkt = \
-                  ether_p / Dot1Q(vlan=vlan_tag) / ip_p / igmp_p
+                  ether_p / trex_ns.scapy.all.Dot1Q(vlan=vlan_tag) / ip_p / igmp_p
             else:
                 scapy_pkt = ether_p / ip_p / igmp_p
 
@@ -869,16 +848,14 @@ class Trex(TrafficGen):
 
         trex_ns = self._trex.get_trex_namespace().ns
         with trex_ns.trex_client_context():
-            from scapy.all import Ether, Dot1Q
-            from scapy.all import IPv6, ICMPv6MLQuery
 
-            ether_p = Ether(src=mac_src, dst=mac_dst)
+            ether_p = trex_ns.scapy.all.Ether(src=mac_src, dst=mac_dst)
 
-            ipv6_p = IPv6(src=ip_src, dst=ip_dst)
-            icmpv6_p = ICMPv6MLQuery(mrd=max_resp)
+            ipv6_p = trex_ns.scapy.all.IPv6(src=ip_src, dst=ip_dst)
+            icmpv6_p = trex_ns.scapy.all.ICMPv6MLQuery(mrd=max_resp)
             if vlan_tag:
                 scapy_pkt = \
-                  ether_p / Dot1Q(vlan=vlan_tag) / ipv6_p / icmpv6_p
+                  ether_p / trex_ns.scapy.all.Dot1Q(vlan=vlan_tag) / ipv6_p / icmpv6_p
             else:
                 scapy_pkt = ether_p / ipv6_p / icmpv6_p
 
