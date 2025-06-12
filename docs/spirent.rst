@@ -32,14 +32,14 @@ as shown in the example below:
         connections:
           tgn:
             class: genie.trafficgen.spirent.Spirent
-            server_ip: 10.61.67.191
+            server_ip: 192.168.10.1
             server_port: 80
             user_name: testid
             session_name: session
             chassis: 
-            - ip: 10.109.127.27
+            - ip: 192.168.20.1 
               port_list: ['1/1', '1/2'] 
-            - ip: 10.109.119.212
+            - ip: 192.168.20.2
               port_list: '1/1' 
 
 It is **mandatory** to specify a connection named 'tgn' along with the 
@@ -53,7 +53,7 @@ in the example above.
        device. Use "tgn" for Spirent.
     3. The `connections` key specifies the connection label which **must**
        contain a connection labelled `tgn`.
-       
+
 The following are mandatory keys to be provided in the `testbed` YAML while
 defining an Spirent `device`:
 
@@ -106,11 +106,11 @@ the device using the `connect()` method:
     +==============================================================================+
     | Spirent Configuration Details                                                |
     +==============================================================================+
-    | Spirent API Server: 10.61.67.22:80                                           |
+    | Spirent API Server: 192.168.10.1:80                                          |
     |------------------------------------------------------------------------------|
     | Spirent Session: session - testid                                            |
     |------------------------------------------------------------------------------|
-    | Spirent Chassis: ['//10.109.123.110/1/1', '//10.109.120.103/1/1']            |
+    | Spirent Chassis: ['//192.168.20.1/1/1', '//192.168.20.2/1/1']                |
     |------------------------------------------------------------------------------|
     For more information, see Genie traffic documentation: 
       https://pubhub.devnetcloud.com/media/genietrafficgen-docs/docs/spirent.html
@@ -118,7 +118,7 @@ the device using the `connect()` method:
     |                            Connecting to Spirent                             |
     +------------------------------------------------------------------------------+
     Created new session:session - testid
-    Connected to Spirent API server '10.61.67.22:80'
+    Connected to Spirent API server '192.168.10.1:80'
 
 
 
@@ -216,6 +216,49 @@ The following code block demonstrates starting/stopping traffic on an Spirent de
     Stopped L2/L3 traffic on device 'spirent'
     >>>
 
+Start/Stop Capture on Spirent Ports
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The following code block demonstrates starting/stopping capture on an Spirent device ports
+
+.. code-block:: python
+
+    # Start capture 
+    >>> dev.start_packet_capture_tgn()
+    Starting packet capture...
+    Waiting for '60' seconds after capture started.
+    >>>
+
+    # Stop capture
+    >>> dev.stop_packet_capture_tgn()
+    Stop packet capture...
+    >>>
+
+Save/Export Capture File on Spirent Ports
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The following code block demonstrates saving/exporting capture on an Spirent device ports
+
+.. code-block:: python
+
+    # Save capture file
+    >>> dev.save_packet_capture_file("port1 //192.168.20.1/1/1", "data", "port1_traffic")
+    Saving packet capture file /tmp/port1_HW_port1_traffic.cap
+    '/tmp/port1_HW_port1_traffic.cap'
+    >>>
+
+    # Export capture file to local folder
+    >>> dev.export_packet_capture_file("/tmp/port1_HW_port1_traffic.cap", "port1_spirent.cap")
+    Export captured pcap file...
+    Succeed to export capture file to 'port1_spirent.cap'.
+    '/root/genietrafficgen/genietrafficgen/src/genie/trafficgen/port1_spirent.cap'
+    >>>
+
+.. note::
+
+    ``port1 //192.168.20.1/1/1`` is the total port name for captured port, you can get it 
+    via ``get_port_names_table`` function.    
+
 
 Check for traffic loss on Spirent
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -236,6 +279,7 @@ The following code block demonstrates how to check for traffic loss on an Spiren
     +------------------------------------------------------------------------------+
     |                  Check for traffic loss on a traffic stream                  |
     +------------------------------------------------------------------------------+
+
     +------------------------------------------------------------------------------+
     |                         Create traffic stream table                          |
     +------------------------------------------------------------------------------+
@@ -598,13 +642,13 @@ an Spirent traffic generator device:
     |                                 |     * [M] traffic_stream - traffic stream name |
     |                                 |           to get the packet size of.           |
     |---------------------------------+------------------------------------------------|
-    | start_packet_capture            | Starts packet capture on all ports.            |
+    | start_packet_capture_tgn        | Starts packet capture on all ports.            |
     |                                 | Arguments:                                     |
     |                                 |     * [O] capture_time - Time to wait while    |
     |                                 |           packet capture is occurring.         |
     |                                 |           Default: 60 (seconds)                |
     |---------------------------------+------------------------------------------------|
-    | stop_packet_capture             | Stops packet capture on all ports.             |
+    | stop_packet_capture_tgn         | Stops packet capture on all ports.             |
     |                                 | Arguments:                                     |
     |                                 |     None                                       |
     |---------------------------------+------------------------------------------------|
@@ -638,6 +682,11 @@ an Spirent traffic generator device:
     |----------------------------------------------------------------------------------|
     | get_traffic_stream_objects      | Returns a list of all traffic stream objects   |
     |                                 | in current configuration.                      |
+    |                                 | Arguments:                                     |
+    |                                 |     None                                       |
+    |----------------------------------------------------------------------------------|
+    | get_port_names_table            | Returns a prettytable of all port objects in   |
+    |                                 | current configuration.                         |
     |                                 | Arguments:                                     |
     |                                 |     None                                       |
     +==================================================================================+

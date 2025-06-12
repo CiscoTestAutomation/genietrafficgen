@@ -91,7 +91,7 @@ class Spirent(TrafficGen):
                     self.chassis_list.append('//{}/{}'.format(chassis_ip, chassis_ports))
         # Get results from IQ
         self.use_iq = connection_args.get('use_iq', False)
-
+        
         self.golden_profile = PrettyTable()
         self.drv_result = None
         self.drv = None
@@ -1441,11 +1441,18 @@ class Spirent(TrafficGen):
         try:
             self.stc.perform('CaptureStartAllCommand', CaptureProxyIds='project1')
         except Exception as e:
+            log.error(e)
             raise GenieTgnError("Cannot start capture for all ports") from e
         
-        log.info("Wait {} seconds after capture started.".format(capture_time))
+        log.info("Waiting for '{}' seconds after capture started.".format(capture_time))
         time.sleep(capture_time)
-
+    
+    @BaseConnection.locked
+    @isconnected
+    def start_packet_capture_tgn(self, capture_time=60):
+        '''start all captures for all ports on spirent tgn port'''   
+        self.start_packet_capture(capture_time)
+                    
     @BaseConnection.locked
     @isconnected
     def stop_packet_capture(self):
@@ -1457,6 +1464,37 @@ class Spirent(TrafficGen):
             self.stc.perform('CaptureStopAllCommand', CaptureProxyIds='project1')
         except Exception as e:
             raise GenieTgnError("Cannot stop capture for all ports") from e
+
+    @BaseConnection.locked
+    @isconnected
+    def stop_packet_capture_tgn(self):
+        '''stop all captures for all ports for spirent tng''' 
+        self.stop_packet_capture()
+    
+    @BaseConnection.locked
+    @isconnected
+    def get_port_names_table(self):
+        '''get all port names, handle map table'''
+        port_name_table = PrettyTable()
+        
+        port_name_table.field_names = ["Port Handle", "Total Port Name", "Location"]
+        
+        if self._stc_version >= "5.51":
+            port_property_dict = self.stc.perform("GetObjectsCommand", ClassName="Port", PropertyList="Name Location")
+            port_name_dict = json.loads(port_property_dict['PropertyValues'])
+            for p, v in port_name_dict.items():
+                p_l = [p, v.get('Name'), v.get("Location")]
+                port_name_table.add_row(p_l)
+        else:
+            ''' if stc version is lower than 5.51'''
+            port_list = self.stc.get('project1', 'children-port').split(' ')
+            for port in port_list:
+                port_name = self.stc.get(port, "Name")
+                port_location = self.stc.get(port, "Location")
+                p_l = [port, port_name, port_location]
+                port_name_table.add_row(p_l)
+        
+        return port_name_table
 
     @BaseConnection.locked
     @isconnected
@@ -1488,8 +1526,22 @@ class Spirent(TrafficGen):
         try:
             results = self.stc.perform("GetObjectsCommand", ClassName="Port", Condition="name={}".format(port_name))
             port_handles = results.get("ObjectList").split()
-
-            assert len(port_handles) > 0, "Cannot find port '{}'".format(port_name)
+            
+            if len(port_handles) == 0:
+                log.error("Cannot find port '{}'".format(port_name))
+                
+                port_name_list = []
+                if self._stc_version >= "5.51":
+                    property_json = self.stc.perform("GetObjectsCommand", ClassName="Port", PropertyList="Name")
+                    property_list = json.loads(property_json['PropertyValues']).values()
+                    port_name_list = [p.get("Name") for p in property_list]
+                else:
+                    port_handle_list = self.stc.get("project1", "children-port").split(" ")
+                    for handle in port_handle_list:
+                        port_name_list.append(self.stc.get(handle, "name"))
+                
+                raise Exception("Available port names are {}".format(port_name_list))
+                
             
             if len(port_handles) > 1:
                 log.warning("More than one port ({}) were found, using the first one".format(port_name))
@@ -1500,6 +1552,7 @@ class Spirent(TrafficGen):
             self.stc.download(cap_filename, save_as=saved_filename) 
 
         except Exception as e:
+            log.error(e)
             raise GenieTgnError("Cannot save capture '{}'".format(saved_filename)) from e
         
         # Return pcap file to caller
@@ -1519,6 +1572,7 @@ class Spirent(TrafficGen):
             # download captured cap file from spirent labserver
             self.stc.download(file_name, save_as=dest_final_file) 
         except Exception as e:
+            log.error(e)
             raise GenieTgnError("Cannot export capture file '{}' to '{}'".format(src_file, dest_final_file)) from e
         else:
             log.info("Succeed to export capture file to '{}'.".format(dest_file))
