@@ -689,6 +689,12 @@ an Spirent traffic generator device:
     |                                 | current configuration.                         |
     |                                 | Arguments:                                     |
     |                                 |     None                                       |
+    |----------------------------------------------------------------------------------|
+    | save_result_database            | Save database file for all results data to     |
+    |                                 | expected folder.                               |
+    |                                 | Arguments:                                     |
+    |                                 |     file_name                                  |
+    |                                 |     file_path                                  |
     +==================================================================================+
 
 The methods listed above can be executed directly on an Spirent traffic generator
