@@ -1439,7 +1439,9 @@ class Spirent(TrafficGen):
 
         log.info("Starting packet capture...")
         try:
-            self.stc.perform('CaptureStartAllCommand', CaptureProxyIds='project1')
+            ports = self.stc.get('Project1', 'children-port')
+            ports_list = [] if len(ports) == 0 else ports.split(' ') 
+            self.stc.perform('CaptureStartAllCommand', CaptureProxyIds=ports_list)
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Cannot start capture for all ports") from e
@@ -1461,7 +1463,9 @@ class Spirent(TrafficGen):
         log.info("Stop packet capture...")
 
         try:
-            self.stc.perform('CaptureStopAllCommand', CaptureProxyIds='project1')
+            ports = self.stc.get('Project1', 'children-port')
+            ports_list = [] if len(ports) == 0 else ports.split(' ') 
+            self.stc.perform('CaptureStopAllCommand', CaptureProxyIds=ports_list)
         except Exception as e:
             raise GenieTgnError("Cannot stop capture for all ports") from e
 
@@ -1677,3 +1681,20 @@ class Spirent(TrafficGen):
             log.warning("Layer2 bit rate for '{}' is inaccurate because the load unit is not layer2 bits per second.".format(traffic_stream))
         
         return load
+
+    def save_result_database(self, file_name, file_path):
+        # save all results database 
+        try:
+            result_db_name = file_name + ".db"
+            self.stc.perform("SaveResultsCommand", CollectResult=True, LoopMode="APPEND", ResultFileName=result_db_name, SaveDetailedResults=True)
+            for db_file in self.stc.files():
+                if "db" in db_file:
+                    tmp_file = db_file.split("/")[-1]
+                    local_file_path = os.path.join(file_path, tmp_file)
+                    self.stc.download(file_name=db_file, save_as=local_file_path)
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Failed to save download file {} to {}".format(file_name+".db", file_path)) from e
+
+
+
