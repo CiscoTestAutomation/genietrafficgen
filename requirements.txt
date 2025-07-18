@@ -3,6 +3,5 @@ unicon
 prettytable
 IxNetwork
 ixnetwork_restpy
-stcrestclient
 setuptools
 wheel
