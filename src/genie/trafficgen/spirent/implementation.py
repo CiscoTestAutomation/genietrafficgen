@@ -433,6 +433,25 @@ class Spirent(TrafficGen):
             self.create_genie_iq_view()
         else:
             self.create_genie_dynamic_view()
+    
+    @BaseConnection.locked
+    @isconnected
+    def get_traffic_counter_mode(self):
+        resultview_mode = None
+        try:
+            if self._stc_version >= "5.51":
+                result = self.stc.perform("GetObjectsCommand", ClassName="ResultOptions", propertyList="ResultViewMode")
+                property_dict = json.loads(result.get('PropertyValues')).values()
+                for item in property_dict:
+                    resultview_mode = item.get("ResultViewMode")
+            else: 
+                resultoption = self.stc.get("project1", "children-ResultOptions")
+                resultview_mode= self.stc.get(resultoption, "ResultViewMode")
+            return resultview_mode
+
+        except Exception as e:
+            raise GenieTgnError("Unable to get result view mode on device '{}'".\
+                                format(self.device.name)) from e
 
     @BaseConnection.locked
     @isconnected
@@ -447,6 +466,16 @@ class Spirent(TrafficGen):
         '''Check for traffic loss on a traffic stream configured on traffic generator device'''
         log.info(banner("Check for traffic loss on a traffic stream"))
         
+        drop_count_supported_mode_list = ["BASIC", "FORWARDING", "LATENCY_JITTER", "LATENCY_JITTER_RFC5481"]
+        
+        try:
+            resultview_mode = self.get_traffic_counter_mode()
+
+            assert resultview_mode in drop_count_supported_mode_list, \
+            "Current counter mode '{}' does not support drop frame count.".format(resultview_mode)
+        except AssertionError as e:
+            raise GenieTgnError("Fail to check traffic loss") from e
+
         traffic_stream_names = self.get_traffic_stream_names()
         log.debug(f'Traffic stream names {traffic_stream_names}')
         seen = set()
@@ -461,7 +490,7 @@ class Spirent(TrafficGen):
             time.sleep(pre_check_wait)
 
         traffic_data_set = []
-        
+         
         for i in range(check_iteration):
             # Init
             overall_result = {}
@@ -538,7 +567,6 @@ class Spirent(TrafficGen):
                     log.error("* Traffic outage of '{c}' seconds is *NOT* within "
                               "expected maximum outage threshold of '{g}' seconds".\
                               format(c=current_outage, g=verify_max_outage))
-                print("outage:", current_outage, verify_max_outage, outage_check)
 
                 # 2- Verify current loss % is less than tolerance threshold
                 log.info("2. Verify current loss % is less than tolerance "
@@ -954,7 +982,7 @@ class Spirent(TrafficGen):
                 data_list = []
                 result_data = self.stc.get(result_view_data, 'ResultData')
                 raw_data = split_string(result_data)
-                
+                 
                 if len(raw_data) != 11:
                     log.warning("Skip invalid data {}".format(raw_data))
                     continue
@@ -1032,6 +1060,7 @@ class Spirent(TrafficGen):
             raise GenieTgnError("Incorrect Data from TestCenter IQ on device '{}'".format(self.device.name))
     
         for row in all_rows:
+            row = row[1:-1]
             # get port pair value
             row_item = [row[1].split()[0] + "-" + row[2].split()[0]]
             # get traffic name for traffic item column
@@ -1039,7 +1068,9 @@ class Spirent(TrafficGen):
             # get Tx Frames and Rx Frames
             row_item+= row[3:5]
             # calcuate frames delta 
-            frames_delta = int(row[3]) - int(row[4])
+            #frames_delta = int(row[3]) - int(row[4])
+            # use drop count as frame delta
+            frames_delta = row[-1]
             row_item.append(frames_delta)
             # get tx/rx frames rate
             row_item+= row[5:7]
@@ -1751,9 +1782,9 @@ class Spirent(TrafficGen):
             else:
                 log.info("Store TestCenter IQ data")
                 rows = self.get_data_from_testcenter_iq()
-                columns = [["StreamBlock Name", "Tx Port Name", "Rx Port Name", "TxFrameCount (Frames)", \
+                columns = [["StreamBlock ID", "StreamBlock Name", "Tx Port Name", "Rx Port Name", "TxFrameCount (Frames)", \
                            "RxSigFrameCount (Frames) ", "TxFrameRate (fps)", "RxSigFrameRate (fps) ", \
-                           "DroppedFramePercent", "Test Name"]]
+                           "DroppedFramePercent", "Drop Count (Frames)", "Test Name"]]
 
                 with open(csv_file, 'w', newline='') as file:
                     writer = csv.writer(file)
