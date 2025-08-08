@@ -381,6 +381,43 @@ class TestIxiaIxNative(unittest.TestCase):
         # Verify return data
         self.assertEqual(traffic_data, expected_traffic_data)
 
+    def test_check_ecmp_traffic_loss_basic(self):
+        dev = self.dev7
+
+        # Mock ECMP traffic items
+        ecmp_traffic_items = ['ECMP1', 'ECMP2']
+
+        # Create a mock traffic table with two ECMP items
+        mock_traffic_table = PrettyTable()
+        mock_traffic_table.field_names = [
+            "Traffic Item", "Tx Frames", "Rx Frames", "Frames Delta", "Loss %", "Tx Frame Rate", "Rx Frame Rate", "Outage (seconds)"
+        ]
+        mock_traffic_table.add_rows([
+            ["ECMP1", "10000", "8000", "2000", "0", "200", "100", "0.0"],
+            ["ECMP1", "10000", "8000", "2000", "0", "200", "100", "0.0"],
+            ["ECMP2", "5000", "5000", "0", "0", "100", "50", "0.0"],
+            ["ECMP2", "5000", "5000", "0", "0", "100", "50", "0.0"],
+        ])
+        dev.default.create_traffic_streams_table = Mock(return_value=mock_traffic_table)
+
+        # Run ECMP traffic loss check
+        result = dev.check_ecmp_traffic_loss(
+            ecmp_traffic_items=ecmp_traffic_items,
+            tolerance=0.2,  # 20% tolerance
+            check_iteration=1,
+            raise_on_loss=False
+        )
+
+        # Assert the result structure and values (aggregate rates, not frames)
+        self.assertIn('ECMP1', result)
+        self.assertIn('ECMP2', result)
+        self.assertEqual(result['ECMP1'][0], 200.0)
+        self.assertEqual(result['ECMP1'][1], 200.0)
+        self.assertTrue(result['ECMP1'][2])
+        self.assertEqual(result['ECMP2'][0], 100.0)
+        self.assertEqual(result['ECMP2'][1], 100.0)
+        self.assertTrue(result['ECMP2'][2])
+
 
 class TestIxiaIxNative2(unittest.TestCase):
 
