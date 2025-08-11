@@ -23,7 +23,9 @@ Adding Spirent device
 An Spirent traffic generator `device` can be specified in the ``testbed`` YAML file
 as shown in the example below:
 
+
 .. code-block:: yaml
+
     devices:
       spirent:
         type: tgn
@@ -39,23 +41,27 @@ as shown in the example below:
             - ip: 192.168.20.1 
               port_list: ['1/1', '1/2'] 
             - ip: 192.168.20.2
-              port_list: '1/1' 
-It is **mandatory** to specify a connection named 'tgn' along with the 
+              port_list: '1/1'
+
+
+It is **mandatory** to specify a connection named `tgn` along with the 
 connection manager details for the Spirent device in the testbed YAML file as shown
 in the example above.
 
 .. tip::
 
-    1. The `type` key must be set to "tgn".
+    1. The `type` key must be set to `tgn`.
     2. The `os` key specifies which OS implementation to use to connect to this
-       device. Use "tgn" for Spirent.
+       device. Use `tgn` for Spirent.
     3. The `connections` key specifies the connection label which **must**
        contain a connection labelled `tgn`.
+
 
 The following are mandatory keys to be provided in the `testbed` YAML while
 defining an Spirent `device`:
 
 .. code-block:: text
+
     +--------------------------------------------------------------------------+
     | Spirent Testbed YAML Parameters                                          |
     +==========================================================================+
@@ -75,6 +81,7 @@ defining an Spirent `device`:
     |--------------------------+-----------------------------------------------|
     | chassis                  | Spirent Chassis.                              |
     +==========================================================================+
+
 Genie Trafficgen Use Cases
 --------------------------
 
@@ -88,6 +95,7 @@ After specifying the spirent `device` in the `testbed` YAML file, we can connect
 the device using the `connect()` method:
 
 .. code-block:: python
+
     Welcome to pyATS Interactive Shell
     ==================================
     Python 3.10.4 (main, Jul 26 2024, 23:11:00) [GCC 6.3.0 20170516]
@@ -113,12 +121,15 @@ the device using the `connect()` method:
     +------------------------------------------------------------------------------+
     Created new session:session - testid
     Connected to Spirent API server '192.168.10.1:80'
+
+
 Load configuration onto Spirent
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The following code block demonstrates loading a static configuration file onto an Spirent device
 
 .. code-block:: python
+
     # Load static configuration file
     >>> dev.load_configuration('/root/genietrafficgen/traffic.xml')
     +------------------------------------------------------------------------------+
@@ -131,14 +142,21 @@ The following code block demonstrates loading a static configuration file onto a
     |------------------------------------------------------------------------------|
     Loaded configuration file '/root/genietrafficgen/traffic.xml' onto device 'spirent'
     Waiting for '60' seconds after loading configuration...
-    >>>
+
+
 .. note::
+
     ``traffic.xml`` is the XML configuration file generated via the Spirent TestCenter GUI. 
     In the GUI, choose File / Save As, and then set Save as type to Xml files.
+
+
 Applying L2/L3 Traffic on Spirent
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 The following code block demonstrates how to apply loaded traffic on Spirent
+
 .. code-block:: python
+
     # Apply traffic
     >>> dev.apply_traffic()
     +------------------------------------------------------------------------------+
@@ -147,10 +165,15 @@ The following code block demonstrates how to apply loaded traffic on Spirent
     Applied L2/L3 traffic on device 'spirent'
     Waiting for '60' seconds after applying L2/L3 traffic...
     >>>
+
+
 Start/Stop Routing Protocols on Spirent
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 The following code block demonstrates starting/stopping routing protocols on an Spirent device
+
 .. code-block:: python
+
     # Start protocols
     >>> dev.start_all_protocols()
     +------------------------------------------------------------------------------+
@@ -167,10 +190,15 @@ The following code block demonstrates starting/stopping routing protocols on an 
     Stopped protocols on device 'spirent'
     Waiting for  '60' seconds after stopping all protocols...
     >>>
+
+
 Start/Stop Traffic on Spirent
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 The following code block demonstrates starting/stopping traffic on an Spirent device
+
 .. code-block:: python
+
     # Start traffic
     >>> dev.start_traffic()
     +------------------------------------------------------------------------------+
@@ -186,10 +214,15 @@ The following code block demonstrates starting/stopping traffic on an Spirent de
     +------------------------------------------------------------------------------+
     Stopped L2/L3 traffic on device 'spirent'
     >>>
+
+
 Start/Stop Capture on Spirent Ports
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 The following code block demonstrates starting/stopping capture on an Spirent device ports
+
 .. code-block:: python
+
     # Start capture 
     >>> dev.start_packet_capture_tgn()
     Starting packet capture...
@@ -199,10 +232,15 @@ The following code block demonstrates starting/stopping capture on an Spirent de
     >>> dev.stop_packet_capture_tgn()
     Stop packet capture...
     >>>
+
+
 Save/Export Capture File on Spirent Ports
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 The following code block demonstrates saving/exporting capture on an Spirent device ports
+
 .. code-block:: python
+
     # Save capture file
     >>> dev.save_packet_capture_file("port1 //192.168.20.1/1/1", "data", "port1_traffic")
     Saving packet capture file /tmp/port1_HW_port1_traffic.cap
@@ -214,13 +252,21 @@ The following code block demonstrates saving/exporting capture on an Spirent dev
     Succeed to export capture file to 'port1_spirent.cap'.
     '/root/genietrafficgen/genietrafficgen/src/genie/trafficgen/port1_spirent.cap'
     >>>
+
+
 .. note::
+
     ``port1 //192.168.20.1/1/1`` is the total port name for captured port, you can get it 
-    via ``get_port_names_table`` function.    
+    via ``get_port_names_table`` function.   
+
+
 Check for traffic loss on Spirent
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 The following code block demonstrates how to check for traffic loss on an Spirent device
+
 .. code-block:: python
+
     >>> dev.create_genie_statistics_view()
     +------------------------------------------------------------------------------+
     |         Creating new custom Spirent traffic statistics view 'GENIE'          |
@@ -290,11 +336,15 @@ The following code block demonstrates how to check for traffic loss on an Spiren
     Successfully verified traffic outages/loss is within tolerance for given traffic streams
     [{'stream': {'port2-port1': {'Source/Dest Port Pair': 'port2-port1', 'Traffic Item': 'StreamBlock 11-2', 'Tx Frames': 49260, 'Rx Frames': 50536, 'Frames Delta': 0, 'Tx Frame Rate': 4223, 'Rx Frame Rate': 4223, 'Loss %': 0.0, 'Outage (seconds)': 0.0}, 'port1-port2': {'Source/Dest Port Pair': 'port1-port2', 'Traffic Item': 'StreamBlock 11-1', 'Tx Frames': 49248, 'Rx Frames': 50488, 'Frames Delta': 0, 'Tx Frame Rate': 4223, 'Rx Frame Rate': 4223, 'Loss %': 0.0, 'Outage (seconds)': 0.0}}}]
     >>>
+
+
 Traffic Generator Methods
 -------------------------
 The following table contains a list of available methods/actions to perform on
 an Spirent traffic generator device:
+
 .. code-block:: text
+
     +----------------------------------------------------------------------------------+
     | Traffic Generator Methods                                                        |
     +==================================================================================+
@@ -634,15 +684,22 @@ an Spirent traffic generator device:
     |                                 | Arguments:                                     |
     |                                 |     None                                       |
     +==================================================================================+
+
 The methods listed above can be executed directly on an Spirent traffic generator
 device from a Python prompt or within ``Genie`` and ``pyATS`` scripts.
+
 Traffic Generator Usage
 -----------------------
+
 This sections covers sample usage of executing available Spirent traffic generator
 methods mentioned in the previous section.
+
 .. code-block:: bash
+
     pyats shell --testbed-file spirent_testbed.yaml
+
 .. code-block:: python
+
     Welcome to pyATS Interactive Shell
     ==================================
     Python 3.10.4 (main, Jul 26 2024, 23:11:00) [GCC 6.3.0 20170516]
@@ -662,13 +719,21 @@ methods mentioned in the previous section.
     >> dev.stop_traffic()
     # Clear stats on the device
     >> dev.clear_statistics()
+
+
 Traffic Generator Usage Via Genie Harness
 -----------------------------------------
+
 This sections covers sample usage of executing Spirent Traffic Generator via gRun and datafiles.
+
 .. code-block:: bash
+
     pyats run job job.py --testbed-file spirent_testbed.yaml
+
 Below is the example of job.py, which contains: trigger_datafile, subsection_datafile and config_datafile.
+
 .. code-block:: python
+
     import os
     from pyats import aetest
     from genie.harness.main import gRun
@@ -680,18 +745,29 @@ Below is the example of job.py, which contains: trigger_datafile, subsection_dat
             config_datafile=test_path+'/spirent_config_datafile.yaml',
             tgn_disable_assign_ports=True,
         )
+
+
 .. note::
+
     trigger_uids and trigger_datafile are related to user defined testcase which totally follows pyATS Genie framework.
+
+
 Configure Datafile
 ^^^^^^^^^^^^^^^^^^
+
 Below is the example of how to provide spirent configuration file via config_datafile
+
 .. code-block:: yaml
+
     devices:
         spirent:
             1:
                 config: /root/genietrafficgen/traffic.xml
+
+
 Subsection Datafile
 ^^^^^^^^^^^^^^^^^^^
+
 ``Genie`` bundles the different steps involved with Spirent setup and configuration
 into controllable subsections that can be executed within ``Genie`` harness.
 The harness provides the following subsections:
@@ -701,7 +777,9 @@ The harness provides the following subsections:
 To add/remove execution of the above mentioned subsections simply "enable" or
 "disable" them by adding/removing the subsection name from the execution order
 key, as shown below:
+
 .. code-block:: yaml
+
     setup:
       sections:
         connect:
@@ -724,11 +802,15 @@ key, as shown below:
         stop_traffic:
           method: genie.harness.commons.stop_traffic
       order: ['stop_traffic']
+
+
 common_setup: initialize_traffic
 """"""""""""""""""""""""""""""""
+
 This subsection packages the various steps associated with Spirent setup such as
 connection and loading static configuration, enabling protocols, starting
-traffic, etc into one runnable subsection. 
+traffic, etc into one runnable subsection.
+
 It performs the following steps in order:
     1. Connect to Spirent
     2. Load static configuration and assign Spirent ports
@@ -740,23 +822,32 @@ It performs the following steps in order:
     8. Clear traffic statistics after streams have converged to steady state
     9. Create custom traffic statistics view on Spirent named "Genie"
     10. Check traffic loss % and frames loss across all configured traffic streams
+
+
 common_setup: profile_traffic
 """""""""""""""""""""""""""""
+
 This subsection packages all the steps associated with "profiling" traffic
 streams configured on spirent.
+
 It creates a snapshot/profile of all configured traffic streams and then copies 
 this profile to the runtime logs as the "golden_traffic_profile" for the
-current job/run. 
+current job/run.
+
 It also saves this snapshot/profile as the "golden" traffic profile for the
 current ``Genie`` run. This snapshot profile will then be used to compare traffic
 profiles generated after trigger execution to ensure that the trigger did not
-impact configured traffic streams. 
+impact configured traffic streams.
+
 This profile can also be saved and reused as a reference for comparison of
 subsequent runs of ``profile_traffic`` subsection.
+
 The user can pass in a ``golden`` traffic profile via the ``tgn-golden-profile``
 argument to enable comparison of the current profile against the previously
 established/verified/golden traffic profile snapshot.
+
 This subsection performs the following:
+
     1. Connect to Spirent
     2. Create a snapshot profile of traffic streams configured on Spirent
     3. Copy the snapshot profile as "golden_traffic_profile" to Genie runtime logs
@@ -769,12 +860,16 @@ This subsection performs the following:
            threshold of ``tgn-profile-rate-loss-tolerance``
         c. Verify that the difference for Rx Frames Rate between the current
            traffic profile and golden traffic profile is less than user provided
-           threshold of ``tgn-profile-rate-loss-tolerance`` 
+           threshold of ``tgn-profile-rate-loss-tolerance``
+
 To enable/disable execution of this subsection, simply add or remove the
 'profile_traffic' subsection from the execution order of the 'setup' in the
 `subsection_datafile` YAML.
+
 Below is the example of job.py, which contains: golden profile.
+
 .. code-block:: python
+
     :emphasize-lines: 15
     :linenos:
     import os
@@ -793,8 +888,12 @@ Below is the example of job.py, which contains: golden profile.
             tgn_golden_profile=test_path+'/golden_profile',
             trigger_groups=And('all'),
         )
+
+
 Spirent `golden_profile` is something like below:
+
 .. code-block:: text
+
     +-----------------------+------------------+-----------+-----------+--------------+---------------+---------------+--------+------------------+
     | Source/Dest Port Pair | Traffic Item     | Tx Frames | Rx Frames | Frames Delta | Tx Frame Rate | Rx Frame Rate | Loss % | Outage (seconds) |
     +-----------------------+------------------+-----------+-----------+--------------+---------------+---------------+--------+------------------+
@@ -803,30 +902,45 @@ Spirent `golden_profile` is something like below:
     | port1-port2           | StreamBlock 8-1  | 702697    | 705373    | 0            | 4223          | 4223          | 0.0    | 0.0              |
     | port1-port2           | StreamBlock 11-1 | 702696    | 705372    | 0            | 4223          | 4223          | 0.0    | 0.0              |
     +-----------------------+------------------+-----------+-----------+--------------+---------------+---------------+--------+------------------+
+
+
 common_cleanup: stop_traffic
 """"""""""""""""""""""""""""
+
 This subsection stops all protocols and stops traffic on an Spirent `device`.
+
 It performs the following steps in order:
     1. Connect to Spirent
     2. Stop all protocols on Spirent
     3. Stop traffic streams on Spirent
+
 To enable/disable execution of this subsection, simply add/remove 'stop_traffic'
 from the execution order of the 'cleanup' in the `subsection_datafile` YAML.
+
 ``Genie`` will wait for `tgn-stop-protocols-time` seconds after stopping all
 protocols on Spirent for the action to be completed; it will then wait
 for `tgn-stop-traffic-time` seconds after stopping traffic on Spirent for the
 action to be completed.
+
 By default, the traffic is **not** stopped on an Spirent `device` after ``Genie``
 execution completes. This is useful for manual debugging on Spirent 
 server after ``Genie`` harness job completes.
+
+
 Traffic Generator Usage Via pyATS Blitz
 ---------------------------------------
+
 The Blitz is a YAML-driven template that makes it easy to run a test case without having to know any knowledge of programming.
 This sections covers the sample usage of executing Spirent Traffic Generator via pyATS Blitz.
+
 .. code-block:: bash
+
     pyats run job job.py --testbed-file spirent_testbed.yaml
+
 Below is the example of defining Blitz yaml in gRun:
+
 .. code-block:: python
+
     import os
     from pyats import aetest
     # Needed for logic
@@ -841,16 +955,23 @@ Below is the example of defining Blitz yaml in gRun:
             tgn_disable_assign_ports=True,
             trigger_groups=And('all'),
         )
+
+
 .. note::
+
     blitz.yaml is an example of YAML-driven test cases, which is provided by the user based on the test scenarios.
     If TGN is triggered via subsections, blitz.yaml only contains the actions of user's test case without any ``-tgn`` actions.
     Otherwise, just as the 2nd example below, the user can use action ``-tgn`` directly in the blitz.yaml to call any TGN API based on requirements.
-    The 2nd example provides a more flexible way to use TGN. 
+    The 2nd example provides a more flexible way to use TGN.
+
 1. pyATS Blitz: Trigger Traffic Generator via subsections
+
 This way is quite the same as above except that trigger_datafile is Blitz testcase defined via yaml file.
 In Blitz yaml file, no action of tgn is provided and Spirent Traffic Generator is triggered via 
-the definition of mapping datafile as below: 
+the definition of mapping datafile as below:
+
 .. code-block:: yaml
+
     devices:
         R1_xe:
             context: cli
@@ -860,10 +981,15 @@ the definition of mapping datafile as below:
             context: tgn
             mapping:
                 tgn: tgn
+
+
 2. pyATS Blitz: Traffic Generator can be called together with other Blitz actions
+
 Traffic generator (tgn) apis can be called in addition to the other existing apis via action ``-tgn``.
 Below gives the example of integrating Traffic generator (tgn) apis directly into Blitz yaml
+
 .. code-block:: yaml
+
     variables:
         device: R1_xe
         interfaces:
@@ -936,10 +1062,15 @@ Below gives the example of integrating Traffic generator (tgn) apis directly int
                         command: show interfaces description
                         include:
                             - contains("%VARIABLES{intfs}").contains_key_value('description', "%{variables.description}")
-In this way, mapping datafile shall remove the mapping of spirent TGN as below: 
+
+
+In this way, mapping datafile shall remove the mapping of spirent TGN as below:
+
 .. code-block:: yaml
+
     devices:
         R1_xe:
             context: cli
             mapping:
                 cli: cli
+
