@@ -2,8 +2,6 @@
 Connection Implementation class for Spirent traffic generator using
 ixnetwork Python package to interact with Spirent device:
 https://pypi.org/project/stcrestclient/
-
-
 '''
 
 # Python
@@ -91,7 +89,7 @@ class Spirent(TrafficGen):
                     self.chassis_list.append('//{}/{}'.format(chassis_ip, chassis_ports))
         # Get results from IQ
         self.use_iq = connection_args.get('use_iq', False)
-        
+
         self.golden_profile = PrettyTable()
         self.drv_result = None
         self.drv = None
@@ -120,7 +118,6 @@ class Spirent(TrafficGen):
 
     def isconnected(func):
         '''Decorator to make sure session to device is active
-
            There is limitation on the amount of time the session can be active
            to Spirent API server. However, there are no way to verify if the
            session is still active unless we test sending a command.
@@ -165,7 +162,7 @@ class Spirent(TrafficGen):
         else:
             self._is_connected = True
             log.info("Connected to Spirent API server '{}:{}'".format(self.ls_addr, self.ls_port))
-        
+
 
     @BaseConnection.locked
     def disconnect(self):
@@ -175,7 +172,7 @@ class Spirent(TrafficGen):
             ports = self.stc.get('Project1', 'children-port')
             ports_list = [] if len(ports) == 0 else ports.split(' ')
             self.stc.perform("DetachPortsCommand", PortList=ports_list)
-            
+
             self.stc.end_session(True, sid=self.session_id)
         except Exception as e:
             log.error(e)
@@ -185,7 +182,7 @@ class Spirent(TrafficGen):
             self._is_connected = False
             log.info("Disconnected from Spirent API server '{}:{}'".\
                      format(self.ls_addr, self.ls_port))
-    
+
     @BaseConnection.locked
     @isconnected
     def load_configuration(self, configuration, wait_time=60):
@@ -227,12 +224,12 @@ class Spirent(TrafficGen):
             if len(ports_list) != 0 and len(self.chassis_list) == len(ports_list):
                 for i in range(len(ports_list)):
                     self.stc.config(ports_list[i], location=self.chassis_list[i])
-            
+
             self.stc.perform("AttachPortsCommand", autoconnect=True, RevokeOwner=True)
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Unable to relocate ports or bring ports online on device '{}'".format(self.device.name)) from e
-        
+
     @BaseConnection.locked
     @isconnected
     def save_configuration(self, config_file):
@@ -305,7 +302,7 @@ class Spirent(TrafficGen):
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Unable to stop all protocols on device '{}'".format(self.device.name)) from e
-        
+
         log.info("Stopped protocols on device '{}'".format(self.device.name))
 
         # Wait after stopping protocols
@@ -447,7 +444,7 @@ class Spirent(TrafficGen):
                            **kwargs):
         '''Check for traffic loss on a traffic stream configured on traffic generator device'''
         log.info(banner("Check for traffic loss on a traffic stream"))
-        
+
         traffic_stream_names = self.get_traffic_stream_names()
         log.debug(f'Traffic stream names {traffic_stream_names}')
         seen = set()
@@ -462,7 +459,7 @@ class Spirent(TrafficGen):
             time.sleep(pre_check_wait)
 
         traffic_data_set = []
-        
+
         for i in range(check_iteration):
             # Init
             overall_result = {}
@@ -501,7 +498,7 @@ class Spirent(TrafficGen):
                     src_dest_pair = row.get_string(fields=["Source/Dest Port Pair"]).strip()
                 else:
                     src_dest_pair = None
-                
+
                 # outage_dict is got from tgn-traffic-streams-data parameter
                 # Get outage values for this traffic stream
                 if outage_dict and 'traffic_streams' in outage_dict and \
@@ -528,7 +525,7 @@ class Spirent(TrafficGen):
                          "tolerance threshold of '{}' seconds".format(verify_max_outage))
                 # Check that 'Outage (seconds)' is not '' or '*'
                 current_outage = row.get_string(fields=["Outage (seconds)"]).strip()
-                
+
                 if float(current_outage) <= float(max_outage):
                     log.info("* Traffic outage of '{c}' seconds is within "
                              "expected maximum outage threshold of '{g}' seconds".\
@@ -629,21 +626,21 @@ class Spirent(TrafficGen):
         log.info(banner("Compare two profiles."))
 
         # verify two profile is prettytable and fileds name is not none
-        
+
         if not isinstance(profile1, PrettyTable) or not profile1.field_names:
             raise GenieTgnError("Profile1 is not in expected format or missing data.")
         else:
             log.info("Profile1 is in expected format with data")
-        
+
         if not isinstance(profile2, PrettyTable) or not profile2.field_names:
             raise GenieTgnError("Profile1 is not in expected format or missing data.")
         else:
             log.info("Profile2 is in expected format with data")
-        
+
         # compare field names and rows length for two profiles
         if profile1.field_names != profile2.field_names or len(profile1.rows) != len(profile2.rows):
             raise GenieTgnError("Profiles do not have the same traffic items")
-        
+
         # Start to compare for two profiles
         compare_result = True
         names = ['src_dest_pair', 'traffic_item', 'tx_frames', 'rx_frames', \
@@ -710,7 +707,7 @@ class Spirent(TrafficGen):
                 log.info("* Loss % difference between profiles "
                             "is less than threshold of '{}'".\
                             format(loss_tolerance))
-        
+
         if compare_result:
             log.info("Comparison passed for all traffic items between profiles.")
         else:
@@ -733,7 +730,7 @@ class Spirent(TrafficGen):
             traffic_table = self.create_tciq_traffic_streams_table()
         else:
             traffic_table = self.create_drv_traffic_streams_table()
-        
+
 
         traffic_table.align = "l"
         log.info(traffic_table)
@@ -742,7 +739,7 @@ class Spirent(TrafficGen):
         if set_golden:
             log.info("\nSetting golden traffic profile\n")
             self.golden_profile = traffic_table
-        
+
         return traffic_table
 
     @BaseConnection.locked
@@ -760,7 +757,7 @@ class Spirent(TrafficGen):
     def get_data_from_testcenter_iq(self):
         '''Query Data from TestCenter IQ'''
         # Query json can define the format of data from TestCenter IQ
-        
+
         json_file = os.path.join(os.path.dirname(__file__), "iq_files", "streamblock.json")
         try:
             with open(json_file, 'r') as file:
@@ -788,12 +785,12 @@ class Spirent(TrafficGen):
             post_headers = {'Content-Type': 'application/json'}
             post_result = requests.post(url=post_url, json=post_data, headers=post_headers, timeout=20).json()
             result = post_result.get('result')
-            
+
             if result is not None:
                 rows = result.get('rows')
             else:
                 raise GenieTgnError("No data found from TestCenter IQ on device '{}'".format(self.device.name))
-            
+
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Unable to query data from TestCenter IQ on device '{}'".format(self.device.name)) from e
@@ -812,7 +809,7 @@ class Spirent(TrafficGen):
         else:
             log.info("Spirent Dynamic View {} has been created, exit!".format(GENIE_VIEW_NAME))
             return
-            
+
         log.info("Create Spirent Dynamic View")
 
         select_properties = ['StreamBlock.Name', 'Port.Name', 
@@ -947,13 +944,13 @@ class Spirent(TrafficGen):
                 data_list = []
                 result_data = self.stc.get(result_view_data, 'ResultData')
                 raw_data = split_string(result_data)
-                
+
                 if len(raw_data) != 10:
                     log.warning("Skip invalid data {}".format(raw_data))
                     continue
 
                 del raw_data[-2:]
-                
+
                 stream_name = raw_data[0]
 
                 data_list.append(raw_data[1].split()[0]+'-'+streams_info[stream_name])
@@ -974,7 +971,7 @@ class Spirent(TrafficGen):
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Unable to Get Genie Statistics on device '{}'".format(self.device.name)) from e
-        
+
         return traffic_table
 
     @BaseConnection.locked
@@ -1016,7 +1013,7 @@ class Spirent(TrafficGen):
         # split row values and fill the table with splitted data 
         if len(all_rows[0]) < 8:
             raise GenieTgnError("Incorrect Data from TestCenter IQ on device '{}'".format(self.device.name))
-    
+
         for row in all_rows:
             # get port pair value
             row_item = [row[1].split()[0] + "-" + row[2].split()[0]]
@@ -1045,7 +1042,7 @@ class Spirent(TrafficGen):
             row_item.append(str(outage_seconds))
             # add a row data into the traffic table
             traffic_table.add_row(row_item)
-        
+
         return traffic_table
 
     @BaseConnection.locked
@@ -1078,7 +1075,7 @@ class Spirent(TrafficGen):
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Unable to Get DynamicResultView on device '{}'".format(self.device.name)) from e
-        
+
         return True
 
     @BaseConnection.locked
@@ -1107,7 +1104,7 @@ class Spirent(TrafficGen):
             while timeout.iterate():
                 log.info("Waitting '{}' seconds before checking traffic stream '{}'".format(wait_time, traffic_stream))
                 timeout.sleep()
-                
+
                 running_state = self.stc.get(stream_handle, "RunningState")
                 if running_state == "RUNNING":
                     log.info("Traffic stream '{}' is in 'RUNNING' state.".format(traffic_stream))
@@ -1119,11 +1116,11 @@ class Spirent(TrafficGen):
 
             # verify tx rate > 0
             log.info("Verify tx rate > 0 for traffic stream '{}'".format(traffic_stream))
-            
+
             tx_rate = self.get_traffic_statistics_column(traffic_stream, column_field='tx_frame_rate')
-            
+
             log.info("tx_rate for traffic stream '{}' is {}(fps).".format(traffic_stream, tx_rate))
-            
+
             if float(tx_rate) > 0:
                 log.info("Traffic stream '{}' has been started and rate {}(fps) is greater than 0.".format(traffic_stream, tx_rate))
             else:
@@ -1150,19 +1147,19 @@ class Spirent(TrafficGen):
         log.info("Check stream '{}' stop state".format(traffic_stream))
         # wait for stream status can be stopped
         time.sleep(wait_time)
-                
+
         running_state = self.stc.get(stream_handle, "RunningState")
         if running_state == "STOPPED":
             log.info("Succeed to stop traffic '{}'".format(traffic_stream))
         else:
             log.warning("State for traffic {} is not stopped. Keep waiting...".format(traffic_stream))
             raise GenieTgnError("Traffic stream '{}' is not stopped".format(traffic_stream))
-        
+
         # verify tx rate = 0
         log.info("Verify tx rate = 0 for traffic stream '{}'".format(traffic_stream))
-        
+
         tx_rate = self.get_traffic_statistics_column(traffic_stream, column_field='tx_frame_rate')
-            
+
         if int(tx_rate) == 0:
             log.info("Traffic stream '{}' has been stopped and rate is equal 0.".format(traffic_stream, tx_rate))
         else:
@@ -1182,7 +1179,7 @@ class Spirent(TrafficGen):
         rows = None
         if traffic_table:
             rows = traffic_table.rows
-        
+
         if not rows:
             log.error("No data results.")
             raise GenieTgnError("Unable to get data results.")
@@ -1251,11 +1248,11 @@ class Spirent(TrafficGen):
         '''Set the fps rate for given traffic stream, set unit is fps'''
         '''flow_group/stop_traffic_time/generate_traffic_time parameters are not used.'''
         log.info(banner("Setting traffic stream '{}' packet rate to {}fps".format(traffic_stream,rate)))
-        
+
         # Get traffic item object from stream name
         stream_handle = self.get_streamblock_handle(traffic_stream, check_port_mode=True)
 
-        
+
         try:
             # set traffic packet rate to given value
             self.stc.config(stream_handle, load=rate, loadunit="FRAMES_PER_SECOND")
@@ -1279,7 +1276,7 @@ class Spirent(TrafficGen):
         '''Set the layer2 bit rate for given traffic stream, supported rate unit is bps/kbps/mbps/l2_bps'''
         '''flow_group/stop_traffic_time/generate_traffic_time parameters are not used '''
         log.info(banner("Setting traffic stream '{}' bit rate to '{}{}'".format(traffic_stream, rate, rate_unit)))
-        
+
         load_unit_dict = {
             'bps': 'BITS_PER_SECOND',
             'kbps': 'KILOBITS_PER_SECOND',
@@ -1313,7 +1310,7 @@ class Spirent(TrafficGen):
     @BaseConnection.locked
     @isconnected
     def get_streamblock_handle(self, traffic_stream, check_port_mode=False):
-        
+
         try:
             if self._stc_version >= "5.51":
                 results = self.stc.perform("GetObjectsCommand", ClassName="streamblock", \
@@ -1322,13 +1319,13 @@ class Spirent(TrafficGen):
             else:
                 results = self.stc.perform("GetObjectsCommand", ClassName="streamblock", \
                                         condition="name={}".format(traffic_stream))
-    
+
             stream_handles = results.get("ObjectList").split()
             if len(stream_handles) > 1:
                 log.warning("More than one traffic streams({}) were found, using the first one".format(traffic_stream))
-            
+
             assert (len(stream_handles) > 0), "No traffic stream named {} were found!".format(traffic_stream)
-            
+
             stream_handle = stream_handles[0]
 
             if check_port_mode:
@@ -1341,11 +1338,11 @@ class Spirent(TrafficGen):
 
                 if ori_mode != "RATE_BASED":
                     log.warning("The rate set for {} won't take effect for non-RATE_BASED generator!".format(traffic_stream))
-            
+
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Unable to get streamblock handle for streamblock '{}'".format(traffic_stream)) from e
-        
+
         log.info("Get the handle '{}' for traffic stream '{}'".format(stream_handle, traffic_stream))
         return stream_handle
 
@@ -1353,7 +1350,7 @@ class Spirent(TrafficGen):
     @BaseConnection.locked
     @isconnected
     def check_and_restart_streamblocks(self, traffic_stream=""):
-        
+
         log.info("Check non-started streamblocks:{}".format(traffic_stream))
         obj_condition="RunningState!='RUNNING'"
 
@@ -1366,13 +1363,13 @@ class Spirent(TrafficGen):
             if stream_handles == "":
                 log.info("All streamblocks are in RUNNING state, no restart needed!")
                 return
-            
+
             self.stc.perform('StreamBlockStartCommand', StreamBlockList=stream_handles)
 
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Unable to get the NOT RUNNING traffic streams") from e
-        
+
     @BaseConnection.locked
     @isconnected
     def set_packet_size_fixed(self, traffic_stream, packet_size, stop_traffic_time=15, generate_traffic_time=15, apply_traffic_time=15, start_traffic=True, start_traffic_time=15):
@@ -1391,13 +1388,13 @@ class Spirent(TrafficGen):
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Unable to get streamblock handle for streamblock '{}'".format(traffic_stream)) from e 
-        
+
         # apply settting
         self.apply_traffic(wait_time=apply_traffic_time)
 
         if start_traffic:
             self.start_traffic_stream(traffic_stream, wait_time=start_traffic_time)
-        
+
     @BaseConnection.locked
     @isconnected
     def get_packet_size(self, traffic_stream):
@@ -1411,25 +1408,25 @@ class Spirent(TrafficGen):
             mode = self.stc.get(stream_handle, "FrameLengthMode")
         except Exception as e:
             raise GenieTgnError("Unable to get fixed frame length mode for traffic '{}'".format(traffic_stream)) from e 
-        
+
         try:
             assert mode == "FIXED"
         except AssertionError as e:
             raise GenieTgnError("Frame length mode for traffic '{}' is not fixed.".format(traffic_stream)) from e
-        
+
         fixed_frame_length = None
         try:
             fixed_frame_length = self.stc.get(stream_handle, "FixedFrameLength")
         except AssertionError as e:
             raise GenieTgnError("Unable to get fixed frame size for traffic '{}'.".format(traffic_stream))
-        
+
         # verify frame_length > 0
         try:
             assert int(fixed_frame_length) > 0
         except AssertionError as e:
             log.error(e)
             raise GenieTgnError("Fixed Frame size '{}' is invalid.",format(fixed_frame_length))
-        
+
         return fixed_frame_length
 
     @BaseConnection.locked
@@ -1443,21 +1440,21 @@ class Spirent(TrafficGen):
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Cannot start capture for all ports") from e
-        
+
         log.info("Waiting for '{}' seconds after capture started.".format(capture_time))
         time.sleep(capture_time)
-    
+
     @BaseConnection.locked
     @isconnected
     def start_packet_capture_tgn(self, capture_time=60):
         '''start all captures for all ports on spirent tgn port'''   
         self.start_packet_capture(capture_time)
-                    
+
     @BaseConnection.locked
     @isconnected
     def stop_packet_capture(self):
         '''stop all captures for all ports'''  
-        
+
         log.info("Stop packet capture...")
 
         try:
@@ -1470,15 +1467,15 @@ class Spirent(TrafficGen):
     def stop_packet_capture_tgn(self):
         '''stop all captures for all ports for spirent tng''' 
         self.stop_packet_capture()
-    
+
     @BaseConnection.locked
     @isconnected
     def get_port_names_table(self):
         '''get all port names, handle map table'''
         port_name_table = PrettyTable()
-        
+
         port_name_table.field_names = ["Port Handle", "Total Port Name", "Location"]
-        
+
         if self._stc_version >= "5.51":
             port_property_dict = self.stc.perform("GetObjectsCommand", ClassName="Port", PropertyList="Name Location")
             port_name_dict = json.loads(port_property_dict['PropertyValues'])
@@ -1493,7 +1490,7 @@ class Spirent(TrafficGen):
                 port_location = self.stc.get(port, "Location")
                 p_l = [port, port_name, port_location]
                 port_name_table.add_row(p_l)
-        
+
         return port_name_table
 
     @BaseConnection.locked
@@ -1526,10 +1523,10 @@ class Spirent(TrafficGen):
         try:
             results = self.stc.perform("GetObjectsCommand", ClassName="Port", Condition="name={}".format(port_name))
             port_handles = results.get("ObjectList").split()
-            
+
             if len(port_handles) == 0:
                 log.error("Cannot find port '{}'".format(port_name))
-                
+
                 port_name_list = []
                 if self._stc_version >= "5.51":
                     property_json = self.stc.perform("GetObjectsCommand", ClassName="Port", PropertyList="Name")
@@ -1539,13 +1536,13 @@ class Spirent(TrafficGen):
                     port_handle_list = self.stc.get("project1", "children-port").split(" ")
                     for handle in port_handle_list:
                         port_name_list.append(self.stc.get(handle, "name"))
-                
+
                 raise Exception("Available port names are {}".format(port_name_list))
-                
-            
+
+
             if len(port_handles) > 1:
                 log.warning("More than one port ({}) were found, using the first one".format(port_name))
-            
+
             port_handle = port_handles[0]
 
             self.stc.perform("CaptureDataSaveCommand", CaptureProxyId=port_handle, FileName=cap_filename)
@@ -1554,7 +1551,7 @@ class Spirent(TrafficGen):
         except Exception as e:
             log.error(e)
             raise GenieTgnError("Cannot save capture '{}'".format(saved_filename)) from e
-        
+
         # Return pcap file to caller
         return saved_filename
 
@@ -1562,10 +1559,10 @@ class Spirent(TrafficGen):
     @isconnected
     def export_packet_capture_file(self, src_file, dest_file='spirent.pcap'):
         ''' export packet file to dst directory '''
-        
+
         log.info("Export captured pcap file...")
         # split filename from src_file
-        
+
         try:
             file_name = os.path.basename(src_file)
             dest_final_file = runtime.directory + "/" + dest_file
@@ -1631,12 +1628,12 @@ class Spirent(TrafficGen):
             unit = self.stc.get(stream_handle, "AffiliationStreamBlockLoadProfile.loadunit")
         except Exception as e:
             raise GenieTgnError("Cannot get line rate for traffic '{}'.".format(traffic_stream)) from e
-        
+
         if unit != "PERCENT_LINE_RATE":
             log.warning("Line rate '{}' is inaccurate because the load unit is not percentage of line rate.".format(traffic_stream))
-        
+
         return load
-    
+
     @BaseConnection.locked
     @isconnected
     def get_packet_rate(self, traffic_stream, flow_group=''):
@@ -1654,7 +1651,7 @@ class Spirent(TrafficGen):
 
         if unit != "FRAMES_PER_SECOND":
             log.warning("Packet rate for '{}' is inaccurate because the load unit is not frames per second.".format(traffic_stream))
-        
+
         return load
 
     @BaseConnection.locked
@@ -1675,5 +1672,5 @@ class Spirent(TrafficGen):
 
         if unit != "L2_RATE":
             log.warning("Layer2 bit rate for '{}' is inaccurate because the load unit is not layer2 bits per second.".format(traffic_stream))
-        
+
         return load

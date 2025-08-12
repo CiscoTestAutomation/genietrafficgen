@@ -32,7 +32,7 @@ BUILD_CMD     = $(PYTHON) setup.py bdist_wheel --dist-dir=$(DIST_DIR)
 PYPIREPO      = pypitest
 
 # Development pkg requirements
-DEPENDENCIES  = restview psutil Sphinx wheel asynctest asyncssh
+DEPENDENCIES  = restview psutil Sphinx wheel asynctest asyncssh stcrestclient
 DEPENDENCIES += sphinx-rtd-theme
 DEPENDENCIES += requests ixnetwork ixnetwork_restpy
 

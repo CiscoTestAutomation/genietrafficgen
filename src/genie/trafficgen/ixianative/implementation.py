@@ -1079,6 +1079,93 @@ class IxiaNative(TrafficGen):
 
     @BaseConnection.locked
     @isconnected
+    def check_ecmp_traffic_loss(self, ecmp_traffic_items, tolerance=0.05, 
+                            clear_stats=False, clear_stats_time=30, 
+                            disable_tracking=False, disable_port_pair=False,
+                            check_iteration=5, check_interval=60,
+                            pre_check_wait=None, raise_on_loss=True, **kwargs):
+        """
+        Enhanced ECMP traffic validation with iteration, stats clearing, pre-check wait, and tracking.
+        Args:
+            ecmp_traffic_items (list): List of traffic item names to treat as ECMP.
+            tolerance (float): Allowed fractional difference (e.g., 0.05 for 5%).
+            clear_stats (bool): Whether to clear statistics before checking.
+            clear_stats_time (int): Time to wait after clearing statistics.
+            disable_tracking (bool): Whether to disable traffic tracking.
+            disable_port_pair (bool): Whether to disable port pair tracking.
+            check_iteration (int): Number of times to retry the check.
+            check_interval (int): Seconds to wait between retries.
+            pre_check_wait (int): Seconds to wait before first check.
+            raise_on_loss (bool): Raise exception if loss is detected.
+        Returns:
+            dict: {traffic_item: (tx_frames, rx_frames_sum, pass/fail)}
+        """
+        if pre_check_wait:
+            log.info(f"Waiting '{pre_check_wait}' seconds before ECMP traffic check")
+            time.sleep(pre_check_wait)
+
+        for attempt in range(check_iteration):
+            if attempt > 0:
+                log.info(f"Retrying ECMP traffic check, attempt {attempt+1}/{check_iteration}")
+                time.sleep(check_interval)
+
+            traffic_table = self.create_traffic_streams_table(
+                clear_stats=clear_stats,
+                clear_stats_time=clear_stats_time,
+                disable_tracking=disable_tracking,
+                disable_port_pair=disable_port_pair
+            )
+
+            # Aggregate Rx Frames per ECMP Traffic Item, use Tx from the first row only
+            ecmp_stats = {}
+            for row in traffic_table:
+                row.header = False
+                row.border = False
+                try:
+                    traffic_item = row.get_string(fields=["Traffic Item"]).strip()
+                    tx_frames = float(row.get_string(fields=["Tx Frame Rate"]).strip())
+                    rx_frames = float(row.get_string(fields=["Rx Frame Rate"]).strip())
+                    if traffic_item in ecmp_traffic_items:
+                        if traffic_item not in ecmp_stats:
+                            ecmp_stats[traffic_item] = {'tx': tx_frames, 'rx_sum': 0.0}
+                        ecmp_stats[traffic_item]['rx_sum'] += rx_frames
+                except Exception as e:
+                    log.warning(f"Error processing row data for traffic item: {e}")
+                    continue
+
+            results = {}
+            failed_items = []
+            log.info(banner("*** ECMP Traffic Validations ***"))
+
+            for ti, stats in ecmp_stats.items():
+                tx = stats['tx']
+                rx_sum = stats['rx_sum']
+                if tx == 0:
+                    pass_check = rx_sum == 0
+                else:
+                    pass_check = abs(tx - rx_sum) / float(tx) <= tolerance
+
+                results[ti] = (tx, rx_sum, pass_check)
+                log.info(banner(f"Checking ECMP traffic item: '{ti}'"))
+                log.info(f"Verify the ECMP traffic item '{ti}' Tx vs Rx sum is within tolerance of {tolerance*100:.1f}%")
+                if pass_check:
+                    log.info(f"* PASS: ECMP Check for '{ti}': Tx={tx}, RxSum={rx_sum}, Tolerance={tolerance*100:.1f}%")
+                else:
+                    log.error(f"* FAIL: ECMP traffic validation failed for '{ti}': Tx={tx}, RxSum={rx_sum}, Tolerance={tolerance*100:.1f}%")
+                    failed_items.append(ti)
+
+            if not failed_items:
+                log.info("\nSuccessfully verified ECMP traffic loss is within tolerance for all ECMP traffic items")
+                return results
+            elif attempt == check_iteration - 1 and raise_on_loss:
+                for ti in failed_items:
+                    log.error(f"ECMP traffic loss/outage observed for ECMP traffic item: {ti}")
+                raise GenieTgnError("\nUnexpected ECMP traffic loss/outage is observed for ECMP traffic items.")
+
+        return results
+
+    @BaseConnection.locked
+    @isconnected
     def create_traffic_streams_table(self, set_golden=False, clear_stats=False,
         clear_stats_time=30, view_create_interval=30, view_create_iteration=5,
         disable_tracking=False, disable_port_pair=False):
