@@ -96,7 +96,6 @@ class Spirent(TrafficGen):
         self.golden_profile = PrettyTable()
         self.drv_result = None
         self.drv = None
-        self.stream_dataset = None
 
         # Init class variables
         self._is_connected = False
@@ -216,7 +215,6 @@ class Spirent(TrafficGen):
         # reset drv/drv_result after load_configuration
         self.drv = None
         self.drv_result = None
-        self.stream_dataset = None
         # Wait after loading configuration file
         log.info("Waiting for '{}' seconds after loading configuration...".format(wait_time))
         time.sleep(wait_time)
@@ -584,7 +582,6 @@ class Spirent(TrafficGen):
                     log.error("* Current traffic loss of {l}% is *NOT* within"
                               " maximum expected loss tolerance of {g}%".\
                               format(l=current_loss_percentage, g=verify_loss_tolerance))
-                print("loss_percentage:", current_loss_percentage, verify_loss_tolerance, loss_check)
                 '''
                 # 3- Verify difference between Tx Rate & Rx Rate is less than tolerance threshold
                 log.info("3. Verify difference between Tx Rate & Rx Rate is less "
@@ -831,12 +828,10 @@ class Spirent(TrafficGen):
     def create_genie_dynamic_view(self):
         '''Create Spirent Dynamic View'''
 
-        if self.drv == None or self.drv_result == None or self.stream_dataset == None:
+        if self.drv == None or self.drv_result == None:
             ret = self.get_drv_genie_view()
-            dataset_result = self.get_stream_dataset()
-            if ret and dataset_result:
+            if ret:
                 log.info("Succeed to get Spirent Dynamic View:{}".format(GENIE_VIEW_NAME))
-                log.info("Succeed to get Spirent Result Data Set:{}".format(GENIE_VIEW_NAME+"_result_data_set"))
                 return
         else:
             log.info("Spirent Dynamic View {} has been created, exit!".format(GENIE_VIEW_NAME))
@@ -860,28 +855,12 @@ class Spirent(TrafficGen):
             raise GenieTgnError("No ports found on device '{}'".format(self.device.name)) from e
 
         try:
-            streamblockrdsA = self.stc.perform('ResultsSubscribeCommand',
-                                Parent='project1',
-                                DisablePaging=False,
-                                ConfigType="Streamblock",
-                                ResultType="TxStreamBlockResults",
-                                RecordsPerPage=256)
-
-            self.stream_dataset = streamblockrdsA['ReturnedResultDataSet']
- 
-            # config result dataset name for filtering.
-            self.stc.config(self.stream_dataset, name=GENIE_VIEW_NAME+"_result_data_set")
-
-            self.stc.create("ResultQuery", under=self.stream_dataset,
-                                                ResultRootList='project1',
-                                                ConfigClassId="StreamBlock",
-                                                ResultClassId="RxStreamBlockResults")
-            
             self.drv = self.stc.create('DynamicResultView', under='project1', name=GENIE_VIEW_NAME)
             self.drv_result = self.stc.create('PresentationResultQuery', under=self.drv, name=GENIE_VIEW_NAME)
             log.info("Create Dynamic view with DRV:{}, DRV Result:{}".format(self.drv, self.drv_result))
 
             self.stc.config(self.drv_result, SelectProperties=select_properties, FromObjects=lst_ports, LimitOffset=0, LimitSize=4000)
+            #self.stc.config(self.drv_result, SelectProperties=select_properties, FromObjects="project1", LimitOffset=0, LimitSize=4000)
             self.stc.perform('SubscribeDynamicResultViewCommand', DynamicResultView=self.drv)
             self.stc.apply()
 
@@ -907,29 +886,6 @@ class Spirent(TrafficGen):
             log.error(e)
             raise GenieTgnError("Unable to Create Genie View of TestCenter IQ on device '{}'".format(self.device.name)) from e
 
-    def subscribe_next_page(self):
-        try:
-            page_count = 0
-            current_page = 0
-            # get actual page number and current page
-            if self._stc_version >= "5.51":
-                result = self.stc.perform("GetObjectsCommand", condition="handle='{}".format(self.stream_dataset), \
-                         PropertyList="TotalPageCount pageNumber", ClassName="ResultDataSet")
-                property_dict = json.loads(result.get('PropertyValues')).get(self.stream_dataset)
-                page_count = property_dict.get("TotalPageCount")
-                current_page = property_dict.get("pageNumber")
-            else:
-                page_count = self.stc.get(self.stream_dataset, "TotalPageCount")
-                current_page = self.stc.get(self.stream_dataset, "pageNumber")
-
-            # set page number to next page
-            self.stc.config(self.stream_dataset, pageNumber=int(current_page)+1)
-            self.stc.perform("RefreshResultViewCommand", ResultDataSet=self.stream_dataset)
-            self.stc.get(self.stream_dataset, 'resultChild-targets')
-        except Exception as e:
-            log.error(e)
-            raise GenieTgnError("Unable to subscribe next page result")
-
     @BaseConnection.locked
     @isconnected
     def create_drv_traffic_streams_table(self):
@@ -941,14 +897,13 @@ class Spirent(TrafficGen):
 
         if self.drv == None or self.drv_result == None:
             self.create_genie_statistics_view()
-
+        
+        result_view_data_list = []
         try:
-            #self.stc.perform("RefreshResultView", ResultDataSet=self.stream_dataset)
             # recover subscribe
-            if not self.stc.get(self.stream_dataset, "resultChild-targets"):
-                self.stc.perform("ResultDataSetSubscribeCommand", ResultDataSet=self.stream_dataset)
+            if self.stc.get(self.drv, "ResultState") == "NONE":
                 self.stc.perform("SubscribeDynamicResultViewCommand", DynamicResultView=self.drv)
-            
+
             self.stc.perform("UpdateDynamicResultViewCommand", DynamicResultView=self.drv)
         except Exception as e:
             log.error(e)
@@ -959,16 +914,9 @@ class Spirent(TrafficGen):
                                     "Frames Delta","Tx Frame Rate", 
                                     "Rx Frame Rate", "Loss %", "Outage (seconds)"]
 
-        result_view_data_list = []
         try:
             #properties = stc.get(self.drv_result, 'SelectProperties')
             result_view_data_list = self.stc.get(self.drv_result, 'children-ResultViewData').split()
-             
-            if len(result_view_data_list) == 0:
-
-                self.subscribe_next_page()
-                result_view_data_list = self.stc.get(self.drv_result, 'children-ResultViewData').split()
-
             assert len(result_view_data_list) > 0
 
         except AssertionError as e:
@@ -1011,7 +959,6 @@ class Spirent(TrafficGen):
              
             # undo subscribe for dynamicresultview and txstreamblockresults
             self.stc.perform("UnsubscribeDynamicResultViewCommand", DynamicResultView = self.drv)
-            self.stc.perform("ResultDataSetUnsubscribeCommand", resultdataset=self.stream_dataset)
 
         except Exception as e:
             log.error(e)
@@ -1070,14 +1017,15 @@ class Spirent(TrafficGen):
             # calcuate frames delta 
             #frames_delta = int(row[3]) - int(row[4])
             # use drop count as frame delta
-            frames_delta = row[-1]
+            frames_delta = 0 if row[-1] is None else row[-1]
             row_item.append(frames_delta)
             # get tx/rx frames rate
             row_item+= row[5:7]
             # get tx frame rate
             tx_frame_rate = row[5]
             # get frame loss percent
-            row_item.append(round(float(row[7]),2))
+            frame_loss_percent = 0 if row[7] is None else row[7]
+            row_item.append(round(float(frame_loss_percent),2))
             try:
                 outage_seconds = round(float(frames_delta)/float(tx_frame_rate), 3)
             except ZeroDivisionError:
@@ -1124,25 +1072,6 @@ class Spirent(TrafficGen):
             log.error(e)
             raise GenieTgnError("Unable to Get DynamicResultView on device '{}'".format(self.device.name)) from e
         
-        return True
-
-    @BaseConnection.locked
-    @isconnected
-    def get_stream_dataset(self):
-        try:
-            result = self.stc.perform("GetObjectsCommand", ClassName="ResultDataSet", Condition="Name='{}'".format(GENIE_VIEW_NAME+"_result_data_set"))
-            handles = result.get("ObjectList").split()
-            assert len(handles) >= 1
-            self.stream_dataset = handles[0]
-
-        except AssertionError as e:
-            log.info("No ResultDataSet with name {} found!".format(GENIE_VIEW_NAME+"_result_data_set"))
-            return False
-
-        except Exception as e:
-            log.error(e)
-            raise GenieTgnError("Unable to Get ResultDataSet on device '{}'".format(self.device.name)) from e
-
         return True
 
     @BaseConnection.locked
@@ -1757,13 +1686,12 @@ class Spirent(TrafficGen):
             csv_file = os.path.join(csv_save_path, csv_file_name)
             if not self.use_iq:
                 # if data is not available. Need to subscribe data firstly.
-                
-                if self.drv == None or self.drv_result == None or self.stream_dataset == None:
+                 
+                if self.drv == None or self.drv_result == None:
                     self.create_genie_dynamic_view()
                 
                 # if not subscribe
-                if not self.stc.get(self.stream_dataset, "resultChild-targets"):
-                    self.stc.perform("ResultDataSetSubscribeCommand", ResultDataSet=self.stream_dataset)
+                if self.stc.get(self.drv, "ResultState") == "NONE":
                     self.stc.perform("SubscribeDynamicResultViewCommand", DynamicResultView=self.drv)
 
                 # get the result for drv
@@ -1772,7 +1700,6 @@ class Spirent(TrafficGen):
                 
                 # undo subscribe for dynamicresultview and txstreamblockresults
                 self.stc.perform("UnsubscribeDynamicResultViewCommand", DynamicResultView = self.drv)
-                self.stc.perform("ResultDataSetUnsubscribeCommand", resultdataset=self.stream_dataset) 
 
                 config_file = self.stc.get("project1","ConfigurationFileName")
 
