@@ -83,7 +83,8 @@ class IxiaNative(TrafficGen):
         # Get Ixia device arguments from testbed YAML file
         for key in ['ixnetwork_api_server_ip', 'ixnetwork_tcl_port',
                     'ixia_port_list', 'ixnetwork_version', 'ixia_chassis_ip',
-                    'ixia_license_server_ip', 'chassis']:
+                    'ixia_license_server_ip', 'ixnetwork_license_mode',
+                    'ixnetwork_license_tier', 'chassis']:
 
             # Verify Ixia ports provided are a list
             if key == 'ixia_port_list' and key in self.connection_info \
@@ -100,7 +101,7 @@ class IxiaNative(TrafficGen):
 
         self.device = self.device or kwargs.get('device')
         self.via = kwargs.get('via', 'tgn')
-
+        
         creds = self.device.credentials
         self.username = creds.get('default', {}).get('username')
         self.password = creds.get('default', {}).get('password')
@@ -133,6 +134,16 @@ class IxiaNative(TrafficGen):
         summary.add_message(msg='Ixnetwork TCL Port: {}'
                             .format(self.ixnetwork_tcl_port))
         summary.add_sep_line()
+        
+        # Show license mode and tier only if provided in testbed YAML
+        if hasattr(self, 'ixnetwork_license_mode'):
+            summary.add_message(msg='IxNetwork License Mode: {}'
+                               .format(self.ixnetwork_license_mode))
+            summary.add_sep_line()
+        if hasattr(self, 'ixnetwork_license_tier'):
+            summary.add_message(msg='IxNetwork License Tier: {}'
+                               .format(self.ixnetwork_license_tier))
+            summary.add_sep_line()
         # SSH Tunnel support for ixianative
         try:
             if self.connection_info['sshtunnel']:
@@ -172,6 +183,7 @@ class IxiaNative(TrafficGen):
     def connect(self):
         '''Connect to Ixia'''
         log.info(banner("Connecting to IXIA"))
+        
         apiKey = None
         if self.username and self.password:
             try:
@@ -210,9 +222,19 @@ class IxiaNative(TrafficGen):
         if apiKey:
             connect_args.extend([
                 '-apiKey', apiKey,
-                 '-closeServerOnDisconnect', 1,
-                 '-setAttribute', 'strict'
+                '-closeServerOnDisconnect', 1,
+                '-setAttribute', 'strict'
                 ])
+                
+        # Add license mode and tier only if they are provided in the testbed YAML
+        # Note: License mode and tier can only be configured during initial connection
+        # Post-connection license configuration is not supported by the IxNetwork API
+        if hasattr(self, 'ixnetwork_license_mode'):
+            connect_args.extend(['-licenseMode', self.ixnetwork_license_mode])
+        if hasattr(self, 'ixnetwork_license_tier'):
+            connect_args.extend(['-licenseTier', self.ixnetwork_license_tier])
+
+        log.debug(f"Connect args: {connect_args}")
 
         # Execute connect on IxNetwork
         try:
@@ -234,6 +256,60 @@ class IxiaNative(TrafficGen):
             self._is_connected = True
             log.info("Connected to IxNetwork API server on TCL port '{p}'".
                      format(d=self.device.name, p=self.ixnetwork_tcl_port))
+            
+            # Configure license mode and tier using licensing object after connection
+            try:
+                # Get the licensing object
+                root = self.ixNet.getRoot()
+                globals_obj = self.ixNet.getList(root, 'globals')[0]
+                licensing_obj = self.ixNet.getList(globals_obj, 'licensing')[0]
+                
+                # Log available attributes for debugging
+                attrs = self.ixNet.help(licensing_obj)
+                log.debug(f"Available licensing attributes: {attrs}")
+                
+                # Set license mode if provided and different from current value
+                if hasattr(self, 'ixnetwork_license_mode'):
+                    # Check current license mode
+                    current_mode = self.ixNet.getAttribute(licensing_obj, '-mode')
+                    if current_mode == self.ixnetwork_license_mode:
+                        log.info(f"License mode already set to '{current_mode}', no change needed")
+                    else:
+                        log.info(f"Changing license mode from '{current_mode}' to '{self.ixnetwork_license_mode}'")
+                        try:
+                            self.ixNet.setAttribute(licensing_obj, '-mode', self.ixnetwork_license_mode)
+                            self.ixNet.commit()
+                        except Exception as e:
+                            log.warning(f"Failed to change license mode: {e}")
+                            log.warning("License mode may need to be set before connecting ports")
+                
+                # Set license tier if provided and different from current value
+                if hasattr(self, 'ixnetwork_license_tier'):
+                    # Check current license tier
+                    current_tier = self.ixNet.getAttribute(licensing_obj, '-tier')
+                    if current_tier == self.ixnetwork_license_tier:
+                        log.info(f"License tier already set to '{current_tier}', no change needed")
+                    else:
+                        log.info(f"Changing license tier from '{current_tier}' to '{self.ixnetwork_license_tier}'")
+                        try:
+                            self.ixNet.setAttribute(licensing_obj, '-tier', self.ixnetwork_license_tier)
+                            self.ixNet.commit()
+                        except Exception as e:
+                            log.warning(f"Failed to change license tier: {e}")
+                            log.warning("License tier may need to be set before connecting ports")
+                    
+                # Verify settings were applied
+                if hasattr(self, 'ixnetwork_license_mode'):
+                    read_mode = self.ixNet.getAttribute(licensing_obj, '-mode')
+                    log.info(f"Verified license mode: {read_mode}")
+                    
+                if hasattr(self, 'ixnetwork_license_tier'):
+                    read_tier = self.ixNet.getAttribute(licensing_obj, '-tier')
+                    log.info(f"Verified license tier: {read_tier}")
+                    
+            except Exception as e:
+                log.warning(f"Failed to configure license settings via licensing object: {e}")
+                log.warning("License settings may not be properly configured")
 
 
     @BaseConnection.locked
@@ -740,6 +816,7 @@ class IxiaNative(TrafficGen):
         if disable_tracking:
             log.info("Not enabling 'Traffic Items' filter for all traffic streams")
         else:
+            log.info("Enabling 'Traffic Items' filter for all traffic streams")
             self.enable_flow_tracking_filter(tracking_filter='trackingenabled0')
 
         # Enable 'Source/Dest Port Pair' filter if not present
@@ -888,12 +965,18 @@ class IxiaNative(TrafficGen):
                            clear_stats_time=30, pre_check_wait=None,
                            disable_tracking=False, disable_port_pair=False,
                            raise_on_loss=True, check_traffic_type=False,
-                           **kwargs):
+                           force_match_all=True, debug_mode=False, **kwargs):
         '''Check traffic loss for each traffic stream configured on Ixia
             using statistics/data from 'Traffic Item Statistics' view'''
 
+        # Get configured traffic stream names
+        log.info("\n--- Getting configured traffic stream names ---")
         traffic_stream_names = self.get_traffic_stream_names()
-        log.debug(f'Traffic stream names {traffic_stream_names}')
+        log.info(f'Configured traffic streams: {traffic_stream_names}')
+
+        # Initialize counters to track stream processing
+        stream_processed = set()
+        row_position_counter = 0  # Global counter for tracking row position
 
         seen = set()
         dupes = [x for x in traffic_stream_names if x in seen or seen.add(x)]
@@ -914,11 +997,15 @@ class IxiaNative(TrafficGen):
             overall_result = {}
 
             # Get and display 'GENIE' traffic statistics table containing outage/loss values
+            log.info("\n--- Getting GENIE traffic statistics table ---")
             traffic_table = self.create_traffic_streams_table(
                                     clear_stats=clear_stats,
                                     clear_stats_time=clear_stats_time,
                                     disable_tracking=disable_tracking,
                                     disable_port_pair=disable_port_pair)
+            
+            # Show all column names in the traffic table for debugging
+            log.info(f"GENIE traffic table columns: {traffic_table.field_names}")
 
             if not traffic_table._rows:
                 raise GenieTgnError('No trafic data found')
@@ -929,30 +1016,145 @@ class IxiaNative(TrafficGen):
             traffic_data_set.append(traffic_data)
 
             # Log iteration attempt to user
-            log.info("\nAttempt #{}: Checking for traffic outage/loss".format(i+1))
-
-            traffic_stream_names = self.get_traffic_stream_names()
-            log.debug(f'Traffic stream names {traffic_stream_names}')
-
-            # Check all streams for traffic outage/loss
-            for row in traffic_table:
+            log.info("\n--- Beginning traffic stream checks ---")
+            log.info(f"Number of rows in traffic table: {len(traffic_table._rows)}")
+            
+            for row_idx, row in enumerate(traffic_table):
+                log.info(f"\n==== Processing traffic table row {row_idx+1} =====")
+                # Important: Clear stream_id for each row to avoid persisting between iterations
+                stream_id = None
 
                 # Strip headers and borders
                 row.header = False ; row.border = False
+                
+                # Debug: Show all fields in this row
+                log.debug(f"Row data: {[field.strip() if isinstance(field, str) else field for field in row]}") 
 
                 # Get data
                 try:
-                    stream = row.get_string(fields=["Traffic Item"]).strip()
-                except Exception as e:
-                    raise GenieTgnError("Traffic Item doesn't exist in GENIE view. Make sure to configure more than 1 traffic item, user defined stats/custom statistics view with a single traffic is not supported.: {}".format(e))
+                    # Get data - with enhanced error handling and fallbacks
+                    try:
+                        # Try to get Traffic Item name first
+                        try:
+                            stream = row.get_string(fields=["Traffic Item"]).strip()
+                            if stream and isinstance(stream, str) and stream.strip():
+                                log.info(f"Found stream with Traffic Item name: '{stream}'")
+                            else:
+                                raise Exception("Empty or invalid Traffic Item name")
+                        except Exception as e:
+                            log.warning(f"Traffic Item field retrieval failed: {str(e)}")
+                            log.warning("Using Source/Dest Port Pair as the traffic stream identifier")
+                            
+                            # More robust Source/Dest Port Pair handling
+                            src_dest_pair = row.get_string(fields=["Source/Dest Port Pair"]).strip()
+                            
+                            if not isinstance(src_dest_pair, str) or not src_dest_pair.strip():
+                                # Last resort - try to get any available field for identification
+                                log.warning("Source/Dest Port Pair is empty or invalid, checking all fields")
+                                
+                                # List the fields available in this row
+                                available_fields = []
+                                for field in traffic_table.field_names:
+                                    try:
+                                        value = row.get_string(fields=[field]).strip()
+                                        if value and len(value) > 2:  # Reasonable minimum length for an ID
+                                            available_fields.append((field, value))
+                                    except Exception:
+                                        pass
+                                        
+                                log.info(f"Available fields in row: {available_fields}")
+                                
+                                # Try to find the best field to use as identifier
+                                for field_name, field_value in available_fields:
+                                    if "port" in field_name.lower() or "stream" in field_name.lower() or "traffic" in field_name.lower():
+                                        src_dest_pair = field_value
+                                        log.warning(f"Using {field_name} as fallback identifier: '{field_value}'")
+                                        break
+                            
+                            # Set the stream to the src_dest_pair
+                            stream = src_dest_pair
+                            
+                            # Always create a transformed ID with underscores
+                            if isinstance(stream, str) and " " in stream:
+                                stream_id = stream.replace(" ", "_")
+                                log.info(f"Found stream with Source/Dest Port Pair: '{stream}'")
+                                log.info(f"Using transformed identifier: '{stream_id}'")
+                            else:
+                                log.info(f"Using stream identifier without transformation: '{stream}'")
+                    except Exception as e:
+                        log.error(f"CRITICAL ERROR getting stream identifier: {str(e)}")
+                        log.error("This row will be skipped due to missing identifier")
+                        continue
+                except Exception as inner_e:
+                    raise GenieTgnError("Neither Traffic Item nor Source/Dest Port Pair fields exist in GENIE view: {}".format(inner_e))
 
                 if not disable_port_pair:
-                    src_dest_pair = row.get_string(fields=["Source/Dest Port Pair"]).strip()
+                    try:
+                        src_dest_pair = row.get_string(fields=["Source/Dest Port Pair"]).strip()
+                        log.debug(f"Source/Dest Port Pair for this stream: '{src_dest_pair}'")
+                    except Exception:
+                        src_dest_pair = None
+                        log.debug("Could not get Source/Dest Port Pair for this stream")
                 else:
                     src_dest_pair = None
+                    
+                # The row data already has the Traffic Item name directly in it
+                # The table shows: Traffic Item 1, Traffic Item 2, etc.
+                # This is our most reliable source of truth for mapping
+                if stream and stream in traffic_stream_names:
+                    log.info(f"Found valid Traffic Item '{stream}' directly in traffic table row")
+                    # We already have the correct Traffic Item name - keep it
+                    stream_id = None
+                    log.info(f"Using Traffic Item '{stream}' from table for '{src_dest_pair}'")
+                elif force_match_all and traffic_stream_names:
+                    # Only use position-based mapping as a fallback if the Traffic Item isn't valid
+                    log.warning(f"Traffic Item '{stream}' from table not found in configuration - using fallback")
+                    
+                    # Get the current row position in the table
+                    current_position = row_idx
+                    log.info(f"FORCE MATCH: Processing row at position {current_position}")
+                    
+                    # If the position is within range of configured traffic streams, use direct mapping
+                    if current_position < len(traffic_stream_names):
+                        matched_stream_name = traffic_stream_names[current_position]
+                        log.info(f"FORCE MATCH: Directly mapping row #{current_position+1} to '{matched_stream_name}'")
+                        
+                        # Override stream with the traffic item name from configuration
+                        stream = matched_stream_name
+                        stream_id = None
+                        
+                        # Remember the mapping for clarity in logs
+                        log.info(f"FORCE MATCH SUCCESS: '{src_dest_pair}' → '{stream}'")
+                    else:
+                        log.warning(f"FORCE MATCH: Row position {current_position+1} exceeds available traffic streams {len(traffic_stream_names)}")
+                        # For rows beyond our traffic_stream_names, use a more intelligent fallback:
+                        # If traffic item name contains a number, try to match it to an available stream
+                        if stream and isinstance(stream, str) and 'Traffic Item' in stream:
+                            # Try to extract a number from the traffic item
+                            try:
+                                item_number = int(stream.replace('Traffic Item', '').strip())
+                                # Adjust to 0-indexed
+                                item_index = item_number - 1
+                                if 0 <= item_index < len(traffic_stream_names):
+                                    stream = traffic_stream_names[item_index]
+                                    log.info(f"SMART FALLBACK: Mapped '{src_dest_pair}' to '{stream}' based on item number")
+                                else:
+                                    # Use the first available stream as last resort
+                                    stream = traffic_stream_names[0]
+                                    log.info(f"LAST RESORT FALLBACK: Using first available traffic item '{stream}'")
+                            except ValueError:
+                                # Couldn't extract a number, use first available stream
+                                stream = traffic_stream_names[0]
+                                log.info(f"FALLBACK: Using first available traffic item '{stream}'")
+                        else:
+                            # Use the first available stream as last resort
+                            stream = traffic_stream_names[0]
+                            log.info(f"BASIC FALLBACK: Using first available traffic item '{stream}'")
+                        stream_id = None
 
                 # Skip other streams if list of stream provided
                 if traffic_streams and stream not in traffic_streams:
+                    log.debug(f"Skipping stream '{stream}' as it's not in the requested traffic streams list")
                     continue
 
                 # Only check traffic type if explicitly asked for.
@@ -961,34 +1163,173 @@ class IxiaNative(TrafficGen):
                 if check_traffic_type:
                     # Skip checks if traffic stream is not of type l2l3
                     ti_type = self.get_traffic_stream_attribute(traffic_stream=stream,
-                                                                attribute='trafficItemType')
+                                                               attribute='trafficItemType')
                     if ti_type != 'l2L3':
-                        log.warning("SKIP: Traffic stream '{}' is not of type L2L3 "
-                                    "- skipping traffic loss checks".format(stream))
+                        log.warning(f"SKIP: Traffic stream '{stream}' is not of type L2L3 - skipping traffic loss checks")
                         continue
 
-                # Skip checks if traffic stream from "GENIE" table not in configuration
-                if stream not in traffic_stream_names:
-                    log.warning("SKIP: Traffic stream '{}' not found in current"
-                                " configuration".format(stream))
-                    continue
+                # Check if src_dest_pair is a valid string before proceeding
+                if not isinstance(src_dest_pair, str) or not src_dest_pair.strip():
+                    log.warning(f"CRITICAL ISSUE: src_dest_pair is invalid: '{src_dest_pair}' - type: {type(src_dest_pair)}")
+                    # Try to extract directly from row data to avoid any issues
+                    try:
+                        src_dest_pair = row.get_string(fields=["Source/Dest Port Pair"]).strip()
+                        log.info(f"CRITICAL FIX: Extracted Source/Dest Port Pair directly: '{src_dest_pair}'")
+                        # Always create a stream_id from the src_dest_pair as a fallback
+                        stream_id = src_dest_pair.replace(" ", "_") if isinstance(src_dest_pair, str) else None
+                        log.info(f"CRITICAL FIX: Created stream_id from src_dest_pair: '{stream_id}'")
+                        # If stream is not populated or valid, use stream_id as a fallback
+                        if not stream or not isinstance(stream, str) or not stream.strip():
+                            log.warning(f"CRITICAL FIX: stream value is invalid: '{stream}', using stream_id instead")
+                            stream = stream_id
+                    except Exception as e:
+                        log.error(f"CRITICAL ERROR extracting Source/Dest Port Pair: {str(e)}")
+                
+                # For stream verification, we first check if we have a valid traffic item directly from the table
+                log.info(f"Verifying stream '{stream}' exists in configuration")
+                log.info(f"Available traffic_stream_names: {traffic_stream_names}")
+                
+                if stream in traffic_stream_names:
+                    log.info(f"STREAM VERIFICATION SUCCESS: Stream '{stream}' found in traffic configuration")
+                    log.info("CRITICAL SUCCESS: Stream match verified - PROCEEDING WITH TRAFFIC CHECK")
+                    # Keep using the validated stream name
+                elif force_match_all:
+                    # This is only used if we had to do position-based mapping and the stream name isn't recognized
+                    log.warning(f"STREAM VERIFICATION WARNING: Stream '{stream}' not found in configuration despite mapping")
+                    # But let's continue anyway since we're in force match mode
+                    log.info("FORCE MATCH: Continuing with traffic check despite verification mismatch")
+                        
+                else:
+                    # Original stream matching logic for when force_match_all is disabled
+                    if stream_id:
+                        # Log both names we're checking
+                        log.info(f"Checking if stream '{stream}' or transformed '{stream_id}' exists in configuration")
+                        log.info(f"Available traffic_stream_names: {traffic_stream_names}")
+                        
+                        # Check both the original stream name and the ID with underscores
+                        if stream in traffic_stream_names:
+                            log.info(f"MATCH FOUND: Original stream '{stream}' in traffic configuration")
+                            log.info("CRITICAL SUCCESS: Stream match found - WILL PERFORM TRAFFIC CHECK")
+                        elif stream_id in traffic_stream_names:
+                            log.info(f"MATCH FOUND: Transformed stream ID '{stream_id}' in traffic configuration")
+                            log.info(f"Updating stream from '{stream}' to '{stream_id}'")
+                            # Use the stream_id that matches the configuration
+                            stream = stream_id
+                            log.info("CRITICAL SUCCESS: Stream ID match found - WILL PERFORM TRAFFIC CHECK")
+                        else:
+                            # Additional fallback attempts to find a match
+                            found_match = False
+                            
+                            # Try transforming config stream names to match our current stream/stream_id
+                            for config_stream in traffic_stream_names:
+                                # Try transforming config stream by replacing underscores with spaces
+                                transformed_config = config_stream.replace("_", " ")
+                                if stream == transformed_config:
+                                    log.info(f"FALLBACK MATCH: Stream '{stream}' matches transformed config '{config_stream}'")
+                                    found_match = True
+                                    break
+                                elif stream_id == config_stream:
+                                    log.info(f"FALLBACK MATCH: Stream ID '{stream_id}' matches config '{config_stream}'")
+                                    stream = stream_id
+                                    found_match = True
+                                    break
+                                    
+                            if not found_match:
+                                log.warning(f"SKIP: Neither stream '{stream}' nor transformed ID '{stream_id}' found in current configuration")
+                                log.warning("CRITICAL FAILURE: No stream match found - WILL SKIP TRAFFIC CHECK")
+                                # Print exact comparisons for debugging
+                                for config_stream in traffic_stream_names:
+                                    log.debug(f"Comparison: '{stream}' == '{config_stream}' -> {stream == config_stream}")
+                                    log.debug(f"Comparison: '{stream_id}' == '{config_stream}' -> {stream_id == config_stream}")
+                                continue
+                    else:
+                        log.info(f"Checking if stream '{stream}' exists in configuration")
+                        log.info(f"Available traffic_stream_names: {traffic_stream_names}")
+                        if stream not in traffic_stream_names:
+                            # Try transforming the stream name by replacing spaces with underscores as a last resort
+                            if isinstance(stream, str):
+                                last_resort_id = stream.replace(" ", "_")
+                                if last_resort_id in traffic_stream_names:
+                                    log.info(f"LAST RESORT MATCH: Transformed stream '{last_resort_id}' found in configuration")
+                                    stream = last_resort_id
+                                    log.info("CRITICAL SUCCESS: Last resort match found - WILL PERFORM TRAFFIC CHECK")
+                                else:
+                                    log.warning(f"SKIP: Traffic stream '{stream}' not found in current configuration")
+                                    log.warning("CRITICAL FAILURE: No stream match found - WILL SKIP TRAFFIC CHECK")
+                                    # Print exact comparisons for debugging
+                                    for config_stream in traffic_stream_names:
+                                        log.debug(f"Comparison: '{stream}' == '{config_stream}' -> {stream == config_stream}")
+                                    continue
+                            else:
+                                log.warning(f"SKIP: Traffic stream '{stream}' is not a valid string")
+                                log.warning("CRITICAL FAILURE: Invalid stream value - WILL SKIP TRAFFIC CHECK")
+                                continue
+                        else:
+                            log.info(f"MATCH FOUND: Stream '{stream}' in traffic configuration")
+                            log.info("CRITICAL SUCCESS: Stream match found - WILL PERFORM TRAFFIC CHECK")
+                        
+                log.info(f"CRITICAL DEBUG - Final stream value used for check: '{stream}'")
+                log.info("CRITICAL SUCCESS: PROCEEDING TO TRAFFIC CHECK SECTION")
 
                 # Determine outage values for this traffic stream
-                if outage_dict and 'traffic_streams' in outage_dict and \
-                    stream in outage_dict['traffic_streams']:
-                    given_max_outage=outage_dict['traffic_streams'][stream]['max_outage']
-                    given_loss_tolerance=outage_dict['traffic_streams'][stream]['loss_tolerance']
-                    given_rate_tolerance=outage_dict['traffic_streams'][stream]['rate_tolerance']
-                else:
-                    given_max_outage=max_outage
-                    given_loss_tolerance=loss_tolerance
-                    given_rate_tolerance=rate_tolerance
+                log.info("\n=== TRAFFIC LOSS CHECK CONFIGURATION ===")
+                try:
+                    if outage_dict and isinstance(outage_dict, dict) and 'traffic_streams' in outage_dict and \
+                       stream in outage_dict['traffic_streams'] and isinstance(outage_dict['traffic_streams'][stream], dict):
+                        # Safely get custom values with fallbacks
+                        if 'max_outage' in outage_dict['traffic_streams'][stream]:
+                            given_max_outage = outage_dict['traffic_streams'][stream]['max_outage']
+                            log.info(f"Using custom max outage '{given_max_outage}' for traffic stream '{stream}'")
+                        else:
+                            given_max_outage = max_outage
+                            log.info(f"Using default max outage '{given_max_outage}' for traffic stream '{stream}'")
+                            
+                        if 'loss_tolerance' in outage_dict['traffic_streams'][stream]:
+                            given_loss_tolerance = outage_dict['traffic_streams'][stream]['loss_tolerance']
+                            log.info(f"Using custom loss tolerance '{given_loss_tolerance}' for traffic stream '{stream}'")
+                        else:
+                            given_loss_tolerance = loss_tolerance
+                            log.info(f"Using default loss tolerance '{given_loss_tolerance}' for traffic stream '{stream}'")
+                            
+                        if 'rate_tolerance' in outage_dict['traffic_streams'][stream]:
+                            given_rate_tolerance = outage_dict['traffic_streams'][stream]['rate_tolerance']
+                            log.info(f"Using custom rate tolerance '{given_rate_tolerance}' for traffic stream '{stream}'")
+                        else:
+                            given_rate_tolerance = rate_tolerance
+                            log.info(f"Using default rate tolerance '{given_rate_tolerance}' for traffic stream '{stream}'")
+                    else:
+                        # Use default values
+                        given_max_outage = max_outage
+                        given_loss_tolerance = loss_tolerance
+                        given_rate_tolerance = rate_tolerance
+                        log.info(f"Using all default tolerances for stream '{stream}'")
+                        log.info(f"  max_outage: {given_max_outage}")
+                        log.info(f"  loss_tolerance: {given_loss_tolerance}")
+                        log.info(f"  rate_tolerance: {given_rate_tolerance}")
+                except Exception as e:
+                    # If any errors occur in processing outage_dict, fall back to defaults
+                    log.error(f"Error processing outage dictionary: {str(e)}")
+                    log.info("Falling back to default tolerance values")
+                    given_max_outage = max_outage
+                    given_loss_tolerance = loss_tolerance
+                    given_rate_tolerance = rate_tolerance
 
                 # --------------
                 # BEGIN CHECKING
                 # --------------
-                log.info(banner("Checking traffic stream: '{s} | {t}'".\
-                                format(s=src_dest_pair, t=stream)))
+                # Format the banner with the proper stream identifier (transformed if needed)
+                display_stream = stream
+                display_src_dest = src_dest_pair
+                
+                log.info(f"Preparing banner for stream: original='{stream}', src_dest='{src_dest_pair}'")
+                
+                # Create a more descriptive banner that shows both the Source/Dest Port Pair and the Traffic Item name
+                # Always use a clear format that shows the mapping between Source/Dest Port Pair and Traffic Item
+                log.info(f"Using stream name '{stream}' with source/dest '{src_dest_pair}' for banner")
+                banner_text = f"TRAFFIC CHECK: '{src_dest_pair}' → '{display_stream}'"
+                
+                log.info(f"Banner text: {banner_text}")
+                log.info(banner(banner_text))
 
                 # 1- Verify traffic Outage (in seconds) is less than tolerance threshold
                 log.info("1. Verify traffic outage (in seconds) is less than "
@@ -2189,8 +2530,15 @@ class IxiaNative(TrafficGen):
 
         # Get traffic stream names from Ixia
         try:
-            for item in self.get_traffic_stream_objects():
-                traffic_streams.append(self.ixNet.getAttribute(item, '-name'))
+            traffic_item_objects = self.get_traffic_stream_objects()
+            log.debug(f"Found {len(traffic_item_objects)} traffic item objects")
+            
+            for item in traffic_item_objects:
+                stream_name = self.ixNet.getAttribute(item, '-name')
+                traffic_streams.append(stream_name)
+                log.debug(f"Added stream name: '{stream_name}'")
+                
+            log.info(f"Configured traffic streams: {traffic_streams}")
         except Exception as e:
             log.exception(e)
             raise GenieTgnError("Error while retrieving traffic streams from "

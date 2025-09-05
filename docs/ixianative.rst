@@ -89,6 +89,12 @@ defining an Ixia `device`:
     |--------------------------+-----------------------------------------------|
     | ixia_port_list           | List of Ixia ports for testbed topology to be |
     |                          | used by Genie.                                |
+    |--------------------------+-----------------------------------------------|
+    | ixnetwork_license_mode   | Optional. IxNetwork license mode (e.g.,       |
+    |                          | 'subscription').                              |
+    |--------------------------+-----------------------------------------------|
+    | ixnetwork_license_tier   | Optional. IxNetwork license tier (e.g.,       |
+    |                          | 'tier3').                                     |
     +==========================================================================+
 
 .. note::
@@ -116,6 +122,8 @@ as shown below including ``ip`` and ``port_list``.
             ixnetwork_tcl_port: 8012
             ixnetwork_version: '8.10'
             ixia_license_server_ip: 192.0.0.2
+            ixnetwork_license_mode: 'subscription'
+            ixnetwork_license_tier: 'tier3'
             chassis:
             - ip: 1.1.1.1
               port_list: ['1/1', '1/2']
@@ -197,6 +205,10 @@ the device using the `connect()` method:
     | Ixia License Server: 172.27.101.96        |
     |-------------------------------------------|
     | Ixnetwork TCL Port: 8012                  |
+    |-------------------------------------------|
+    | IxNetwork License Mode: subscription      |
+    |-------------------------------------------|
+    | IxNetwork License Tier: tier3             |
     |-------------------------------------------|
 
     +------------------------------------------------------------------------------+
@@ -1399,7 +1411,7 @@ traffic generator subsections in ``Genie`` harness.
     | tgn-disable-regenerate-traffic   | Disable regenerating of traffic for   |
     | tgn_disable_regenerate_traffic   | all configured traffic streams in     |
     |                                  | 'initialize_traffic'                  |
-    |                                  | Default: True                         |
+    |                                  | Default: False                         |
     |----------------------------------+---------------------------------------|
     | tgn-regenerate-traffic-time      | Time to wait after regenerating       |
     | tgn_regenerate_traffic_time      | traffic for all configured traffic    |
@@ -1710,7 +1722,7 @@ Step4: Regenerate traffic streams
 
 This section can be controlled by enabling/disabling argument: `tgn-disable-regenerate-traffic`.
 
-If this flag is enabled, ``Genie`` harness will regenerate traffic for all the
+If this flag is not used, ``Genie`` harness will regenerate traffic for all the
 configured traffic items on the traffic generator device and then wait for
 `tgn-regenerate-traffic-time` seconds.
 

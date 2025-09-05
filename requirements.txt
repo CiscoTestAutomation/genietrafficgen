@@ -5,3 +5,4 @@ IxNetwork
 ixnetwork_restpy
 setuptools
 wheel
+stcrestclient
