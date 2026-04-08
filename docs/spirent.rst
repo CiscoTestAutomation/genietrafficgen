@@ -683,6 +683,27 @@ an Spirent traffic generator device:
     |                                 | current configuration.                         |
     |                                 | Arguments:                                     |
     |                                 |     None                                       |
+    |----------------------------------------------------------------------------------|
+    | save_result_database            | Save database file for all results data to     |
+    |                                 | expected folder.                               |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] file_name - file name without file   |
+    |                                 |           extention to save result database    |
+    |                                 |           file.                                |
+    |                                 |     * [O] file_path - file path to save result |
+    |                                 |           database file.                       |
+    |----------------------------------------------------------------------------------|
+    | save_statistics_snapshot_csv    | Save statistics view 'GENIE' snapshot as a CSV |
+    |                                 | Arguments:                                     |
+    |                                 |     * [M] view_name - name of statistic view to|
+    |                                 |           take CSV snapshot of. Can be only    |
+    |                                 |           'GENIE'.                             |
+    |                                 |     * [O] csv_file_name - file Name for saving |
+    |                                 |           snapshot file.                       |
+    |                                 |           Default: result_statistics.csv       |
+    |                                 |     * [O] csv_save_path - file path to save    |
+    |                                 |           the CSV snapshot file as.            |
+    |                                 |           Default: ./                          |
     +==================================================================================+
 
 The methods listed above can be executed directly on an Spirent traffic generator
