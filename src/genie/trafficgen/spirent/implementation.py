@@ -373,6 +373,15 @@ class Spirent(TrafficGen):
         '''Start traffic on Spirent'''
         log.info(banner("Starting L2/L3 traffic"))
 
+        # ARP/ND resolution before starting traffic
+        try:
+            arpstatus = self.stc.perform('ArpNdStartCommand', WaitForArpToFinish="TRUE", HandleList='Project1')
+            log.info("ARP/ND resolution before starting traffic: {}".format(arpstatus))
+        except Exception as e_arp:
+            log.error(e_arp)
+            raise GenieTgnError("Unable to perform ARP/ND resolution before starting traffic on device '{}'".\
+                                format(self.device.name)) from e_arp
+
         # Start traffic on Spirent
         try:
             self.stc.perform('GeneratorStartCommand')
@@ -381,7 +390,7 @@ class Spirent(TrafficGen):
             raise GenieTgnError("Unable to start traffic on device '{}'".\
                                 format(self.device.name)) from e
         else:
-            log.info("Startted L2/L3 traffic on device '{}'".format(self.device.name))
+            log.info("Started L2/L3 traffic on device '{}'".format(self.device.name))
 
         # Wait after starting L2/L3 traffic for streams to converge to steady state
         log.info("Waiting for '{}' seconds after starting L2/L3 traffic "

@@ -215,6 +215,11 @@ Start/Stop Traffic on Spirent
 
 The following code block demonstrates starting/stopping traffic on an Spirent device
 
+.. note::
+
+    ``start_traffic()`` performs ARP/ND resolution for the loaded Spirent
+    configuration before starting L2/L3 traffic.
+
 .. code-block:: python
 
     # Start traffic
