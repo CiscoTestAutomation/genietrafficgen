@@ -1,4 +1,5 @@
 import re
+import time
 import logging
 from ixnetwork_restpy import SessionAssistant
 from genie.trafficgen.trafficgen import TrafficGen
@@ -7,8 +8,11 @@ from genie.trafficgen.trafficgen import TrafficGen
 import uuid
 from genie.utils.timeout import Timeout
 
+from pyats.log.utils import banner
 from pyats.utils.secret_strings import SecretString, to_plaintext
 from pyats.connections.utils import set_hltapi_environment_variables
+
+from genie.harness.exceptions import GenieTgnError
 
 logger = logging.getLogger(__name__)
 
@@ -144,3 +148,51 @@ class IxiaRestPy(TrafficGen):
         if self.session_id:
             self.session.Session.find(Id=self.session_id)[0].remove()
             logger.info(f"The session {self.session_id} is removed successfully.")
+
+    def stop_all_protocols(self, wait_time=60):
+        '''Stop all protocols on Ixia'''
+
+        logger.info(banner("Stopping routing engine"))
+
+        # Stop protocols on IxNetwork
+        try:
+            self.ixnetwork.StopAllProtocols()
+        except Exception as e:
+            logger.error(e)
+            raise GenieTgnError("Unable to stop all protocols on device '{}'".\
+                                format(self.device.name)) from e
+        else:
+            logger.info("Stopped protocols on device '{}'".format(self.device.name))
+
+        # Wait after stopping protocols
+        logger.info("Waiting for  '{}' seconds after stopping all protocols...".\
+                    format(wait_time))
+        time.sleep(wait_time)
+
+    def stop_traffic(self, wait_time=60, max_time=180):
+        '''Stop traffic on Ixia
+           Args:
+             wait_time ('int', optional): time to wait after stopping traffic, default 60
+             max_time ('int', optional): maximum time to wait for traffic to stop, default 180
+           Returns:
+             None
+           Raises:
+             GenieTgnError
+        '''
+
+        logger.info(banner("Stopping L2/L3 traffic"))
+
+        # Stop traffic on IxNetwork
+        try:
+            self.ixnetwork.Traffic.Stop()
+        except Exception as e:
+            logger.error(e)
+            raise GenieTgnError("Unable to stop traffic on device '{}'".\
+                                format(self.device.name)) from e
+        else:
+            logger.info("Stopped traffic on device '{}'".format(self.device.name))
+
+        # Wait after stopping traffic
+        logger.info("Waiting for '{}' seconds after stopping traffic...".\
+                    format(wait_time))
+        time.sleep(wait_time)

@@ -686,7 +686,7 @@ an Spirent traffic generator device:
     +==================================================================================+
 
 The methods listed above can be executed directly on an Spirent traffic generator
-device from a Python prompt or within ``Genie`` and ``pyATS`` scripts.
+device from a Python prompt or within ``Genie``and``pyATS`` scripts.
 
 Traffic Generator Usage
 -----------------------
@@ -842,7 +842,7 @@ impact configured traffic streams.
 This profile can also be saved and reused as a reference for comparison of
 subsequent runs of ``profile_traffic`` subsection.
 
-The user can pass in a ``golden`` traffic profile via the ``tgn-golden-profile``
+The user can pass in a ``golden``traffic profile via the``tgn-golden-profile``
 argument to enable comparison of the current profile against the previously
 established/verified/golden traffic profile snapshot.
 
