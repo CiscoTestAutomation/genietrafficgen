@@ -79,3 +79,58 @@ class TestIxiaIxNetworkRestPy(unittest.TestCase):
         with self.assertLogs(level='INFO') as log:
             self.dev.disconnect()
             self.assertIn('The session 8020 is removed', log.output[0])
+
+    @patch('genie.trafficgen.ixiarestpy.implementation.time.sleep')
+    def test_stop_all_protocols(self, mock_sleep):
+        # Mock the StopAllProtocols method
+        self.dev.default.ixnetwork = Mock()
+        self.dev.default.ixnetwork.StopAllProtocols = Mock()
+
+        # Test with default wait_time
+        with self.assertLogs(level='INFO') as log:
+            self.dev.default.stop_all_protocols()
+            self.dev.default.ixnetwork.StopAllProtocols.assert_called_once()
+            mock_sleep.assert_called_once_with(60)
+            self.assertIn("Stopped protocols on device 'ixia4'", '\n'.join(log.output))
+            self.assertIn("Waiting for  '60' seconds", '\n'.join(log.output))
+
+        # Reset mocks
+        self.dev.default.ixnetwork.StopAllProtocols.reset_mock()
+        mock_sleep.reset_mock()
+
+        # Test with custom wait_time
+        with self.assertLogs(level='INFO') as log:
+            self.dev.default.stop_all_protocols(wait_time=30)
+            self.dev.default.ixnetwork.StopAllProtocols.assert_called_once()
+            mock_sleep.assert_called_once_with(30)
+            self.assertIn("Waiting for  '30' seconds", '\n'.join(log.output))
+
+    @patch('genie.trafficgen.ixiarestpy.implementation.time.sleep')
+    def test_stop_traffic(self, mock_sleep):
+        self.dev.default.ixnetwork = Mock()
+        self.dev.default.ixnetwork.Traffic = Mock()
+        self.dev.default.ixnetwork.Traffic.Stop = Mock()
+
+        with self.assertLogs(level='INFO') as log:
+            self.dev.default.stop_traffic()
+
+            self.dev.default.ixnetwork.Traffic.Stop.assert_called_once()
+
+            mock_sleep.assert_called_once_with(60)
+
+            log_output = '\n'.join(log.output)
+            self.assertIn("Stopped traffic on device 'ixia4'", log_output)
+            self.assertIn("Waiting for '60' seconds after stopping traffic", log_output)
+
+        self.dev.default.ixnetwork.Traffic.Stop.reset_mock()
+        mock_sleep.reset_mock()
+        custom_wait = 15
+        with self.assertLogs(level='INFO') as log:
+            self.dev.default.stop_traffic(wait_time=custom_wait)
+            self.dev.default.ixnetwork.Traffic.Stop.assert_called_once()
+            # Verify sleep was called with custom value
+            mock_sleep.assert_called_once_with(custom_wait)
+
+            # Verify logs reflect custom time
+            log_output = '\n'.join(log.output)
+            self.assertIn(f"Waiting for '{custom_wait}' seconds after stopping traffic", log_output)

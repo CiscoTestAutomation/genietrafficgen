@@ -1,7 +1,7 @@
-April 2025
+April 2026
 ==========
 
-April 29 - Genietrafficgen v25.4 
+April 28 - Genietrafficgen v26.4
 --------------------------------
 
 
@@ -9,19 +9,19 @@ April 29 - Genietrafficgen v25.4
 .. csv-table:: New Module Versions
     :header: "Modules", "Version"
 
-    ``genie.trafficgen``, v25.4 
+    ``genie.trafficgen``, v26.4
 
 
 
 
 Changelogs
 ^^^^^^^^^^
+
 --------------------------------------------------------------------------------
-Fix
+                                      Fix                                       
 --------------------------------------------------------------------------------
 
-* genietrafficgen
-    * ixianative/implementation
-        * Modified the flow group table entry from Source/Dest Port Pair to
+* ixiarestpy
+    * Added stop_all_protocols and stop_traffic methods to stop all protocols and traffic on the Ixia chassis.
 
 

@@ -18,7 +18,7 @@ June 29 - Genietrafficgen v21.6
 Changelogs
 ^^^^^^^^^^
 --------------------------------------------------------------------------------
-                                      New
+New
 --------------------------------------------------------------------------------
 
 * ixiarestpy
@@ -26,11 +26,11 @@ Changelogs
 
 * genie.trafficgen
     * Implemented abstraction
-        * Use `os ixianative|ixiarestpy|trex` to select connection type
+        * Use ``os ixianative|ixiarestpy|trex`` to select connection type
 
 
 --------------------------------------------------------------------------------
-                                      Fix
+Fix
 --------------------------------------------------------------------------------
 
 * ixianative

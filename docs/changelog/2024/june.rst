@@ -1,7 +1,7 @@
 June 2024
 ==========
 
- - Genietrafficgen v24.6 
+- Genietrafficgen v24.6
 ------------------------
 
 
