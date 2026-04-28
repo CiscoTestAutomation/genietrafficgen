@@ -740,8 +740,10 @@ methods mentioned in the previous section.
     >> dev.start_traffic()
     # Stop traffic on the device
     >> dev.stop_traffic()
-    # Clear stats on the device
+    # Clear stats on the device (waits 10 seconds by default)
     >> dev.clear_statistics()
+    # Adjust waiting time after clear with a positive value
+    >> dev.clear_statistics(wait_time=5)
 
 
 Traffic Generator Usage Via Genie Harness

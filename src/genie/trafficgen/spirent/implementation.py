@@ -434,6 +434,11 @@ class Spirent(TrafficGen):
                                 format(self.device.name)) from e
         else:
             log.info("Successfully cleared traffic statistics on device '{}'".format(self.device.name))
+        
+        # Wait after clearing statistics
+        if wait_time > 0:
+            log.info("Waiting for '{}' seconds after clearing traffic statistics...".format(wait_time))
+            time.sleep(wait_time)
 
     @BaseConnection.locked
     @isconnected
