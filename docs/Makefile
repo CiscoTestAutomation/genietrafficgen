@@ -17,7 +17,7 @@ PROD_BKUP_DIR = /auto/pyats/wwwin-pyats/genietrafficgen/genietrafficgen-backup/$
 WATCHERS      = asg-genie-dev
 HEADER        = [Genie Watchdog]
 HOSTNAME	  = `hostname`
-DEPENDENCIES  = Sphinx==7.4.7 sphinxcontrib-napoleon sphinxcontrib-mockautodoc sphinx-rtd-theme
+DEPENDENCIES  = Sphinx==7.4.7 sphinxcontrib-napoleon sphinxcontrib-mockautodoc sphinx-rtd-theme==3.1.0
 
 
 # User-friendly check for sphinx-build
