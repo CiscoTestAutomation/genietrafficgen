@@ -441,6 +441,15 @@ an Spirent traffic generator device:
     |                                 |           statistics on Spirent.               |
     |                                 |           Default: 10 (seconds)                |
     |---------------------------------+------------------------------------------------|
+    | export_results_as_db            | Exports results on Spirent as database file    |
+    |                                 | and downloads it to local path.                |
+    |                                 | Arguments:                                     |
+    |                                 |     * [O] local_filename - local filename for  |
+    |                                 |           exported database file.              |
+    |                                 |           Default: 'stc_results.db'            |
+    |                                 | Returns:                                       |
+    |                                 |     * True - if export succeeds.               |
+    |---------------------------------+------------------------------------------------|
     | create_genie_statistics_view    | Creates a custom statistics view on Spirent    |
     |                                 | named "GENIE" with the required data fields    |
     |                                 | needed for processors.                         |
@@ -744,6 +753,9 @@ methods mentioned in the previous section.
     >> dev.clear_statistics()
     # Adjust waiting time after clear with a positive value
     >> dev.clear_statistics(wait_time=5)
+    # Export Spirent results as local database file
+    >> dev.export_results_as_db('run1_results.db')
+    True
 
 
 Traffic Generator Usage Via Genie Harness

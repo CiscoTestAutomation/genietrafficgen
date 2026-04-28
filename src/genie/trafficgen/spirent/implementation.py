@@ -10,6 +10,7 @@ import os
 import time
 import logging
 import json
+import unicodedata
 import requests
 from prettytable import PrettyTable
 
@@ -51,6 +52,48 @@ def cast_number(value):
 def split_string(s):
     pattern = r'\{([^}]*)\}|\S+'
     return [m.group(1) if m.group(1) else m.group(0) for m in re.finditer(pattern, s)]
+
+
+def _sanitize_local_filename(filename, default='stc_results.db'):
+    '''Return a cross-platform safe local filename.'''
+
+    if filename is None:
+        filename = default
+
+    filename = str(filename).strip()
+    if not filename:
+        filename = default
+
+    directory, basename = os.path.split(filename)
+    basename = unicodedata.normalize('NFC', basename)
+
+    # Replace illegal/control characters for Windows and general filesystems.
+    basename = re.sub(r'[<>:"/\\|?*\x00-\x1f\x7f]+', '_', basename)
+    basename = basename.rstrip(' .')
+
+    if not basename:
+        basename = os.path.basename(default)
+
+    reserved = {
+        'CON', 'PRN', 'AUX', 'NUL',
+        'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9',
+        'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9',
+    }
+    stem, ext = os.path.splitext(basename)
+    if stem.upper() in reserved:
+        stem = '_{}'.format(stem)
+    basename = '{}{}'.format(stem, ext)
+
+    max_len = 255
+    if len(basename) > max_len:
+        stem, ext = os.path.splitext(basename)
+        keep = max_len - len(ext)
+        if keep <= 0:
+            basename = basename[:max_len]
+        else:
+            basename = '{}{}'.format(stem[:keep], ext)
+
+    return os.path.join(directory, basename) if directory else basename
 
 class Spirent(TrafficGen):
 
@@ -439,6 +482,35 @@ class Spirent(TrafficGen):
         if wait_time > 0:
             log.info("Waiting for '{}' seconds after clearing traffic statistics...".format(wait_time))
             time.sleep(wait_time)
+
+    @BaseConnection.locked
+    @isconnected
+    def export_results_as_db(self, local_filename='stc_results.db'):
+        '''Export results on Spirent as database file'''
+        log.info(banner("Exporting results on Spirent as database file"))
+        safe_local_filename = _sanitize_local_filename(local_filename)
+        if safe_local_filename != local_filename:
+            log.info("Sanitized export filename from '%s' to '%s'",
+                     local_filename, safe_local_filename)
+
+        # Export results on Spirent
+        try:
+            remote_db = "stc_results_verify.db"
+            self.stc.perform(
+                'SaveResultCommand', 
+                DatabaseConnectionString=remote_db,
+                SaveDetailedResults=True,
+                OverwriteIfExist=True)
+            log.info("Exported results on device '{}' as database file '{}' on Spirent API server".format(self.device.name, remote_db))
+            self.stc.download(remote_db, save_as=safe_local_filename)
+            return True
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Failed to export results on device '{}' as database file".\
+                                format(self.device.name)) from e
+        else:
+            log.info("Exported results on device '{}' as database file".\
+                    format(self.device.name))
 
     @BaseConnection.locked
     @isconnected
