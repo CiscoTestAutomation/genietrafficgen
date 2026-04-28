@@ -200,8 +200,13 @@ class Spirent(TrafficGen):
         # Execute load config on Spirent
         try:
             self.stc.upload(configuration)
+            basename = os.path.basename(configuration)
             # Load the config.
-            self.stc.perform('LoadFromXml', filename=os.path.basename(configuration))
+            if basename.lower().endswith('.tcc'):
+                self.stc.perform('LoadFromDatabase', DatabaseConnectionString=basename)
+                log.info("Loaded configuration tcc file.")
+            else:
+                self.stc.perform('LoadFromXml', filename=basename)
 
         except Exception as e:
             log.error(e)

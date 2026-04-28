@@ -130,7 +130,7 @@ The following code block demonstrates loading a static configuration file onto a
 
 .. code-block:: python
 
-    # Load static configuration file
+    # Load static configuration file (XML)
     >>> dev.load_configuration('/root/genietrafficgen/traffic.xml')
     +------------------------------------------------------------------------------+
     |                            Loading configuration                             |
@@ -143,11 +143,29 @@ The following code block demonstrates loading a static configuration file onto a
     Loaded configuration file '/root/genietrafficgen/traffic.xml' onto device 'spirent'
     Waiting for '60' seconds after loading configuration...
 
+    # Load static configuration file (TCC)
+    >>> dev.load_configuration('/root/genietrafficgen/traffic.tcc')
+    +------------------------------------------------------------------------------+
+    |                            Loading configuration                             |
+    +------------------------------------------------------------------------------+
+    +==============================================================================+
+    | Spirent Configuration Information                                            |
+    +==============================================================================+
+    | File: /root/genietrafficgen/traffic.tcc                                      |
+    |------------------------------------------------------------------------------|
+    Loaded configuration tcc file.
+    Loaded configuration file '/root/genietrafficgen/traffic.tcc' onto device 'spirent'
+    Waiting for '60' seconds after loading configuration...
+
 
 .. note::
 
-    ``traffic.xml`` is the XML configuration file generated via the Spirent TestCenter GUI. 
-    In the GUI, choose File / Save As, and then set Save as type to Xml files.
+    Two configuration file formats are supported:
+
+    - **XML** (``traffic.xml``): the XML configuration file generated via the Spirent TestCenter GUI.
+      In the GUI, choose File / Save As, and then set Save as type to *Xml files*.
+    - **TCC** (``traffic.tcc``): the native Spirent TestCenter database file.
+      In the GUI, choose File / Save As, and then set Save as type to *Spirent TestCenter Files (*.tcc)*.
 
 
 Applying L2/L3 Traffic on Spirent
