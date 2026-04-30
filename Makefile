@@ -33,7 +33,7 @@ PYPIREPO      = pypitest
 
 # Development pkg requirements
 DEPENDENCIES  = restview psutil Sphinx==7.4.7 wheel asynctest asyncssh stcrestclient
-DEPENDENCIES += sphinx-rtd-theme
+DEPENDENCIES += sphinx-rtd-theme==3.1.0
 DEPENDENCIES += requests ixnetwork ixnetwork_restpy
 
 ifeq ($(MAKECMDGOALS), devnet)

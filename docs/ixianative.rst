@@ -107,7 +107,7 @@ Multi-chassis support
 ---------------------
 
 To use multiple chassis with the `ixianative` implementation, specify the chassis
-as shown below including ``ip`` and ``port_list``.
+as shown below including ``ip``and``port_list``.
 
 .. code-block:: yaml
 
@@ -1287,7 +1287,7 @@ an Ixia traffic generator device:
     +==================================================================================+
 
 The methods listed above can be executed directly on an Ixia traffic generator
-device from a Python prompt or within ``Genie`` and ``pyATS`` scripts.
+device from a Python prompt or within ``Genie``and``pyATS`` scripts.
 
 
 Traffic Generator Usage
@@ -1861,7 +1861,7 @@ processor: compare_traffic_profile section.
 This profile can also be saved and reused as a reference for comparison of
 subsequent runs of ``profile_traffic`` subsection.
 
-The user can pass in a ``golden`` traffic profile via the ``tgn-golden-profile``
+The user can pass in a ``golden``traffic profile via the``tgn-golden-profile``
 argument to enable comparison of the current profile against the previously
 established/verified/golden traffic profile snapshot.
 
@@ -2087,7 +2087,7 @@ It performs the following steps:
 
 If a configured traffic stream reports traffic loss that is not within the 
 specified tolerance limit after the prescribed number of ``check_iterations``,
-executed at ``check_interval`` seconds, ``Genie`` marks the trigger as "failed".
+executed at ``check_interval``seconds,``Genie`` marks the trigger as "failed".
 
 User's can define processor `check_traffic_loss` in the `trigger_datafile`
 as shown below:

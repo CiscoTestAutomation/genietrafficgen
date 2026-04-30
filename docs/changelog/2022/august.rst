@@ -1,8 +1,8 @@
 August 2022
-==========
+===========
 
 August 29 - Genietrafficgen v22.8
-------------------------
+---------------------------------
 
 
 
@@ -18,11 +18,11 @@ August 29 - Genietrafficgen v22.8
 Changelogs
 ^^^^^^^^^^
 --------------------------------------------------------------------------------
-                                      Fix
+Fix
 --------------------------------------------------------------------------------
 
 * ixianative
-    * Modified `enable_subinterface_emulation` API
+    * Modified ``enable_subinterface_emulation`` API
         * Modified enable_subinterface_emulation to get vlan id as input parameter.
         * Added 'vlan_id' argument as optional parameter (default is None).
 
