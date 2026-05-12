@@ -485,6 +485,38 @@ class Spirent(TrafficGen):
 
     @BaseConnection.locked
     @isconnected
+    def save_results_as_db(self, clear_statistics=True):
+        '''Save results internally on Spirent API server without downloading, 
+        and optionally clear statistics.
+
+        Args:
+            clear_statistics (bool): If True, execute clear_statistics() after saving. default: True
+        '''
+        log.info(banner("Saving results internally on Spirent API server"))
+
+        try:
+            remote_db = "stc_results_verify.db"
+            
+            self.stc.perform(
+                'SaveResultCommand', 
+                DatabaseConnectionString=remote_db,
+                SaveDetailedResults=True,
+                OverwriteIfExist=True)
+            log.info("Saved results on device '{}' as database file '{}' on Spirent API server".format(self.device.name, remote_db))
+
+            if clear_statistics:
+                log.info("Clearing statistics on device '{}' (Incrementing DataSetID)".format(self.device.name))
+                self.clear_statistics()
+
+            return True
+
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Failed to save results internally on device '{}'".\
+                                format(self.device.name)) from e
+
+    @BaseConnection.locked
+    @isconnected
     def export_results_as_db(self, db_filename='stc_results.db', xlsx_filename='advanced_sequencing_all.xlsx'):
         '''Export results on Spirent as database file and/or xlsx.
 
