@@ -417,13 +417,7 @@ class Spirent(TrafficGen):
         log.info(banner("Starting L2/L3 traffic"))
 
         # ARP/ND resolution before starting traffic
-        try:
-            arpstatus = self.stc.perform('ArpNdStartCommand', WaitForArpToFinish="TRUE", HandleList='Project1')
-            log.info("ARP/ND resolution before starting traffic: {}".format(arpstatus))
-        except Exception as e_arp:
-            log.error(e_arp)
-            raise GenieTgnError("Unable to perform ARP/ND resolution before starting traffic on device '{}'".\
-                                format(self.device.name)) from e_arp
+        self.send_arp()
 
         # Start traffic on Spirent
         try:
@@ -477,7 +471,7 @@ class Spirent(TrafficGen):
                                 format(self.device.name)) from e
         else:
             log.info("Successfully cleared traffic statistics on device '{}'".format(self.device.name))
-        
+
         # Wait after clearing statistics
         if wait_time > 0:
             log.info("Waiting for '{}' seconds after clearing traffic statistics...".format(wait_time))
@@ -486,7 +480,7 @@ class Spirent(TrafficGen):
     @BaseConnection.locked
     @isconnected
     def save_results_as_db(self, clear_statistics=True):
-        '''Save results internally on Spirent API server without downloading, 
+        '''Save results internally on Spirent API server without downloading,
         and optionally clear statistics.
 
         Args:
@@ -496,9 +490,9 @@ class Spirent(TrafficGen):
 
         try:
             remote_db = "stc_results_verify.db"
-            
+
             self.stc.perform(
-                'SaveResultCommand', 
+                'SaveResultCommand',
                 DatabaseConnectionString=remote_db,
                 SaveDetailedResults=True,
                 OverwriteIfExist=True)
@@ -541,7 +535,7 @@ class Spirent(TrafficGen):
         try:
             remote_db = "stc_results_verify.db"
             self.stc.perform(
-                'SaveResultCommand', 
+                'SaveResultCommand',
                 DatabaseConnectionString=remote_db,
                 SaveDetailedResults=True,
                 OverwriteIfExist=True)
@@ -549,7 +543,7 @@ class Spirent(TrafficGen):
             self.stc.download(remote_db, save_as=safe_db_filename)
             log.info("Downloaded DB to '{}'".format(safe_db_filename))
 
-            # postprocess (In-place DB filtering & Excel generation)
+            # postprocess using a temporary copy to keep the raw DB intact
             self._postprocess_results(safe_db_filename, safe_xlsx_filename)
 
             return True
@@ -559,15 +553,28 @@ class Spirent(TrafficGen):
                                 format(self.device.name)) from e
 
     def _postprocess_results(self, db_path, xlsx_filename):
-        '''Filter DB in-place and optionally produce xlsx output.'''
+        '''Filter a temporary copy of the DB and optionally produce xlsx output.
+
+        The original db_path is left untouched; all table-filtering and Excel
+        generation are performed on a temporary copy that is removed afterwards.
+        '''
         import sqlite3
+        import tempfile
         from contextlib import closing
 
-        with closing(sqlite3.connect(db_path)) as conn:
-            self._extract_advanced_sequencing(conn)
+        with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as tmp:
+            tmp_path = tmp.name
+        try:
+            with closing(sqlite3.connect(db_path)) as src, \
+                 closing(sqlite3.connect(tmp_path)) as conn:
+                src.backup(conn)
+            with closing(sqlite3.connect(tmp_path)) as conn:
+                self._extract_advanced_sequencing(conn)
 
-            if xlsx_filename:
-                self._db_to_xlsx(conn, xlsx_filename)
+                if xlsx_filename:
+                    self._db_to_xlsx(conn, xlsx_filename)
+        finally:
+            os.unlink(tmp_path)
 
     def _extract_advanced_sequencing(self, conn):
         '''Keep only Advanced Sequencing relevant tables (all DataSets).'''
