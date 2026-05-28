@@ -179,6 +179,38 @@ class IxiaNative(TrafficGen):
         return decorated
 
 
+    def _normalize_ixia_license_servers(self):
+        '''Return ixia_license_server_ip as an ordered list of servers.
+
+        Accepts a single server, a comma/semicolon-delimited string, or a
+        list/tuple of values. Empty values are removed and duplicates keep
+        their first occurrence.
+        '''
+        raw_servers = getattr(self, 'ixia_license_server_ip', None)
+        if not raw_servers:
+            return []
+
+        if isinstance(raw_servers, str):
+            candidates = re.split(r'[;,]', raw_servers)
+        elif isinstance(raw_servers, (list, tuple)):
+            candidates = []
+            for item in raw_servers:
+                if isinstance(item, str):
+                    candidates.extend(re.split(r'[;,]', item))
+                elif item is not None:
+                    candidates.append(item)
+        else:
+            candidates = [raw_servers]
+
+        servers = []
+        for server in candidates:
+            server = str(server).strip()
+            if server and server not in servers:
+                servers.append(server)
+
+        return servers
+
+
     @BaseConnection.locked
     def connect(self):
         '''Connect to Ixia'''
@@ -263,7 +295,21 @@ class IxiaNative(TrafficGen):
                 root = self.ixNet.getRoot()
                 globals_obj = self.ixNet.getList(root, 'globals')[0]
                 licensing_obj = self.ixNet.getList(globals_obj, 'licensing')[0]
-                
+
+                license_servers = self._normalize_ixia_license_servers()
+                if license_servers:
+                    log.info(f"Configuring IxNetwork license servers: {license_servers}")
+                    try:
+                        self.ixNet.setAttribute(
+                            licensing_obj,
+                            '-licensingServers',
+                            license_servers,
+                        )
+                        self.ixNet.commit()
+                    except Exception as e:
+                        log.warning(f"Failed to configure IxNetwork license servers: {e}")
+                        log.warning("License servers may need to be configured on the IxNetwork API server")
+
                 # Log available attributes for debugging
                 attrs = self.ixNet.help(licensing_obj)
                 log.debug(f"Available licensing attributes: {attrs}")
@@ -306,7 +352,11 @@ class IxiaNative(TrafficGen):
                 if hasattr(self, 'ixnetwork_license_tier'):
                     read_tier = self.ixNet.getAttribute(licensing_obj, '-tier')
                     log.info(f"Verified license tier: {read_tier}")
-                    
+
+                if license_servers:
+                    read_servers = self.ixNet.getAttribute(licensing_obj, '-licensingServers')
+                    log.info(f"Verified license servers: {read_servers}")
+
             except Exception as e:
                 log.warning(f"Failed to configure license settings via licensing object: {e}")
                 log.warning("License settings may not be properly configured")

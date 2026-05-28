@@ -645,3 +645,13 @@ class TestTrex(unittest.TestCase):
         result = dev._traffic_profile_configured
         #Assert
         self.assertEqual(expected, result)
+
+    def test_start_single_traffic_stream(self):
+        # Arrange
+        dev = self.dev
+        dev.default._trex = Mock()
+        dev._traffic_profile_configured = True
+        # Act
+        dev.start_single_traffic_stream(port=0, stream_name='stream_1', wait_time=0)
+        # Assert
+        dev._trex.traffic_control.assert_called_once_with(action='run', port_handle=0, stream_name='stream_1')

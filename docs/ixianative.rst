@@ -85,7 +85,8 @@ defining an Ixia `device`:
     |--------------------------+-----------------------------------------------|
     | ixia_chassis_ip          | IP address of Ixia chassis.                   |
     |--------------------------+-----------------------------------------------|
-    | ixia_license_server_ip   | IP address of Ixia licensing server.          |
+    | ixia_license_server_ip   | IP address or addresses of Ixia licensing     |
+    |                          | server. Accepts a string or list.             |
     |--------------------------+-----------------------------------------------|
     | ixia_port_list           | List of Ixia ports for testbed topology to be |
     |                          | used by Genie.                                |
@@ -101,6 +102,20 @@ defining an Ixia `device`:
 
     If Ixia is not the preferred traffic generator, users can also write a new
     connection class implementation for their traffic generator device.
+
+``ixia_license_server_ip`` can be provided as a single address, a semicolon or
+comma-delimited string, or a YAML list:
+
+.. code-block:: yaml
+
+    ixia_license_server_ip: "192.0.2.10; 192.0.2.11; 192.0.2.12;"
+
+.. code-block:: yaml
+
+    ixia_license_server_ip:
+      - 192.0.2.10
+      - 192.0.2.11
+      - 192.0.2.12
 
 
 Multi-chassis support
@@ -2227,4 +2242,3 @@ The `compare_traffic_profile` post-trigger processor has the following arguments
 The parameters above can also be set at both the local processor and global
 processor level with the exception of argument 'section_profile', which can only
 be set at the trigger level.
-
