@@ -2055,6 +2055,20 @@ class Trex(TrafficGen):
         log.info("Sleeping for {d} seconds after starting traffic".format(d = wait_time))
         time.sleep(wait_time)
 
+    def start_single_traffic_stream(self, port, stream_name, wait_time=5):
+        '''Start a single traffic stream on a given port on TRex'''
+
+        # Start traffic per stream
+        log.info(banner(f'Start traffic for given streams on TRex port {port}'))
+        try:
+            self._trex.traffic_control(action='run', port_handle=port, stream_name=stream_name)
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Unable to start traffic stream {stream_name} on port {port}")
+
+        log.info("Sleeping for {d} seconds after starting traffic".format(d = wait_time))
+        time.sleep(wait_time)
+
     def unconfigure_traffic(self):
         '''Unconfigure traffic. This will remove the profile configured.
            There is an option to unconfigure per port as well.

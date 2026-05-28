@@ -14,6 +14,7 @@ except ImportError as e:
                       "https://pypi.org/project/IxNetwork/") from e
 
 from genie.harness.exceptions import GenieTgnError
+from genie.trafficgen.ixianative.implementation import IxiaNative
 
 
 class TestIxiaIxNative(unittest.TestCase):
@@ -43,6 +44,10 @@ class TestIxiaIxNative(unittest.TestCase):
         ])
         self.dev7.default.create_traffic_streams_table = Mock(return_value=self.mock_traffic_table)
         self.dev7.default.get_traffic_stream_names = Mock(return_value=self.mock_stream_names)
+
+    def _new_ixianative_for_license_normalization(self):
+        """Create an uninitialized IxiaNative for pure normalization tests."""
+        return object.__new__(IxiaNative)
 
     def test_connect_assign_ports_multichassis(self):
         tb_file = os.path.join(os.path.dirname(__file__), 'testbed.yaml')
@@ -134,7 +139,80 @@ class TestIxiaIxNative(unittest.TestCase):
             '192.0.0.1', '-port', 8012, '-version', '9.00', '-setAttribute', 'strict',
             '-apiKey', 'abc', '-closeServerOnDisconnect', 1, '-setAttribute', 'strict',
             '-licenseMode', 'subscription', '-licenseTier', 'tier3')
-            
+
+    def test_normalize_ixia_license_servers_from_delimited_string(self):
+        ixia = self._new_ixianative_for_license_normalization()
+        ixia.ixia_license_server_ip = "192.0.2.10; 192.0.2.11; 192.0.2.12;"
+
+        self.assertEqual(
+            ixia._normalize_ixia_license_servers(),
+            ['192.0.2.10', '192.0.2.11', '192.0.2.12'])
+
+    def test_normalize_ixia_license_servers_from_list(self):
+        ixia = self._new_ixianative_for_license_normalization()
+        ixia.ixia_license_server_ip = [
+            '192.0.2.10',
+            '192.0.2.11',
+            '192.0.2.12',
+        ]
+
+        self.assertEqual(
+            ixia._normalize_ixia_license_servers(),
+            ['192.0.2.10', '192.0.2.11', '192.0.2.12'])
+
+    def test_normalize_ixia_license_servers_strips_empty_values_and_deduplicates(self):
+        ixia = self._new_ixianative_for_license_normalization()
+        ixia.ixia_license_server_ip = [
+            ' 192.0.2.10; 192.0.2.11 ',
+            None,
+            '192.0.2.10',
+            '192.0.2.12',
+            '',
+        ]
+
+        self.assertEqual(
+            ixia._normalize_ixia_license_servers(),
+            ['192.0.2.10', '192.0.2.11', '192.0.2.12'])
+
+    def test_normalize_ixia_license_servers_returns_empty_without_servers(self):
+        ixia = self._new_ixianative_for_license_normalization()
+
+        self.assertEqual(ixia._normalize_ixia_license_servers(), [])
+
+    def test_connect_configures_license_servers_on_licensing_object(self):
+        tb_file = os.path.join(os.path.dirname(__file__), 'testbed.yaml')
+        tb = loader.load(tb_file)
+        dev = tb.devices.ixia7
+        dev.instantiate()
+        ixnet_mock = dev.default.ixNet = Mock()
+        ixnet_mock.connect = Mock(return_value=True)
+        ixnet_mock.getApiKey = Mock(return_value='abc')
+        ixnet_mock.OK = True
+        ixnet_mock.getRoot = Mock(return_value='root')
+        ixnet_mock.getList = Mock(
+            side_effect=lambda obj, name: ['globals_obj']
+            if name == 'globals' else ['licensing_obj'])
+        ixnet_mock.help = Mock(return_value=['-mode', '-tier', '-licensingServers'])
+        ixnet_mock.getAttribute = Mock(return_value=[
+            '192.0.2.10',
+            '192.0.2.11',
+            '192.0.2.12',
+        ])
+        dev.default.ixia_license_server_ip = (
+            "192.0.2.10; 192.0.2.11; 192.0.2.12;")
+
+        dev.connect()
+
+        license_servers = ['192.0.2.10', '192.0.2.11', '192.0.2.12']
+        ixnet_mock.setAttribute.assert_any_call(
+            'licensing_obj', '-licensingServers', license_servers)
+        ixnet_mock.commit.assert_called_once()
+        ixnet_mock.getAttribute.assert_any_call('licensing_obj', '-licensingServers')
+        connect_args = ixnet_mock.connect.call_args[0]
+        self.assertNotIn('-licensingServers', connect_args)
+        for server in license_servers:
+            self.assertNotIn(server, connect_args)
+
     def test_post_connection_license_configuration(self):
         """Test post-connection license configuration via licensing object"""
         tb_file = os.path.join(os.path.dirname(__file__), 'testbed.yaml')
