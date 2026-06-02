@@ -540,8 +540,20 @@ class Spirent(TrafficGen):
                 SaveDetailedResults=True,
                 OverwriteIfExist=True)
             log.info("Exported results on device '{}' as database file '{}' on Spirent API server".format(self.device.name, remote_db))
-            self.stc.download(remote_db, save_as=safe_db_filename)
-            log.info("Downloaded DB to '{}'".format(safe_db_filename))
+
+            # The save location on the Lab Server varies by STC version.
+            # Try candidate download paths in order until one succeeds.
+            download_paths = [remote_db, "Untitled/" + remote_db]
+            for dl_path in download_paths:
+                try:
+                    self.stc.download(dl_path, save_as=safe_db_filename)
+                    log.info("Downloaded DB to '{}' (remote path: '{}')".format(safe_db_filename, dl_path))
+                    break
+                except Exception:
+                    log.warning("Download from '{}' failed, trying next path...".format(dl_path))
+            else:
+                raise GenieTgnError("Failed to download '{}' from device '{}': all paths exhausted ({})".format(
+                    remote_db, self.device.name, download_paths))
 
             # postprocess using a temporary copy to keep the raw DB intact
             self._postprocess_results(safe_db_filename, safe_xlsx_filename)
