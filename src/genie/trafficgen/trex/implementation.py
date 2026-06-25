@@ -115,7 +115,7 @@ class Trex(TrafficGen):
         ''' Method to configure the interfaces on the TRex device.
             This needs to be configured before starting traffic. '''
         portHandles = self.port_list
-        ip_list = self.intf_ip_list
+        IPs = self.intf_ip_list
         gwIPs = self.gw_ip_list
         if port_list is not None:
             portHandles = port_list
