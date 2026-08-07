@@ -3,6 +3,8 @@ import unittest
 import importlib
 from ipaddress import IPv4Address
 from unittest.mock import Mock, patch
+from ixnetwork_restpy.errors import BadRequestError
+from genie.harness.exceptions import GenieTgnError
 from pyats.topology import loader
 
 
@@ -134,3 +136,45 @@ class TestIxiaIxNetworkRestPy(unittest.TestCase):
             # Verify logs reflect custom time
             log_output = '\n'.join(log.output)
             self.assertIn(f"Waiting for '{custom_wait}' seconds after stopping traffic", log_output)
+
+
+class TestNewConfigWithRetry(unittest.TestCase):
+    """Unit tests for IxiaRestPy._new_config_with_retry()"""
+
+    def _make_impl(self, clear_config_timeout=180):
+        """Create a minimal IxiaRestPy instance without calling __init__."""
+        from genie.trafficgen.ixiarestpy.implementation import IxiaRestPy
+        obj = object.__new__(IxiaRestPy)
+        obj.clear_config_timeout = clear_config_timeout
+        obj.ixnetwork = Mock()
+        return obj
+
+    def _mock_timeout(self, iterate_values):
+        """Return a patched Timeout that yields the given iterate() sequence."""
+        mock_timeout = Mock()
+        mock_timeout.iterate.side_effect = iterate_values
+        mock_timeout.sleep = Mock()
+        mock_timeout.count = 1
+        return mock_timeout
+
+    def test_retries_on_loading_configuration(self):
+        """Retries when 'Loading Configuration' error raised, then succeeds."""
+        impl = self._make_impl()
+        loading_error = BadRequestError('Loading Configuration in progress')
+        impl.ixnetwork.NewConfig = Mock(side_effect=[loading_error, None])
+        with patch('genie.trafficgen.ixiarestpy.implementation.Timeout') as MockTimeout:
+            MockTimeout.return_value = self._mock_timeout([True, True, False])
+            impl._new_config_with_retry()
+        self.assertEqual(impl.ixnetwork.NewConfig.call_count, 2)
+
+    def test_timeout_raises_genie_tgn_error(self):
+        """GenieTgnError raised after timeout exhausted, with original exception chained."""
+        impl = self._make_impl()
+        loading_error = BadRequestError('Loading Configuration in progress')
+        impl.ixnetwork.NewConfig = Mock(side_effect=loading_error)
+        with patch('genie.trafficgen.ixiarestpy.implementation.Timeout') as MockTimeout:
+            MockTimeout.return_value = self._mock_timeout([True, False])
+            with self.assertRaises(GenieTgnError) as ctx:
+                impl._new_config_with_retry()
+        self.assertIn('180s', str(ctx.exception))
+        self.assertIsInstance(ctx.exception.__cause__, BadRequestError)
