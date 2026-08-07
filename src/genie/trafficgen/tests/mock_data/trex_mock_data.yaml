@@ -15,24 +15,24 @@ start_trex:
         Starting Scapy server...... Scapy server is started
         Starting IOL daemon server..... IOL daemon server is started
         The ports are bound/configured.
-        Starting  TRex v2.99 please wait  ... 
+        Starting  TRex v2.99 please wait  ...
         set driver name net_vmxnet3
-        driver capability  : TSO  LRO 
-         set dpdk queues mode to ONE_QUE 
+        driver capability  : TSO  LRO
+         set dpdk queues mode to ONE_QUE
          Number of ports found: 2
         zmq publisher at: tcp://*:4500
          wait 1 sec .
-        port : 0 
+        port : 0
         ------------
         link         :  link : Link Up - speed 10000 Mbps - full-duplex
-        promiscuous  : 0 
-        port : 1 
+        promiscuous  : 0
+        port : 1
         ------------
         link         :  link : Link Up - speed 10000 Mbps - full-duplex
-        promiscuous  : 0 
-         number of ports         : 2 
-         max cores for 2 ports   : 1 
-         tx queues per port      : 3 
+        promiscuous  : 0
+         number of ports         : 2
+         max cores for 2 ports   : 1
+         tx queues per port      : 3
          -------------------------------
          -------------------------------
         RX core uses TX queue number 65535 on all ports
@@ -57,7 +57,7 @@ start_trex:
                ierrors |               0 |               0
                oerrors |               0 |               0
                  Tx Bw |       0.00  bps |       0.00  bps
-  
+
         -Global stats enabled
                 Cpu Utilization : 0.0  %
                 Platform_factor : 1.0
@@ -65,12 +65,12 @@ start_trex:
                 Total-Rx        :       0.00  bps
                 Total-PPS       :       0.00  pps
                 Total-CPS       :       0.00  cps
-        
+
                 Expected-PPS    :       0.00  pps
                 Expected-CPS    :       0.00  cps
                 Expected-BPS    :       0.00  bps
-        
-        
+
+
         - Per port stats table
                     ports |               0 |               1
         -----------------------------------------------------------------------------------------
@@ -85,7 +85,7 @@ start_trex:
                   ierrors |               0 |               0
                   oerrors |               0 |               0
                     Tx Bw |       0.00  bps |       0.00  bps
-  
+
         - Global stats enabled
           Cpu Utilization : 0.0  %
           Platform_factor : 1.0
@@ -93,11 +93,11 @@ start_trex:
           Total-Rx        :       0.00  bps
           Total-PPS       :       0.00  pps
           Total-CPS       :       0.00  cps
-    
+
           Expected-PPS    :       0.00  pps
           Expected-CPS    :       0.00  cps
           Expected-BPS    :       0.00  bps
-    
+
           Active-flows    :        0  Clients :        0   Socket-util : 0.0000 %
           Open-flows      :        0  Servers :        0   Socket :        0 Socket/Clients :  -nan
           drop-rate       :       0.00  bps
@@ -124,6 +124,40 @@ start_test_on:
         root     23881  0.0  0.0  56448  3820 pts/2    Ss+  18:17   0:00 sudo -n ./t-rex-64 -i
         root     23883  0.0  0.0   9928  2944 pts/2    S+   18:17   0:00 /bin/bash ./t-rex-64 -i
         root     23962  2.3  0.1 17418044 20572 pts/2  Sl+  18:17   1:07 ./_t-rex-64 -i
+      new_state: stop_existing_trex_positive
+
+stop_existing_trex_positive:
+  prompt: trex@trex4:~$
+  commands:
+    "sudo -n pkill -f t-rex-64 || true":
+      response: ""
+      new_state: verify_stopped_positive
+
+verify_stopped_positive:
+  prompt: trex@trex4:~$
+  commands:
+    "ps -aux | grep t-rex-64 | grep -v grep":
+      response: ""
+      new_state: start_trex_positive
+
+start_trex_positive:
+  prompt: trex@trex4:/opt/trex:~$
+  commands:
+    "cd /opt/trex; screen sudo -n ./t-rex-64 -i":
+      response: |
+        Starting Scapy server...... Scapy server is started
+        The ports are bound/configured.
+        Starting  TRex v2.99 please wait  ...
+        test duration   : 0.0 sec
+      new_state:
+        exit_screen_positive
+
+exit_screen_positive:
+  preface: ""
+  prompt: ""
+  commands:
+    "__exit_screen_in_unittest__":
+      response: "[detached from 1204.pts-0.trex4]"
       new_state: connected_via_ssh
 
 connected_via_ssh:
@@ -132,3 +166,71 @@ connected_via_ssh:
     "netstat -an | grep 4501 | grep -v grep":
       response:
         - tcp        0      0 0.0.0.0:4501            0.0.0.0:*               LISTEN
+
+restart_existing_trex:
+  preface: "Hello, this is the preface for restart_existing_trex"
+  prompt: trex@trex4:~$
+  commands:
+    # First ps call: existing process found
+    "ps -aux | grep t-rex-64 | grep -v grep":
+      response: |
+        root     23962  2.3  0.1 17418044 20572 pts/2  Sl+  18:17   1:07 ./_t-rex-64 -i
+      new_state: stop_existing_trex
+
+stop_existing_trex:
+  prompt: trex@trex4:~$
+  commands:
+    "sudo -n pkill -f t-rex-64 || true":
+      response: ""
+      new_state: verify_stopped
+
+verify_stopped:
+  prompt: trex@trex4:~$
+  commands:
+    # Second ps call: process is gone
+    "ps -aux | grep t-rex-64 | grep -v grep":
+      response: ""
+      new_state: start_trex_after_stop
+
+start_trex_after_stop:
+  prompt: trex@trex4:/opt/trex:~$
+  commands:
+    "cd /opt/trex; screen sudo -n ./t-rex-64 -i --cfg /etc/evpn_vxlan_1711.yaml":
+      response: |
+        Starting Scapy server...... Scapy server is started
+        The ports are bound/configured.
+        Starting  TRex v2.99 please wait  ...
+        test duration   : 0.0 sec
+      new_state:
+        exit_screen_after_restart
+
+exit_screen_after_restart:
+  preface: ""
+  prompt: ""
+  commands:
+    "__exit_screen_in_unittest__":
+      response: "[detached from 1205.pts-0.trex4]"
+      new_state: connected_after_restart
+
+connected_after_restart:
+  prompt: trex@trex4:/opt/trex:~$
+  commands:
+    "netstat -an | grep 4501 | grep -v grep":
+      response:
+        - tcp        0      0 0.0.0.0:4501            0.0.0.0:*               LISTEN
+
+stop_trex_persists:
+  preface: "Hello, this is the preface for stop_trex_persists"
+  prompt: trex@trex4:~$
+  commands:
+    "sudo -n pkill -f t-rex-64 || true":
+      response: ""
+      new_state: still_running_after_kill
+
+still_running_after_kill:
+  prompt: trex@trex4:~$
+  commands:
+    "ps -aux | grep t-rex-64 | grep -v grep":
+      response: |
+        root     23962  2.3  0.1 17418044 20572 pts/2  Sl+  18:17   1:07 ./_t-rex-64 -i
+      new_state: still_running_after_kill

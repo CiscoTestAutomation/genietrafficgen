@@ -1,6 +1,6 @@
 import os
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from prettytable import PrettyTable
 from pyats.topology import loader
@@ -12,11 +12,12 @@ class TestTrex(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        tb_file = os.path.join(os.path.dirname(__file__), 'testbed.yaml')
-        tb = loader.load(tb_file)
-        dev = tb.devices.trex1
-        dev.instantiate()
-        cls.dev = dev
+        with patch('genie.trafficgen.trex.implementation.TRexHLTAPI', Mock(), create=True):
+            tb_file = os.path.join(os.path.dirname(__file__), 'testbed.yaml')
+            tb = loader.load(tb_file)
+            dev = tb.devices.trex1
+            dev.instantiate()
+            cls.dev = dev
 
     def test_configure_dhcpv6_request(self):
         # Arrange
@@ -178,7 +179,7 @@ class TestTrex(unittest.TestCase):
         result = dev._traffic_profile_configured
         #Assert
         self.assertEqual(expected, result)
-        
+
     def test_dhcpv4_emulator_client_vlan_client(self):
         # Arrange
         dev = self.dev
@@ -190,8 +191,8 @@ class TestTrex(unittest.TestCase):
         result = dev._traffic_profile_configured
         #Assert
         self.assertEqual(expected, result)
-        
-        
+
+
 
     def test_dhcpv6_emulator_client(self):
         # Arrange
@@ -356,7 +357,7 @@ class TestTrex(unittest.TestCase):
         dev.reset_dhcp_session_config(interface=1)
         result = dev._traffic_profile_configured
         #Assert
-        self.assertEqual(expected, result) 
+        self.assertEqual(expected, result)
 
     def test_abort_dhcp_devx_session(self):
         # Arrange
@@ -368,7 +369,7 @@ class TestTrex(unittest.TestCase):
         dev.abort_dhcp_devx_session(interface=1)
         result = dev._traffic_profile_configured
         #Assert
-        self.assertEqual(expected, result)  
+        self.assertEqual(expected, result)
 
     def test_generate_dhcp_session_handle(self):
         # Arrange
@@ -380,8 +381,8 @@ class TestTrex(unittest.TestCase):
         dev.generate_dhcp_session_handle(interface=1)
         result = dev.generate_dhcp_session_handle(interface=1)
         #Assert
-        self.assertEqual(expected, result)     
-    
+        self.assertEqual(expected, result)
+
 
     def test_add_dhcp_emulator_bvm_client(self):
         # Arrange
@@ -393,7 +394,7 @@ class TestTrex(unittest.TestCase):
         result = dev.add_dhcp_emulator_bvm_client (session_handle='handle')
         #Assert
         self.assertEqual(expected, result)
-    
+
     def test_bind_dhcp_clients(self):
         # Arrange
         dev = self.dev
@@ -404,8 +405,8 @@ class TestTrex(unittest.TestCase):
         dev.bind_dhcp_clients(interface=1)
         result = dev._traffic_profile_configured
         #Assert
-        self.assertEqual(expected, result)        
- 
+        self.assertEqual(expected, result)
+
 
     def test_verify_num_dhcp_clients_binding(self):
         # Arrange
@@ -448,19 +449,19 @@ class TestTrex(unittest.TestCase):
                             }
                     }
             })
-        
+
         expected = True
         #Act
         result=dev.verify_num_dhcp_clients_binding(interface=1,handle='handle')
         #Assert
         self.assertEqual(expected, result)
-    
+
     def test_get_dhcp_client_ip_mac_details(self):
         # Arrange
         dev = self.dev
         dev.default._trex = Mock()
         dev._trex.emulation_dhcp_stats = Mock(return_value=
-            {'session': 
+            {'session':
                {0:
                     {'acks_received': 0,
                      'dhcp_group': '9fdbf943-17fc-4deb-9cbd-b8a051ed04f9',
@@ -477,7 +478,7 @@ class TestTrex(unittest.TestCase):
                      'currently_idle': 0,
                      'currently_bound': 1,
                      'vlan_id': None},
-                1:  
+                1:
                    {'acks_received': 0,
                     'dhcp_group': '9fdbf943-17fc-4deb-9cbd-b8a051ed04f9',
                     'discovers_sent': 0,
@@ -494,7 +495,7 @@ class TestTrex(unittest.TestCase):
                     'currently_bound': 1,
                     'vlan_id': None}
                },
-             'group': 
+             'group':
                 {'9fdbf943-17fc-4deb-9cbd-b8a051ed04f9':
                    {'currently_attempting': 0,
                     'currently_idle': 0,
@@ -530,8 +531,9 @@ class TestTrex(unittest.TestCase):
         self.assertEqual(expected, result)
 
     def test_connect_and_boot_trex_negative(self):
+        mock_data_dir = os.path.join(os.path.dirname(__file__), 'mock_data')
         trex_ssh_connection = MockDeviceSSHWrapper(hostname='trex4', device_os='trex', port=0,
-                                                   mock_data_dir='mock_data', state='start_test_off',
+                                                   mock_data_dir=mock_data_dir, state='start_test_off',
                                                    credentials={'trex': 'trex'})
         trex_ssh_connection.start()
         testbed = \
@@ -566,7 +568,8 @@ class TestTrex(unittest.TestCase):
         """.format(trex_ssh_connection.ports[0])
         tb = loader.load(testbed)
         try:
-            tb.devices.trex4.instantiate(via='hltapi')
+            with patch('genie.trafficgen.trex.implementation.TRexHLTAPI', Mock(), create=True):
+                tb.devices.trex4.instantiate(via='hltapi')
             # Overloads disconnect key sequence because control keys do not work when passed through SSH Wrapper
             tb.devices.trex4.default.screen_exit_keys = 'sendline(__exit_screen_in_unittest__)'
             tb.devices.trex4.default._trex=Mock()
@@ -576,8 +579,9 @@ class TestTrex(unittest.TestCase):
         trex_ssh_connection.stop()
 
     def test_connect_and_boot_trex_positive(self):
+        mock_data_dir = os.path.join(os.path.dirname(__file__), 'mock_data')
         trex_ssh_connection = MockDeviceSSHWrapper(hostname='trex4', device_os='trex', port=0,
-                                                   mock_data_dir='mock_data', state='start_test_on',
+                                                   mock_data_dir=mock_data_dir, state='start_test_on',
                                                    credentials={'trex': 'trex'})
         trex_ssh_connection.start()
         testbed = \
@@ -612,7 +616,9 @@ class TestTrex(unittest.TestCase):
         """.format(trex_ssh_connection.ports[0])
         tb = loader.load(testbed)
         try:
-            tb.devices.trex4.instantiate(via='hltapi')
+            with patch('genie.trafficgen.trex.implementation.TRexHLTAPI', Mock(), create=True):
+                tb.devices.trex4.instantiate(via='hltapi')
+            tb.devices.trex4.default.screen_exit_keys = 'sendline(__exit_screen_in_unittest__)'
             tb.devices.trex4.default._trex=Mock()
             tb.devices.trex4.connect()
         finally:
@@ -655,3 +661,111 @@ class TestTrex(unittest.TestCase):
         dev.start_single_traffic_stream(port=0, stream_name='stream_1', wait_time=0)
         # Assert
         dev._trex.traffic_control.assert_called_once_with(action='run', port_handle=0, stream_name='stream_1')
+
+    def test_restart_existing_trex_process(self):
+        mock_data_dir = os.path.join(os.path.dirname(__file__), 'mock_data')
+        trex_ssh_connection = MockDeviceSSHWrapper(
+            hostname='trex4',
+            device_os='trex',
+            port=0,
+            mock_data_dir=mock_data_dir,
+            state='restart_existing_trex',
+            credentials={'trex': 'trex'},
+        )
+        trex_ssh_connection.start()
+        testbed = \
+        """
+        devices:
+            trex4:
+                os: trex
+                credentials:
+                    ssh:
+                        username: trex
+                        password: trex
+                connections:
+                    defaults:
+                        class: genie.trafficgen.trex.Trex
+
+                    hltapi:
+                        device_ip: localhost
+                        port: {}
+                        username: trex
+                        reset: true
+                        break_locks: true
+                        raise_errors: true
+                        verbose: critical
+                        timeout: 15
+                        port_list: [0, 1]
+                        ip_src_addr: 1.1.1.1
+                        ip_dst_addr: 2.2.2.2
+                        intf_ip_list: [None]
+                        gw_ip_list: [None]
+                        trex_path: /opt/trex
+                        cfg_file: /etc/evpn_vxlan_1711.yaml
+                        autostart: True
+        """.format(trex_ssh_connection.ports[0])
+        tb = loader.load(testbed)
+        try:
+            with patch('genie.trafficgen.trex.implementation.TRexHLTAPI', Mock(), create=True):
+                tb.devices.trex4.instantiate(via='hltapi')
+            tb.devices.trex4.default.screen_exit_keys = 'sendline(__exit_screen_in_unittest__)'
+            tb.devices.trex4.default._trex = Mock()
+            tb.devices.trex4.connect()
+        finally:
+            tb.devices.trex4.disconnect()
+            del tb
+        trex_ssh_connection.stop()
+
+    def test_stop_trex_process_fails_if_process_persists(self):
+        from genie.harness.exceptions import GenieTgnError
+        mock_data_dir = os.path.join(os.path.dirname(__file__), 'mock_data')
+        trex_ssh_connection = MockDeviceSSHWrapper(
+            hostname='trex4',
+            device_os='trex',
+            port=0,
+            mock_data_dir=mock_data_dir,
+            state='stop_trex_persists',
+            credentials={'trex': 'trex'},
+        )
+        trex_ssh_connection.start()
+        testbed = \
+        """
+        devices:
+            trex4:
+                os: trex
+                credentials:
+                    ssh:
+                        username: trex
+                        password: trex
+                connections:
+                    defaults:
+                        class: genie.trafficgen.trex.Trex
+
+                    hltapi:
+                        device_ip: localhost
+                        port: {}
+                        username: trex
+                        reset: true
+                        break_locks: true
+                        raise_errors: true
+                        verbose: critical
+                        timeout: 15
+                        port_list: [0, 1]
+                        ip_src_addr: 1.1.1.1
+                        ip_dst_addr: 2.2.2.2
+                        intf_ip_list: [None]
+                        gw_ip_list: [None]
+                        trex_path: /opt/trex
+                        autostart: True
+        """.format(trex_ssh_connection.ports[0])
+        tb = loader.load(testbed)
+        try:
+            with patch('genie.trafficgen.trex.implementation.TRexHLTAPI', Mock(), create=True):
+                tb.devices.trex4.instantiate(via='hltapi')
+            tb.devices.trex4.default._trex = Mock()
+            with self.assertRaises(GenieTgnError):
+                tb.devices.trex4.default._conn.connect()
+                tb.devices.trex4.default.stop_trex_process()
+        finally:
+            del tb
+        trex_ssh_connection.stop()

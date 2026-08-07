@@ -149,23 +149,45 @@ class Trex(TrafficGen):
         # unicon connection detailed in __init__
         self._conn.connect()
 
+    def stop_trex_process(self):
+        ''' Stop any running t-rex-64 processes and verify they are gone. '''
+        log.info('Stopping existing TRex process...')
+        self._conn.execute('sudo -n pkill -f t-rex-64 || true')
+
+        timeout = Timeout(max_time=30, interval=5, disable_log=False)
+        while timeout.iterate():
+            ps_output = self._conn.execute('ps -aux | grep t-rex-64 | grep -v grep')
+            if 't-rex-64' not in ps_output:
+                log.info('Existing TRex process stopped successfully.')
+                return
+            timeout.sleep()
+
+        raise GenieTgnError(
+            'Existing TRex process could not be stopped. '
+            'Aborting to avoid starting a duplicate TRex instance.'
+        )
+
     def check_trex_running(self):
         '''
-        Checks if t-rex-64 is found in the running processes, else starts the process
+        Checks if t-rex-64 is found in the running processes, else starts the process.
+        If already running, stops it first and starts a fresh one with the configured cfg_file.
         '''
         ps_output = self._conn.execute('ps -aux | grep t-rex-64 | grep -v grep')
         if 't-rex-64' in ps_output:
-            log.info(f'TRex is running!')
+            log.info('Checkpoint: an existing TRex process is already running.')
+            self.stop_trex_process()
+            log.info('Starting a new TRex process with the configured cfg_file...')
+            self.start_trex_process()
         else:
             log.info('TRex process is not running.\n'
                      'Attempting to boot TRex process...')
             self.start_trex_process()
 
-        # check if port is listening/TRex is started
         timeout = Timeout(max_time=31, interval=6, disable_log=False)
         while timeout.iterate():
             netstat_output = self._conn.execute('netstat -an | grep 4501 | grep -v grep')
             if netstat_output:
+                log.info('New TRex process started successfully and is listening on port 4501.')
                 return True
             timeout.sleep()
 
