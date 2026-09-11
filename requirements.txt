@@ -6,3 +6,4 @@ ixnetwork_restpy
 setuptools
 wheel
 stcrestclient
+openpyxl

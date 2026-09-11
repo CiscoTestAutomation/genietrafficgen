@@ -10,6 +10,7 @@ import os
 import time
 import logging
 import json
+import unicodedata
 import requests
 from prettytable import PrettyTable
 
@@ -51,6 +52,48 @@ def cast_number(value):
 def split_string(s):
     pattern = r'\{([^}]*)\}|\S+'
     return [m.group(1) if m.group(1) else m.group(0) for m in re.finditer(pattern, s)]
+
+
+def _sanitize_local_filename(filename, default='stc_results.db'):
+    '''Return a cross-platform safe local filename.'''
+
+    if filename is None:
+        filename = default
+
+    filename = str(filename).strip()
+    if not filename:
+        filename = default
+
+    directory, basename = os.path.split(filename)
+    basename = unicodedata.normalize('NFC', basename)
+
+    # Replace illegal/control characters for Windows and general filesystems.
+    basename = re.sub(r'[<>:"/\\|?*\x00-\x1f\x7f]+', '_', basename)
+    basename = basename.rstrip(' .')
+
+    if not basename:
+        basename = os.path.basename(default)
+
+    reserved = {
+        'CON', 'PRN', 'AUX', 'NUL',
+        'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9',
+        'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9',
+    }
+    stem, ext = os.path.splitext(basename)
+    if stem.upper() in reserved:
+        stem = '_{}'.format(stem)
+    basename = '{}{}'.format(stem, ext)
+
+    max_len = 255
+    if len(basename) > max_len:
+        stem, ext = os.path.splitext(basename)
+        keep = max_len - len(ext)
+        if keep <= 0:
+            basename = basename[:max_len]
+        else:
+            basename = '{}{}'.format(stem[:keep], ext)
+
+    return os.path.join(directory, basename) if directory else basename
 
 class Spirent(TrafficGen):
 
@@ -200,8 +243,13 @@ class Spirent(TrafficGen):
         # Execute load config on Spirent
         try:
             self.stc.upload(configuration)
+            basename = os.path.basename(configuration)
             # Load the config.
-            self.stc.perform('LoadFromXml', filename=os.path.basename(configuration))
+            if basename.lower().endswith('.tcc'):
+                self.stc.perform('LoadFromDatabase', DatabaseConnectionString=basename)
+                log.info("Loaded configuration tcc file.")
+            else:
+                self.stc.perform('LoadFromXml', filename=basename)
 
         except Exception as e:
             log.error(e)
@@ -368,6 +416,9 @@ class Spirent(TrafficGen):
         '''Start traffic on Spirent'''
         log.info(banner("Starting L2/L3 traffic"))
 
+        # ARP/ND resolution before starting traffic
+        self.send_arp()
+
         # Start traffic on Spirent
         try:
             self.stc.perform('GeneratorStartCommand')
@@ -376,7 +427,7 @@ class Spirent(TrafficGen):
             raise GenieTgnError("Unable to start traffic on device '{}'".\
                                 format(self.device.name)) from e
         else:
-            log.info("Startted L2/L3 traffic on device '{}'".format(self.device.name))
+            log.info("Started L2/L3 traffic on device '{}'".format(self.device.name))
 
         # Wait after starting L2/L3 traffic for streams to converge to steady state
         log.info("Waiting for '{}' seconds after starting L2/L3 traffic "
@@ -420,6 +471,201 @@ class Spirent(TrafficGen):
                                 format(self.device.name)) from e
         else:
             log.info("Successfully cleared traffic statistics on device '{}'".format(self.device.name))
+
+        # Wait after clearing statistics
+        if wait_time > 0:
+            log.info("Waiting for '{}' seconds after clearing traffic statistics...".format(wait_time))
+            time.sleep(wait_time)
+
+    @BaseConnection.locked
+    @isconnected
+    def save_results_as_db(self, clear_statistics=True):
+        '''Save results internally on Spirent API server without downloading,
+        and optionally clear statistics.
+
+        Args:
+            clear_statistics (bool): If True, execute clear_statistics() after saving. default: True
+        '''
+        log.info(banner("Saving results internally on Spirent API server"))
+
+        try:
+            remote_db = "stc_results_verify.db"
+
+            self.stc.perform(
+                'SaveResultCommand',
+                DatabaseConnectionString=remote_db,
+                SaveDetailedResults=True,
+                OverwriteIfExist=True)
+            log.info("Saved results on device '{}' as database file '{}' on Spirent API server".format(self.device.name, remote_db))
+
+            if clear_statistics:
+                log.info("Clearing statistics on device '{}' (Incrementing DataSetID)".format(self.device.name))
+                self.clear_statistics()
+
+            return True
+
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Failed to save results internally on device '{}'".\
+                                format(self.device.name)) from e
+
+    @BaseConnection.locked
+    @isconnected
+    def export_results_as_db(self, db_filename='stc_results.db', xlsx_filename='advanced_sequencing_all.xlsx'):
+        '''Export results on Spirent as database file and/or xlsx.
+
+        Args:
+            db_filename: Output path for .db file. default: 'stc_results.db'
+            xlsx_filename: If specified, also output an Excel file (.xlsx).
+                default: 'advanced_sequencing_all.xlsx'.
+                Filtering - Rx/TxEotStreamResults + StreamBlock, all DataSets.
+        '''
+        log.info(banner("Exporting results on Spirent as database file"))
+        safe_db_filename = _sanitize_local_filename(db_filename)
+        if safe_db_filename != db_filename:
+            log.info("Sanitized db filename from '%s' to '%s'",
+                     db_filename, safe_db_filename)
+        safe_xlsx_filename = None
+        if xlsx_filename:
+            safe_xlsx_filename = _sanitize_local_filename(xlsx_filename, default='advanced_sequencing_all.xlsx')
+            if safe_xlsx_filename != xlsx_filename:
+                log.info("Sanitized xlsx filename from '%s' to '%s'",
+                         xlsx_filename, safe_xlsx_filename)
+
+        try:
+            remote_db = "stc_results_verify.db"
+            self.stc.perform(
+                'SaveResultCommand',
+                DatabaseConnectionString=remote_db,
+                SaveDetailedResults=True,
+                OverwriteIfExist=True)
+            log.info("Exported results on device '{}' as database file '{}' on Spirent API server".format(self.device.name, remote_db))
+
+            # The save location on the Lab Server varies by STC version.
+            # Try candidate download paths in order until one succeeds.
+            download_paths = [remote_db, "Untitled/" + remote_db]
+            for dl_path in download_paths:
+                try:
+                    self.stc.download(dl_path, save_as=safe_db_filename)
+                    log.info("Downloaded DB to '{}' (remote path: '{}')".format(safe_db_filename, dl_path))
+                    break
+                except Exception:
+                    log.warning("Download from '{}' failed, trying next path...".format(dl_path))
+            else:
+                raise GenieTgnError("Failed to download '{}' from device '{}': all paths exhausted ({})".format(
+                    remote_db, self.device.name, download_paths))
+
+            # postprocess using a temporary copy to keep the raw DB intact
+            self._postprocess_results(safe_db_filename, safe_xlsx_filename)
+
+            return True
+        except Exception as e:
+            log.error(e)
+            raise GenieTgnError("Failed to export results on device '{}' as database file".\
+                                format(self.device.name)) from e
+
+    def _postprocess_results(self, db_path, xlsx_filename):
+        '''Filter a temporary copy of the DB and optionally produce xlsx output.
+
+        The original db_path is left untouched; all table-filtering and Excel
+        generation are performed on a temporary copy that is removed afterwards.
+        '''
+        import sqlite3
+        import tempfile
+        from contextlib import closing
+
+        with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as tmp:
+            tmp_path = tmp.name
+        try:
+            with closing(sqlite3.connect(db_path)) as src, \
+                 closing(sqlite3.connect(tmp_path)) as conn:
+                src.backup(conn)
+            with closing(sqlite3.connect(tmp_path)) as conn:
+                self._extract_advanced_sequencing(conn)
+
+                if xlsx_filename:
+                    self._db_to_xlsx(conn, xlsx_filename)
+        finally:
+            os.unlink(tmp_path)
+
+    def _extract_advanced_sequencing(self, conn):
+        '''Keep only Advanced Sequencing relevant tables (all DataSets).'''
+        keep_tables = {
+            'RxEotStreamResults', 'TxEotStreamResults',
+            'StreamBlock', 'DataSet', 'Port'
+        }
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        all_tables = [row[0] for row in cursor.fetchall()]
+
+        for table_name in all_tables:
+            if table_name not in keep_tables:
+                cursor.execute("DROP TABLE IF EXISTS '{}'".format(table_name))
+
+        conn.commit()
+        conn.execute("VACUUM")
+
+    def _db_to_xlsx(self, conn, xlsx_path):
+        '''Export Advanced Sequencing sheet to Excel.'''
+        try:
+            import openpyxl
+        except ImportError:
+            raise GenieTgnError("openpyxl is required for .xlsx export. Install with: pip install openpyxl")
+
+        wb = openpyxl.Workbook()
+        self._add_merged_stream_sheet(conn, wb, wb.active)
+
+        wb.save(xlsx_path)
+        log.info("Excel output written to '{}'".format(xlsx_path))
+
+    def _add_merged_stream_sheet(self, conn, wb, ws=None):
+        '''Add a sheet matching STC GUI "Advanced Sequencing" (Stream Results By Expected Rx Ports).'''
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute("""
+                SELECT
+                    rx.DataSetId as "DataSetId",
+                    tx.PortName as "Tx Port",
+                    rx.PortName as "Rx Port",
+                    sb.Name as "Stream Block",
+                    tx.StreamId as "Stream Id",
+                    rx.StreamIndex as "Stream Index",
+                    tx.FrameCount as "Tx Count (Frames)",
+                    rx.FrameCount as "Rx Count (Frames)",
+                    (tx.FrameCount - rx.FrameCount) as "Tx-Rx (Frames)",
+                    CASE WHEN tx.FrameCount > 0
+                        THEN ROUND((tx.FrameCount - rx.FrameCount) * 100.0 / tx.FrameCount, 5)
+                        ELSE 0 END as "Tx-Rx (%)",
+                    rx.DroppedFrameCount as "Dropped Frame Count",
+                    CASE WHEN tx.FrameCount > 0
+                        THEN ROUND(rx.DroppedFrameCount * 100.0 / tx.FrameCount, 5)
+                        ELSE 0 END as "Dropped Frame (%)",
+                    rx.InOrderFrameCount as "In-order Count (Frames)",
+                    rx.ReorderedFrameCount as "Reordered Count (Frames)",
+                    rx.DuplicateFrameCount as "Duplicate Count (Frames)",
+                    rx.LateFrameCount as "Late Count (Frames)"
+                FROM RxEotStreamResults rx
+                JOIN TxEotStreamResults tx
+                    ON rx.DataSetId = tx.DataSetId AND rx.StreamIndex = tx.StreamIndex
+                JOIN StreamBlock sb
+                    ON tx.ParentStreamBlock = sb.Handle AND sb.DataSetId = tx.DataSetId
+                ORDER BY rx.DataSetId, rx.StreamIndex
+            """)
+            rows = cursor.fetchall()
+            col_names = [desc[0] for desc in cursor.description]
+        except Exception as e:
+            log.warning("Could not create Advanced Sequencing sheet: {}".format(e))
+            raise
+
+        if ws is None:
+            ws = wb.create_sheet(title="Advanced Sequencing")
+        else:
+            ws.title = "Advanced Sequencing"
+
+        ws.append(col_names)
+        for row in rows:
+            ws.append(list(row))
 
     @BaseConnection.locked
     @isconnected
