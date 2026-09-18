@@ -8,6 +8,7 @@ https://pypi.org/project/stcrestclient/
 import re
 import os
 import time
+import uuid
 import logging
 import json
 import unicodedata
@@ -477,6 +478,54 @@ class Spirent(TrafficGen):
             log.info("Waiting for '{}' seconds after clearing traffic statistics...".format(wait_time))
             time.sleep(wait_time)
 
+    def _save_result_db_on_server(self):
+        '''Run SaveResultCommand and return the remote path to download from.
+
+        SaveResultCommand writes the result DB into the session's working
+        directory, but the exact location varies by Lab Server version:
+          - Newer Lab Servers save it at the session root  -> 'X.db'
+          - Older Lab Servers (e.g. v4.71) save it under a project subdirectory
+            -> 'Untitled/X.db' or 'SAL_ID-..-<project>/X.db'
+
+        Rather than guess the directory or branch on version, query the files
+        API for the actual path that ends with the file name and download that.
+        The files API serves subdirectory paths fine as long as the request
+        carries the 'application/octet-stream' Accept header, which
+        stc.download() sets.
+
+        A fresh UUID-based file name is used for every call so the saved file
+        cannot collide with one from another session or a previous run; the
+        files() lookup is therefore guaranteed to match exactly one entry even
+        if save/download takes a while.
+
+        Returns the remote path (as reported by the files API) to pass to
+        stc.download().
+        '''
+        db_name = "stc_results_{}.db".format(uuid.uuid4().hex)
+
+        self.stc.perform(
+            'SaveResultCommand',
+            DatabaseConnectionString=db_name,
+            SaveDetailedResults=True,
+            OverwriteIfExist=True)
+
+        try:
+            files = self.stc.files()
+        except Exception:
+            files = []
+
+        # Find the actual saved path (root or any subdirectory) ending in db_name.
+        matches = [f for f in files if f == db_name or f.endswith('/' + db_name)]
+        if not matches:
+            raise GenieTgnError(
+                "SaveResultCommand did not produce '{}' on device '{}' "
+                "(files seen: {})".format(db_name, self.device.name, files))
+
+        # Unique name guarantees a single match; prefer root-level if present.
+        remote_path = db_name if db_name in matches else matches[0]
+        log.info("Result DB saved on server as '{}'".format(remote_path))
+        return remote_path
+
     @BaseConnection.locked
     @isconnected
     def save_results_as_db(self, clear_statistics=True):
@@ -489,13 +538,7 @@ class Spirent(TrafficGen):
         log.info(banner("Saving results internally on Spirent API server"))
 
         try:
-            remote_db = "stc_results_verify.db"
-
-            self.stc.perform(
-                'SaveResultCommand',
-                DatabaseConnectionString=remote_db,
-                SaveDetailedResults=True,
-                OverwriteIfExist=True)
+            remote_db = self._save_result_db_on_server()
             log.info("Saved results on device '{}' as database file '{}' on Spirent API server".format(self.device.name, remote_db))
 
             if clear_statistics:
@@ -533,27 +576,11 @@ class Spirent(TrafficGen):
                          xlsx_filename, safe_xlsx_filename)
 
         try:
-            remote_db = "stc_results_verify.db"
-            self.stc.perform(
-                'SaveResultCommand',
-                DatabaseConnectionString=remote_db,
-                SaveDetailedResults=True,
-                OverwriteIfExist=True)
+            remote_db = self._save_result_db_on_server()
             log.info("Exported results on device '{}' as database file '{}' on Spirent API server".format(self.device.name, remote_db))
 
-            # The save location on the Lab Server varies by STC version.
-            # Try candidate download paths in order until one succeeds.
-            download_paths = [remote_db, "Untitled/" + remote_db]
-            for dl_path in download_paths:
-                try:
-                    self.stc.download(dl_path, save_as=safe_db_filename)
-                    log.info("Downloaded DB to '{}' (remote path: '{}')".format(safe_db_filename, dl_path))
-                    break
-                except Exception:
-                    log.warning("Download from '{}' failed, trying next path...".format(dl_path))
-            else:
-                raise GenieTgnError("Failed to download '{}' from device '{}': all paths exhausted ({})".format(
-                    remote_db, self.device.name, download_paths))
+            self.stc.download(remote_db, save_as=safe_db_filename)
+            log.info("Downloaded DB to '{}' (remote path: '{}')".format(safe_db_filename, remote_db))
 
             # postprocess using a temporary copy to keep the raw DB intact
             self._postprocess_results(safe_db_filename, safe_xlsx_filename)
