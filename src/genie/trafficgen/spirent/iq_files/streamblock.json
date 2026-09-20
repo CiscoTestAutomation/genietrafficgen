@@ -1,88 +1,84 @@
 {
-    "multi_result": {
+  "multi_result": {
     "filters": [],
     "groups": [],
     "orders": [
-    "view.stream_block_name_str_order ASC",
-    "view.stream_block_name_num_order ASC"
+      "view.tx_stream_stream_id ASC",
+      "view.rx_stream_key ASC"
     ],
     "projections": [
-    "view.stream_block_name as stream_block_name",
-    "view.tx_port_name as tx_port_name",
-    "view.rx_port_name as rx_port_name",
-    "view.tx_stream_stats_frame_count as tx_stream_stats_frame_count",
-    "view.rx_stream_stats_frame_count as rx_stream_stats_frame_count",
-    "view.tx_stream_stats_frame_rate as tx_stream_stats_frame_rate",
-    "view.rx_stream_stats_frame_rate as rx_stream_stats_frame_rate",
-    "view.stream_stats_frame_loss_percent as stream_stats_frame_loss_percent",
-    "view.test_name as test_name"
+      "view.tx_stream_stream_id as tx_stream_stream_id",
+      "view.stream_block_name as stream_block_name",
+      "view.tx_port_name as tx_port_name",
+      "view.rx_port_name as rx_port_name",
+      "view.tx_stream_stats_frame_count as tx_stream_stats_frame_count",
+      "view.rx_stream_stats_frame_count as rx_stream_stats_frame_count",
+      "view.tx_stream_stats_frame_rate as tx_stream_stats_frame_rate",
+      "view.rx_stream_stats_frame_rate as rx_stream_stats_frame_rate",
+      "view.rx_stream_stats_dropped_frame_percent as rx_stream_stats_dropped_frame_percent",
+      "view.rx_stream_stats_dropped_frame_count as rx_stream_stats_dropped_frame_count",
+      "view.rx_stream_key as rx_stream_key"
     ],
     "subqueries": [
-    {
+      {
         "alias": "view",
         "filters": [
-        "rxss.stream_block_name = txss.stream_block_name",
-        "rxss.tx_port_name = txss.tx_port_name",
-        "rxss.test_name = txss.test_name"
+          "rxss.tx_stream_stream_id=txss.tx_stream_stream_id"
         ],
         "groups": [],
         "projections": [
-        "rxss.stream_block_name as stream_block_name",
-        "rxss.tx_port_name as tx_port_name",
-        "rxss.rx_port_name as rx_port_name",
-        "txss.frame_count as tx_stream_stats_frame_count",
-        "rxss.frame_count as rx_stream_stats_frame_count",
-        "txss.frame_rate as tx_stream_stats_frame_rate",
-        "rxss.frame_rate as rx_stream_stats_frame_rate",
-        "((100.0 /greatest(1,txss.frame_count)) * (greatest(0, (txss.frame_count - rxss.frame_count - (greatest(txss.frame_rate, rxss.frame_rate) * ( 4 + greatest(0,(txss.counter_timestamp - rxss.counter_timestamp)/40000000))))))) as stream_stats_frame_loss_percent",
-        "rxss.test_name as test_name",
-        "rxss.stream_block_name_str_order as stream_block_name_str_order",
-        "rxss.stream_block_name_num_order as stream_block_name_num_order"
+          "rxss.tx_stream_stream_id as tx_stream_stream_id",
+          "rxss.stream_block_name as stream_block_name",
+          "rxss.tx_port_name as tx_port_name",
+          "rxss.rx_port_name as rx_port_name",
+          "txss.frame_count as tx_stream_stats_frame_count",
+          "rxss.frame_count as rx_stream_stats_frame_count",
+          "txss.frame_rate as tx_stream_stats_frame_rate",
+          "rxss.frame_rate as rx_stream_stats_frame_rate",
+          "rxss.dropped_frame_percent as rx_stream_stats_dropped_frame_percent",
+          "rxss.dropped_frame_count as rx_stream_stats_dropped_frame_count",
+          "rxss.rx_stream_key as rx_stream_key"
         ],
         "subqueries": [
-        {
+          {
             "alias": "rxss",
             "filters": [
-            "rx_stream.is_flooded = false",
-            "rx_stream_live_stats$last.is_deleted = false"
+              "rx_stream_live_stats$last.is_deleted = false"
             ],
-            "groups": [
-            "stream_block.name",
-            "tx_port.name",
-            "rx_port.name",
-            "test.name",
-            "stream_block.name_str_order",
-            "stream_block.name_num_order"
-            ],
+            "groups": [],
             "projections": [
-            "sum(rx_stream_live_stats$last.frame_count) as frame_count",
-            "stream_block.name as stream_block_name",
-            "tx_port.name as tx_port_name",
-            "rx_port.name as rx_port_name",
-            "sum(rx_stream_live_stats$last.frame_rate) as frame_rate",
-            "MAX(rx_stream_live_stats$last.counter_timestamp) as counter_timestamp",
-            "test.name as test_name",
-            "stream_block.name_str_order as stream_block_name_str_order",
-            "stream_block.name_num_order as stream_block_name_num_order"
+              "stream_block.name as stream_block_name",
+              "tx_stream.stream_id as tx_stream_stream_id",
+              "tx_port.name as tx_port_name",
+              "rx_port.name as rx_port_name",
+              "(rx_stream_live_stats$last.frame_count) as frame_count",
+              "(rx_stream_live_stats$last.out_seq_frame_count) as out_seq_frame_count",
+              "(rx_stream_live_stats$last.fcs_error_frame_count) as fcs_error_frame_count",
+              "(rx_stream_live_stats$last.ipv4_checksum_error_count) as ipv4_checksum_error_count",
+              "(rx_stream_live_stats$last.prbs_error_frame_count) as prbs_error_frame_count",
+              "(rx_stream_live_stats$last.tcp_udp_checksum_error_count) as tcp_udp_checksum_error_count",
+              "(rx_stream_live_stats$last.frame_rate) as frame_rate",
+              "((rx_stream_live_stats$last.dropped_frame_count*100.0)/(rx_stream_live_stats$last.sig_frame_count+rx_stream_live_stats$last.dropped_frame_count-rx_stream_live_stats$last.duplicate_frame_count)) as dropped_frame_percent",
+              "(rx_stream_live_stats$last.dropped_frame_count) as dropped_frame_count",
+              "rx_stream.key as rx_stream_key"
             ]
-        },
-        {
+          },
+          {
             "alias": "txss",
             "filters": [
-            "tx_stream_live_stats$last.is_deleted = false"
+              "tx_stream_live_stats$last.is_deleted = false"
             ],
-            "groups": [
-            "stream_block.name",
-            "tx_port.name",
-            "test.name"
-            ],
+            "groups": [],
             "projections": [
-            "sum(tx_stream_live_stats$last.frame_count) as frame_count",
-            "stream_block.name as stream_block_name",
-            "tx_port.name as tx_port_name",
-            "sum(tx_stream_live_stats$last.frame_rate) as frame_rate",
-            "MAX(tx_stream_live_stats$last.counter_timestamp) as counter_timestamp",
-            "test.name as test_name"
-            ]}]}]
-    }
+              "stream_block.name as stream_block_name",
+              "tx_stream.stream_id as tx_stream_stream_id",
+              "tx_port.name as tx_port_name",
+              "(tx_stream_live_stats$last.frame_count) as frame_count",
+              "(tx_stream_live_stats$last.frame_rate) as frame_rate"
+            ]
+          }
+        ]
+      }
+    ]
+  }
 }
