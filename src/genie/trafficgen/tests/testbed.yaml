@@ -179,4 +179,45 @@ devices:
             class: genie.trafficgen.TrafficGen
             command: mock_device_cli --os iosxe --state enable --mock_data_dir mock_data --hostname ioltraffic_gen
 
+    otg1:
+        type: tgn
+        os: otg
+        connections:
+            tgn:
+                class: genie.trafficgen.otg.Otg
+                transport: mock
+                location: mock
+
+    otg2:
+        type: tgn
+        os: otg
+        connections:
+            tgn:
+                class: genie.trafficgen.TrafficGen
+                transport: mock
+                location: mock
+
+    otg3:
+        type: tgn
+        os: otg
+        connections:
+            tgn:
+                class: genie.trafficgen.TrafficGen
+                transport: https
+                ip: 192.0.0.10
+                port: 8443
+
+topology:
+    otg2:
+        interfaces:
+            port1:
+                type: ethernet
+                ipv4: 10.1.1.2/24
+                ipv6: 2001:db8:1::2/64
+                link: otg_link1
+            port2:
+                type: ethernet
+                ipv4: 10.1.2.2/24
+                ipv6: 2001:db8:2::2/64
+                link: otg_link2
 

@@ -54,3 +54,14 @@ class TestAbstractionImports(unittest.TestCase):
         dev.instantiate()
         self.assertEqual(dev.default.__class__.__name__, 'Pagent')
         self.assertFalse(dev.default.connected)
+
+    def test_otg(self):
+        dev = self.testbed.devices.otg1
+        dev.instantiate()
+        self.assertEqual(dev.default.__class__.__name__, 'Otg')
+        self.assertFalse(dev.default.connected)
+
+        dev = self.testbed.devices.otg2
+        dev.instantiate()
+        self.assertEqual(dev.default.__class__.__name__, 'Otg')
+        self.assertFalse(dev.default.connected)

@@ -1,0 +1,76 @@
+testbed:
+    name: otg_testbed
+
+devices:
+    otg1:
+        type: tgn
+        os: otg
+        connections:
+            tgn:
+                class: genie.trafficgen.otg.Otg
+                transport: mock
+                location: mock
+
+    otg2:
+        type: tgn
+        os: otg
+        connections:
+            tgn:
+                class: genie.trafficgen.TrafficGen
+                transport: mock
+                location: mock
+
+    otg3:
+        type: tgn
+        os: otg
+        connections:
+            tgn:
+                class: genie.trafficgen.TrafficGen
+                transport: https
+                ip: 192.0.0.10
+                port: 8443
+
+    otg4:
+        type: tgn
+        os: otg
+        connections:
+            tgn:
+                class: genie.trafficgen.otg.Otg
+                transport: grpc
+                location: 192.0.0.10:40051
+
+    # Router between the two otg2 ports, so the emulated devices have a real
+    # next hop to resolve, as in a routed traffic generator topology.
+    uut:
+        type: router
+        os: iosxe
+        connections:
+            cli:
+                protocol: telnet
+                ip: 192.0.0.20
+
+topology:
+    otg2:
+        interfaces:
+            port1:
+                type: ethernet
+                ipv4: 10.1.1.2/24
+                ipv6: 2001:db8:1::2/64
+                link: otg_link1
+            port2:
+                type: ethernet
+                ipv4: 10.1.2.2/24
+                ipv6: 2001:db8:2::2/64
+                link: otg_link2
+    uut:
+        interfaces:
+            GigabitEthernet2:
+                type: ethernet
+                ipv4: 10.1.1.1/24
+                ipv6: 2001:db8:1::1/64
+                link: otg_link1
+            GigabitEthernet3:
+                type: ethernet
+                ipv4: 10.1.2.1/24
+                ipv6: 2001:db8:2::1/64
+                link: otg_link2

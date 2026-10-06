@@ -101,6 +101,7 @@ setup(
     # any additional groups of dependencies.
     # install using: $ pip install -e .[dev]
     extras_require={
+        'otg': ['snappi'],
         'dev': ['coverage',
                 'restview',
                 'Sphinx==7.4.7',
