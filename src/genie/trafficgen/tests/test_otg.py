@@ -1,17 +1,21 @@
 import os
 import json
 import logging
+import secrets
 import shutil
 import tempfile
 import time
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, call, patch
+
+import yaml
 
 from pyats.topology import loader
 
 from genie.harness.exceptions import GenieTgnError
-from genie.trafficgen.otg import implementation
+from genie.trafficgen.otg import implementation, mock
+from genie.trafficgen import ixnetwork
 
 TESTBED = os.path.join(os.path.dirname(__file__), 'testbed_otg.yaml')
 
@@ -103,8 +107,40 @@ class TestOtgAbstraction(unittest.TestCase):
             dev.instantiate(via='tgn', alias='tgn')
 
 
-class TestSnappiIsOptional(unittest.TestCase):
-    '''snappi must stay an opt-in dependency of the plugin.'''
+class TestPlatformSelection(unittest.TestCase):
+    '''This plugin serves the OTG controllers, and says so when it does not.'''
+
+    def _instantiate(self, platform=None):
+        testbed = loader.load(TESTBED)
+        dev = testbed.devices.otg1
+        if platform is not None:
+            dev.platform = platform
+        return dev.instantiate(via='tgn', alias='tgn')
+
+    def test_device_without_a_platform_is_served(self):
+        self.assertEqual(self._instantiate().platform, 'ixia')
+
+    def test_ixia_platform_is_served(self):
+        self.assertEqual(self._instantiate('ixia').platform, 'ixia')
+
+    def test_platform_is_matched_case_insensitively(self):
+        self.assertEqual(self._instantiate('IXIA').platform, 'ixia')
+
+    def test_device_type_is_not_read_as_a_platform(self):
+        testbed = loader.load(TESTBED)
+        self.assertEqual(testbed.devices.otg1.type, 'tgn')
+        self.assertEqual(self._instantiate().platform, 'ixia')
+
+    def test_unserved_platform_names_the_entry_point(self):
+        with self.assertRaises(GenieTgnError) as ctx:
+            self._instantiate('a-generator-of-our-own')
+        message = str(ctx.exception)
+        self.assertIn('a-generator-of-our-own', message)
+        self.assertIn(implementation.TRAFFICGEN_ENTRYPOINT, message)
+
+
+class TestSnappiLazyImport(unittest.TestCase):
+    '''The default dependency remains lazily imported by the OTG plugin.'''
 
     def test_import_does_not_pull_snappi(self):
         import subprocess
@@ -123,7 +159,16 @@ class TestSnappiIsOptional(unittest.TestCase):
         with patch.dict('sys.modules', {'snappi': None}):
             with self.assertRaises(GenieTgnError) as ctx:
                 implementation.import_snappi()
-        self.assertIn('genie.trafficgen[otg]', str(ctx.exception))
+        self.assertIn('pip install genie.trafficgen', str(ctx.exception))
+
+    def test_mock_transport_does_not_require_importable_snappi(self):
+        testbed = loader.load(TESTBED)
+        dev = testbed.devices.otg1
+        tgn = dev.instantiate(via='tgn', alias='tgn')
+        with patch.dict('sys.modules', {'snappi': None}):
+            self.assertTrue(tgn.connect())
+            self.assertTrue(tgn.connected)
+            self.assertTrue(tgn.disconnect())
 
     def test_non_mock_transport_requires_snappi(self):
         testbed = loader.load(TESTBED)
@@ -133,6 +178,419 @@ class TestSnappiIsOptional(unittest.TestCase):
             with self.assertRaises(GenieTgnError):
                 tgn.connect()
         self.assertFalse(tgn.connected)
+
+
+class TestSnappiExtension(unittest.TestCase):
+    '''Extensions named by 'ext' are installed on request, not by default.'''
+
+    def test_missing_extension_names_the_install_extra(self):
+        with patch.dict('sys.modules', {'snappi_ixnetwork': None}):
+            with self.assertRaises(GenieTgnError) as ctx:
+                implementation.import_snappi_extension('ixnetwork')
+        self.assertIn('pip install genie.trafficgen[ixnetwork]',
+                      str(ctx.exception))
+
+    def test_missing_third_party_extension_names_the_snappi_extra(self):
+        with patch.dict('sys.modules', {'snappi_trex': None}):
+            with self.assertRaises(GenieTgnError) as ctx:
+                implementation.import_snappi_extension('trex')
+        self.assertIn('pip install snappi[trex]', str(ctx.exception))
+
+    def test_connect_requires_the_extension_before_calling_snappi(self):
+        testbed = loader.load(TESTBED)
+        dev = testbed.devices.otg3
+        dev.connections.tgn['ext'] = 'ixnetwork'
+        tgn = dev.instantiate(via='tgn', alias='tgn')
+        snappi = Mock()
+        with patch.object(implementation, 'import_snappi',
+                          return_value=snappi), \
+                patch.dict('sys.modules', {'snappi_ixnetwork': None}):
+            with self.assertRaises(GenieTgnError) as ctx:
+                tgn.connect()
+        self.assertIn('snappi_ixnetwork', str(ctx.exception))
+        snappi.api.assert_not_called()
+        self.assertFalse(tgn.connected)
+
+
+class TestIxNetworkLicensingBridge(unittest.TestCase):
+    '''Native OTG configures controller licensing before creating Snappi.'''
+
+    @staticmethod
+    def _ixnet(initial=None):
+        state = dict(initial or {
+            '-licensingServers': [],
+            '-mode': 'perpetual',
+            '-tier': 'tier1',
+        })
+        ixnet = Mock()
+        ixnet.OK = 'ok'
+        ixnet.connect.return_value = ixnet.OK
+        ixnet.disconnect.return_value = ixnet.OK
+        ixnet.getRoot.return_value = 'root'
+        ixnet.getList.side_effect = (
+            lambda obj, name: ['globals'] if name == 'globals'
+            else ['licensing'])
+        ixnet.getAttribute.side_effect = lambda obj, attr: state[attr]
+
+        def set_attribute(obj, attr, value):
+            state[attr] = value
+
+        ixnet.setAttribute.side_effect = set_attribute
+        return ixnet, state
+
+    def _configure(self, ixnet, **kwargs):
+        with patch('genie.trafficgen.ixnetwork._import_ixnet',
+                   return_value=lambda: ixnet):
+            return implementation.configure_ixnetwork_licensing(**kwargs)
+
+    def test_configures_all_licensing_keys_before_disconnect(self):
+        ixnet, state = self._ixnet()
+        self.assertTrue(self._configure(
+            ixnet, controller_host='192.0.2.10', tcl_port=8020,
+            version='9.30',
+            license_servers='198.51.100.10; 198.51.100.11; 198.51.100.10',
+            license_mode='subscription', license_tier='tier2'))
+
+        ixnet.connect.assert_called_once_with(
+            '192.0.2.10', '-port', 8020, '-version', '9.30',
+            '-setAttribute', 'strict', '-licenseMode', 'subscription',
+            '-licenseTier', 'tier2')
+        ixnet.setAttribute.assert_any_call(
+            'licensing', '-licensingServers',
+            ['198.51.100.10', '198.51.100.11'])
+        ixnet.setAttribute.assert_any_call(
+            'licensing', '-mode', 'subscription')
+        ixnet.setAttribute.assert_any_call('licensing', '-tier', 'tier2')
+        self.assertEqual(state['-mode'], 'subscription')
+        self.assertEqual(state['-tier'], 'tier2')
+        self.assertEqual(state['-licensingServers'],
+                         ['198.51.100.10', '198.51.100.11'])
+        ixnet.disconnect.assert_called_once_with()
+
+    def test_licensing_lifecycle_logs_are_redacted_and_precede_snappi(self):
+        ixnet, _ = self._ixnet()
+        events = []
+        ixnet.connect.side_effect = (
+            lambda *args: events.append('tcl_connect') or ixnet.OK)
+        ixnet.disconnect.side_effect = (
+            lambda: events.append('tcl_disconnect') or ixnet.OK)
+        device, tgn = self._real_otg(
+            ixia_license_server_ip='198.51.100.10;198.51.100.11',
+            ixnetwork_license_mode='subscription',
+            ixnetwork_license_tier='tier2')
+        snappi = Mock()
+        snappi.api.side_effect = lambda **kwargs: (
+            events.append('snappi') or Mock(config=Mock(return_value=Mock())))
+
+        class RecordingHandler(logging.Handler):
+            def emit(self, record):
+                events.append(record.getMessage())
+
+        handler = RecordingHandler()
+        old_level = ixnetwork.log.level
+        ixnetwork.log.addHandler(handler)
+        ixnetwork.log.setLevel(logging.INFO)
+        try:
+            with patch.object(ixnetwork, '_import_ixnet',
+                              return_value=lambda: ixnet), \
+                    patch.object(implementation, 'import_snappi',
+                                 return_value=snappi), \
+                    patch.object(implementation, 'import_snappi_extension'), \
+                    patch.object(tgn, '_populate_ports_from_testbed'):
+                self.assertTrue(tgn.connect())
+
+            lifecycle_logs = [event for event in events if isinstance(event, str)
+                              and 'IxNetwork' in event]
+            self.assertEqual(len(lifecycle_logs), 3)
+            self.assertIn('Starting temporary IxNetwork Tcl licensing session',
+                          lifecycle_logs[0])
+            self.assertIn('license_server_count=2', lifecycle_logs[0])
+            self.assertIn('license_mode=subscription', lifecycle_logs[0])
+            self.assertIn('license_tier=tier2', lifecycle_logs[0])
+            self.assertIn('strict read-back verified', lifecycle_logs[1])
+            self.assertIn('disconnected before native OTG/Snappi',
+                          lifecycle_logs[2])
+            self.assertLess(events.index(lifecycle_logs[2]),
+                            events.index('snappi'))
+            for sensitive_value in ('192.0.2.10', '8020', '198.51.100.10',
+                                    '198.51.100.11', 'api-key'):
+                self.assertNotIn(sensitive_value, '\n'.join(lifecycle_logs))
+        finally:
+            ixnetwork.log.removeHandler(handler)
+            ixnetwork.log.setLevel(old_level)
+            tgn.disconnect()
+            device.destroy()
+
+    def test_individual_license_server_setting_is_supported(self):
+        ixnet, state = self._ixnet()
+        self._configure(
+            ixnet, controller_host='192.0.2.10', tcl_port=8020,
+            version='9.30', license_servers=['198.51.100.10'])
+        self.assertEqual(state['-licensingServers'], ['198.51.100.10'])
+        self.assertNotIn('-licenseMode', ixnet.connect.call_args[0])
+        self.assertNotIn('-licenseTier', ixnet.connect.call_args[0])
+
+    def test_individual_license_mode_setting_is_supported(self):
+        ixnet, state = self._ixnet()
+        self._configure(
+            ixnet, controller_host='192.0.2.10', tcl_port=8020,
+            version='9.30', license_mode='subscription')
+        self.assertEqual(state['-mode'], 'subscription')
+        self.assertNotIn('-licenseTier', ixnet.connect.call_args[0])
+        ixnet.setAttribute.assert_any_call(
+            'licensing', '-mode', 'subscription')
+
+    def test_individual_license_tier_setting_is_supported(self):
+        ixnet, state = self._ixnet()
+        self._configure(
+            ixnet, controller_host='192.0.2.10', tcl_port=8020,
+            version='9.30', license_tier='tier2')
+        self.assertEqual(state['-tier'], 'tier2')
+        self.assertNotIn('-licenseMode', ixnet.connect.call_args[0])
+        ixnet.setAttribute.assert_any_call('licensing', '-tier', 'tier2')
+
+    def test_credentials_supply_an_api_key_without_closing_the_controller(self):
+        ixnet, _ = self._ixnet()
+        ixnet.getApiKey.return_value = 'api-key'
+        self._configure(
+            ixnet, controller_host='192.0.2.10', tcl_port=8020,
+            version='9.30', license_mode='subscription',
+            credentials={'default': {'username': 'user', 'password': 'pass'}})
+        ixnet.getApiKey.assert_called_once_with(
+            '192.0.2.10', '-username', 'user', '-password', 'pass')
+        connect_args = ixnet.connect.call_args[0]
+        self.assertIn('-apiKey', connect_args)
+        self.assertNotIn('-closeServerOnDisconnect', connect_args)
+
+    def test_anonymous_connection_does_not_request_an_api_key(self):
+        ixnet, _ = self._ixnet()
+        self._configure(
+            ixnet, controller_host='192.0.2.10', tcl_port=8020,
+            version='9.30', license_mode='subscription')
+        ixnet.getApiKey.assert_not_called()
+
+    def test_readback_mismatch_fails_and_disconnects(self):
+        ixnet, _ = self._ixnet()
+        readback = {'-licensingServers': [], '-mode': 'perpetual',
+                    '-tier': 'tier1'}
+        ixnet.getAttribute.side_effect = lambda obj, attr: readback[attr]
+        with self.assertRaisesRegex(GenieTgnError, 'did not retain'):
+            self._configure(
+                ixnet, controller_host='192.0.2.10', tcl_port=8020,
+                version='9.30', license_servers=['198.51.100.10'])
+        ixnet.disconnect.assert_called_once_with()
+
+    def test_unchanged_license_attributes_are_only_read_back(self):
+        ixnet, _ = self._ixnet()
+        self.assertTrue(ixnetwork.apply_ixnetwork_license_settings(
+            ixnet, license_mode='perpetual', license_tier='tier1', strict=True))
+        ixnet.setAttribute.assert_not_called()
+        ixnet.commit.assert_not_called()
+        self.assertEqual(ixnet.getAttribute.call_args_list, [
+            call('licensing', '-mode'),
+            call('licensing', '-tier'),
+            call('licensing', '-mode'),
+            call('licensing', '-tier'),
+        ])
+
+    def test_mode_and_tier_readback_mismatches_fail_and_disconnect(self):
+        for key, value in (('license_mode', 'subscription'),
+                           ('license_tier', 'tier2')):
+            with self.subTest(key=key):
+                ixnet, _ = self._ixnet()
+                ixnet.setAttribute.side_effect = None
+                with self.assertRaisesRegex(GenieTgnError, 'did not retain'):
+                    self._configure(
+                        ixnet, controller_host='192.0.2.10', tcl_port=8020,
+                        version='9.30', **{key: value})
+                ixnet.disconnect.assert_called_once_with()
+
+    def test_legacy_license_errors_remain_warning_only(self):
+        ixnet, _ = self._ixnet()
+        ixnet.commit.side_effect = RuntimeError('commit rejected')
+        with self.assertLogs(ixnetwork.log, level='WARNING') as logs:
+            self.assertFalse(ixnetwork.apply_ixnetwork_license_settings(
+                ixnet, license_mode='subscription', strict=False))
+        self.assertIn('commit rejected', logs.output[0])
+
+    def test_rejected_connect_does_not_disconnect_or_apply_settings(self):
+        ixnet, _ = self._ixnet()
+        ixnet.connect.return_value = 'rejected'
+        with self.assertRaisesRegex(GenieTgnError, 'licensing connection'):
+            self._configure(
+                ixnet, controller_host='192.0.2.10', tcl_port=8020,
+                version='9.30', license_mode='subscription')
+        ixnet.setAttribute.assert_not_called()
+        ixnet.disconnect.assert_not_called()
+
+    def test_api_key_failure_prevents_connect(self):
+        ixnet, _ = self._ixnet()
+        password = secrets.token_hex(16)
+        error = RuntimeError('authentication rejected')
+        ixnet.getApiKey.side_effect = error
+        with self.assertRaisesRegex(GenieTgnError, 'API key') as raised:
+            self._configure(
+                ixnet, controller_host='192.0.2.10', tcl_port=8020,
+                version='9.30', license_mode='subscription',
+                credentials={'default': {'username': 'user', 'password': password}})
+        self.assertIs(raised.exception.__cause__, error)
+        ixnet.connect.assert_not_called()
+        ixnet.disconnect.assert_not_called()
+
+    def test_disconnect_rejection_fails_an_otherwise_successful_session(self):
+        ixnet, _ = self._ixnet()
+        ixnet.disconnect.return_value = 'rejected'
+        with self.assertRaisesRegex(GenieTgnError, 'licensing disconnect'):
+            self._configure(
+                ixnet, controller_host='192.0.2.10', tcl_port=8020,
+                version='9.30', license_mode='subscription')
+        ixnet.disconnect.assert_called_once_with()
+
+    def test_disconnect_exception_keeps_its_cause(self):
+        ixnet, _ = self._ixnet()
+        error = RuntimeError('disconnect failed')
+        ixnet.disconnect.side_effect = error
+        with self.assertRaisesRegex(GenieTgnError, 'disconnect failed') as raised:
+            self._configure(
+                ixnet, controller_host='192.0.2.10', tcl_port=8020,
+                version='9.30', license_mode='subscription')
+        self.assertIs(raised.exception.__cause__, error)
+
+    def test_cleanup_failure_preserves_the_primary_licensing_error(self):
+        ixnet, _ = self._ixnet()
+        error = GenieTgnError('primary licensing failure')
+        ixnet.commit.side_effect = error
+        ixnet.disconnect.side_effect = RuntimeError('disconnect failed')
+        with self.assertLogs(ixnetwork.log, level='WARNING') as logs:
+            with self.assertRaises(GenieTgnError) as raised:
+                self._configure(
+                    ixnet, controller_host='192.0.2.10', tcl_port=8020,
+                    version='9.30', license_mode='subscription')
+        self.assertIs(raised.exception, error)
+        self.assertIn('after an earlier error', logs.output[0])
+        ixnet.disconnect.assert_called_once_with()
+
+    def test_invalid_license_scalars_prevent_controller_operations(self):
+        for key in ('ixnetwork_license_mode', 'ixnetwork_license_tier'):
+            for value in (None, '', '  ', 1):
+                with self.subTest(key=key, value=value):
+                    device, tgn = self._real_otg(**{key: value})
+                    try:
+                        with patch.object(implementation,
+                                          'configure_ixnetwork_licensing') as bridge:
+                            with self.assertRaisesRegex(GenieTgnError, key):
+                                tgn.connect()
+                        bridge.assert_not_called()
+                        self.assertFalse(tgn.connected)
+                    finally:
+                        device.destroy()
+
+    def test_license_scalar_trimming_and_url_host_fallback(self):
+        device, tgn = self._real_otg(
+            ip=None, ixnetwork_license_mode=' subscription ',
+            ixnetwork_license_tier=' tier2 ')
+        try:
+            with patch.object(implementation,
+                              'configure_ixnetwork_licensing') as bridge:
+                tgn._configure_ixnetwork_licensing()
+            self.assertEqual(bridge.call_args.kwargs['controller_host'],
+                             '192.0.2.10')
+            self.assertEqual(bridge.call_args.kwargs['license_mode'],
+                             'subscription')
+            self.assertEqual(bridge.call_args.kwargs['license_tier'], 'tier2')
+        finally:
+            device.destroy()
+
+    def _real_otg(self, **connection_values):
+        testbed = loader.load(TESTBED)
+        # otg1 names Otg directly, keeping this isolated from abstraction
+        # discovery of unrelated optional traffic-generator packages.
+        device = testbed.devices.otg1
+        device.connections.tgn.update({
+            'transport': 'https',
+            'location': 'https://192.0.2.10:8443',
+            'ext': 'ixnetwork',
+            'ixnetwork_tcl_port': 8020,
+            'ixnetwork_version': '9.30',
+            **connection_values,
+        })
+        return device, device.instantiate(via='tgn', alias='tgn')
+
+    def test_connect_orders_license_bridge_before_snappi_and_ports(self):
+        device, tgn = self._real_otg(ixnetwork_license_mode='subscription')
+        events = []
+        snappi = Mock()
+        snappi.api.side_effect = lambda **kwargs: (
+            events.append('snappi') or Mock(config=Mock(return_value=Mock())))
+        try:
+            with patch.object(implementation, 'configure_ixnetwork_licensing',
+                              side_effect=lambda **kwargs: events.append('license')), \
+                    patch.object(implementation, 'import_snappi',
+                                 return_value=snappi), \
+                    patch.object(implementation, 'import_snappi_extension'), \
+                    patch.object(tgn, '_populate_ports_from_testbed',
+                                 side_effect=lambda: events.append('ports')):
+                self.assertTrue(tgn.connect())
+            self.assertEqual(events, ['license', 'snappi', 'ports'])
+        finally:
+            tgn.disconnect()
+            device.destroy()
+
+    def test_license_failure_prevents_snappi_creation(self):
+        device, tgn = self._real_otg(ixnetwork_license_mode='subscription')
+        try:
+            with patch.object(implementation, 'configure_ixnetwork_licensing',
+                              side_effect=GenieTgnError('licensing failed')), \
+                    patch.object(implementation, 'import_snappi') as snappi:
+                with self.assertRaisesRegex(GenieTgnError, 'licensing failed'):
+                    tgn.connect()
+            snappi.assert_not_called()
+            self.assertFalse(tgn.connected)
+        finally:
+            device.destroy()
+
+    def test_missing_tcl_parameters_prevent_snappi_creation(self):
+        testbed = loader.load(TESTBED)
+        device = testbed.devices.otg1
+        device.connections.tgn.update({
+            'transport': 'https',
+            'location': 'https://192.0.2.10:8443',
+            'ext': 'ixnetwork',
+            'ixnetwork_license_mode': 'subscription',
+        })
+        tgn = device.instantiate(via='tgn', alias='tgn')
+        try:
+            with patch.object(implementation, 'import_snappi') as snappi:
+                with self.assertRaisesRegex(GenieTgnError,
+                                             'ixnetwork_tcl_port'):
+                    tgn.connect()
+            snappi.assert_not_called()
+        finally:
+            device.destroy()
+
+    def test_license_keys_are_rejected_for_mock_and_other_backends(self):
+        testbed = loader.load(TESTBED)
+        mock_device = testbed.devices.otg1
+        mock_device.connections.tgn.update({
+            'ext': 'ixnetwork',
+            'ixia_license_server_ip': '198.51.100.10',
+            'ixnetwork_tcl_port': 8020,
+            'ixnetwork_version': '9.30',
+        })
+        mock_tgn = mock_device.instantiate(via='tgn', alias='tgn')
+        try:
+            with self.assertRaisesRegex(GenieTgnError, 'transport: mock'):
+                mock_tgn.connect()
+        finally:
+            mock_device.destroy()
+
+        device, tgn = self._real_otg(
+            ext='trex', ixnetwork_license_mode='subscription')
+        try:
+            with self.assertRaisesRegex(GenieTgnError, 'ext: ixnetwork'):
+                tgn.connect()
+        finally:
+            device.destroy()
 
 
 class TestConnectionLifecycle(OtgTestCase):
@@ -406,7 +864,7 @@ class TestLegacyTranslation(OtgTestCase):
         flow = self.flow(name)
         self.assertEqual(flow.packet[0].ether_type.value, 0x0806)
         self.assertEqual(flow.packet[1].operation.value, 1)
-        self.assertEqual(flow.packet[1].dst_protocol_addr.value, '10.1.1.1')
+        self.assertEqual(flow.packet[1].target_protocol_addr.value, '10.1.1.1')
         self.assertEqual(flow.duration.fixed_packets.packets, 3)
         self.assertFalse(flow.metrics.enable)
 
@@ -433,7 +891,7 @@ class TestLegacyTranslation(OtgTestCase):
 class TestNativeDeclarativeMode(OtgTestCase):
 
     def build_config(self):
-        config = self.tgn.new_config()
+        config = self.tgn.api.config()
         config.ports.add(name='p1', location='localhost:5555')
         config.ports.add(name='p2', location='localhost:5556')
         flow = config.flows.add(name='f1')
@@ -476,6 +934,33 @@ class TestNativeDeclarativeMode(OtgTestCase):
                          ['EthernetHeader', 'Ipv4Header'])
         self.assertEqual(flow.packet[1].src.value, '10.0.0.1')
 
+    def test_round_trip_preserves_devices_and_captures(self):
+        config = self.build_config()
+        device = config.devices.add(name='host')
+        ethernet = device.ethernets.add(name='eth1', mac='00:00:01:00:00:01')
+        ethernet.connection.port_name = 'p1'
+        ethernet.ipv4_addresses.add(name='v4', address='192.0.2.2',
+                                    gateway='192.0.2.1', prefix=24)
+        ethernet.ipv6_addresses.add(name='v6', address='2001:db8::2',
+                                    gateway='2001:db8::1', prefix=64)
+        capture = config.captures.add(name='c1')
+        capture.port_names = ['p2']
+        capture.format = 'pcapng'
+        capture.packet_size = 128
+        self.tgn.set_config(config.serialize())
+        restored = self.tgn.config.to_dict()
+        self.assertEqual(restored['devices'], config.to_dict()['devices'])
+        self.assertEqual(restored['captures'], config.to_dict()['captures'])
+
+    def test_set_config_rejects_a_file_path(self):
+        # snappi accepts any text, and a path would push an empty
+        # configuration
+        lenient = Mock()
+        with patch.object(self.tgn.api, 'config', return_value=lenient):
+            with self.assertRaises(GenieTgnError):
+                self.tgn.set_config('/tmp/otg_config.json')
+        lenient.deserialize.assert_not_called()
+
     def test_set_config_rejects_garbage(self):
         with self.assertRaises(GenieTgnError):
             self.tgn.set_config('- just\n- a\n- list\n')
@@ -492,6 +977,18 @@ class TestNativeDeclarativeMode(OtgTestCase):
         request = self.tgn.api.metrics_request()
         request.choice = request.FLOW
         metrics = self.tgn.get_metrics(request)
+        self.assertEqual(metrics.flow_metrics[0].name, 'f1')
+        self.assertEqual(metrics.flow_metrics[0].frames_tx, 100)
+
+    def test_control_state_and_metrics_requests_as_data(self):
+        # what a trigger datafile can hold: a mapping or YAML text
+        self.tgn.set_config(self.build_config())
+
+        self.tgn.set_state({'choice': 'traffic', 'traffic': {
+            'choice': 'flow_transmit',
+            'flow_transmit': {'state': 'start', 'flow_names': ['f1']}}})
+        metrics = self.tgn.get_metrics('choice: flow\nflow:\n'
+                                       '  flow_names: [f1]\n')
         self.assertEqual(metrics.flow_metrics[0].name, 'f1')
         self.assertEqual(metrics.flow_metrics[0].frames_tx, 100)
 
@@ -515,6 +1012,35 @@ class TestTrafficControl(OtgTestCase):
         self.assertTrue(self.tgn.stop_traffic(max_time=10))
         stats = self.tgn.get_stats(view='Flow Statistics')
         self.assertGreater(stats[name]['Tx Frames'], 0)
+
+    def test_start_all_protocols_retries_a_busy_controller(self):
+        attempts = []
+        engine = self.tgn.translation_engine
+
+        def send_arp(wait_time=0):
+            attempts.append(wait_time)
+            if len(attempts) < 3:
+                raise RuntimeError(
+                    'getTopologyStatus exec not allowed currently since an '
+                    '(Clearing Statistics...) operation is in progress.')
+            return True
+
+        with patch.object(engine, 'send_arp', side_effect=send_arp), \
+                patch('genie.trafficgen.otg.implementation.time.sleep') as wait:
+            self.assertTrue(self.tgn.start_all_protocols(wait_time=0))
+
+        self.assertEqual(len(attempts), 3)
+        self.assertEqual(wait.call_count, 2)
+
+    def test_start_all_protocols_does_not_retry_real_errors(self):
+        engine = self.tgn.translation_engine
+
+        with patch.object(engine, 'send_arp',
+                          side_effect=RuntimeError('invalid endpoint')) as send:
+            with self.assertRaisesRegex(RuntimeError, 'invalid endpoint'):
+                self.tgn.start_all_protocols(wait_time=0)
+
+        send.assert_called_once_with(wait_time=0)
 
     def test_start_traffic_targets_named_streams(self):
         first = self.add_flow()
@@ -977,7 +1503,9 @@ class TestHarnessCompatibility(OtgTestCase):
     device_name = 'otg2'
 
     def test_load_and_remove_configuration(self):
-        config = self.tgn.new_config()
+        # Keep the connection's active in-memory configuration untouched;
+        # this fixture is only the file/payload supplied to the API under test.
+        config = self.tgn.api.config()
         config.ports.add(name='p1', location='localhost:5555')
         config.flows.add(name='f1').tx_rx.port.tx_name = 'p1'
         path = os.path.join(os.path.dirname(__file__), 'otg_config_tmp.json')
@@ -1109,18 +1637,319 @@ class TestHarnessCompatibility(OtgTestCase):
         self.assertEqual(self.tgn.get_golden_profile().field_names, [])
 
 
+class TestTrafficProfileUpdate(OtgTestCase):
+    '''Rate and frame size can be changed without reloading the configuration.'''
+
+    def test_rate_is_updated(self):
+        name = self.add_flow()
+        self.assertTrue(self.tgn.update_traffic_profile(rate=2000,
+                                                        wait_time=0))
+        self.assertEqual(float(self.flow(name).rate.pps), 2000)
+
+    def test_frame_size_is_updated(self):
+        name = self.add_flow()
+        self.assertTrue(self.tgn.update_traffic_profile(size=512,
+                                                        wait_time=0))
+        self.assertEqual(int(self.flow(name).size.fixed), 512)
+
+    def test_only_the_named_streams_are_updated(self):
+        first = self.add_flow()
+        second = self.add_flow()
+        before = float(self.flow(second).rate.pps)
+
+        self.tgn.update_traffic_profile(traffic_streams=[first], rate=750,
+                                        wait_time=0)
+
+        self.assertEqual(float(self.flow(first).rate.pps), 750)
+        self.assertEqual(float(self.flow(second).rate.pps), before)
+
+    def test_a_single_stream_name_is_accepted(self):
+        name = self.add_flow()
+        self.tgn.update_traffic_profile(traffic_streams=name, rate=300,
+                                        wait_time=0)
+        self.assertEqual(float(self.flow(name).rate.pps), 300)
+
+    def test_an_unknown_stream_raises(self):
+        self.add_flow()
+        with self.assertRaises(GenieTgnError):
+            self.tgn.update_traffic_profile(traffic_streams=['nope'], rate=10,
+                                            wait_time=0)
+
+    def test_invalid_rate_attribute_has_no_side_effects(self):
+        name = self.add_flow()
+        before = self.tgn.config.serialize()
+        with patch.object(self.tgn.translation_engine, 'commit') as commit, \
+                patch.object(self.tgn.api, 'update_flows') as update:
+            with self.assertRaisesRegex(GenieTgnError, 'rate_attribute'):
+                self.tgn.update_traffic_profile(
+                    [name], rate=777, rate_attribute='ppss')
+        commit.assert_not_called()
+        update.assert_not_called()
+        self.assertEqual(self.tgn.config.serialize(), before)
+        self.assertFalse(hasattr(self.flow(name).rate, 'ppss'))
+
+    def test_bit_rate_has_no_stale_pps_reference(self):
+        name = self.add_flow()
+        self.tgn.update_traffic_profile(
+            [name], rate=10, rate_attribute='mbps')
+        before = self.flow(name).rate.serialize()
+        self.assertEqual(self.tgn.translation_engine.get_flow_expected_pps(name),
+                         0)
+        self.assertEqual(self.flow(name).rate.serialize(), before)
+
+    def test_reference_does_not_read_an_inactive_choice_property(self):
+        name = self.add_flow()
+        previous = self.flow(name).rate
+
+        class BitRate:
+            choice = 'mbps'
+
+            @property
+            def pps(self):
+                raise AssertionError('inactive PPS choice was read')
+
+        try:
+            self.flow(name).rate = BitRate()
+            self.assertEqual(
+                self.tgn.translation_engine.get_flow_expected_pps(name), 0)
+        finally:
+            self.flow(name).rate = previous
+
+    def test_an_empty_update_raises(self):
+        self.add_flow()
+        with self.assertRaises(GenieTgnError):
+            self.tgn.update_traffic_profile(wait_time=0)
+
+    def test_the_new_rate_drives_the_measured_rate(self):
+        name = self.add_flow()
+        self.tgn.start_traffic(wait_time=0)
+        time.sleep(0.2)
+        self.tgn.update_traffic_profile(rate=2000, wait_time=0)
+        time.sleep(0.2)
+
+        self.assertEqual(self.tgn.get_current_packet_rate()[name], 2000)
+
+    def test_a_rejected_update_leaves_the_configuration_alone(self):
+        name = self.add_flow()
+        before = float(self.flow(name).rate.pps)
+
+        def refuse(_):
+            raise RuntimeError('controller says no')
+
+        self.tgn.api.update_flows = refuse
+        with self.assertRaises(GenieTgnError):
+            self.tgn.update_traffic_profile(rate=9999, wait_time=0)
+
+        # A stale in-memory rate would make check_traffic_loss() measure
+        # against a rate the controller never accepted.
+        self.assertEqual(float(self.flow(name).rate.pps), before)
+
+    def test_a_rejected_update_in_another_unit_keeps_the_rate_choice(self):
+        name = self.add_flow()
+        before = float(self.flow(name).rate.pps)
+
+        def refuse(_):
+            raise RuntimeError('controller says no')
+
+        self.tgn.api.update_flows = refuse
+        with self.assertRaises(GenieTgnError):
+            self.tgn.update_traffic_profile(rate=1, wait_time=0,
+                                            rate_attribute='percentage')
+
+        self.assertEqual(self.flow(name).rate.choice, 'pps')
+        self.assertEqual(self.tgn.get_packet_rate(name), before)
+
+
+class TestConfigurationUpdate(OtgTestCase):
+    '''Any named object in the configuration can be changed from a testcase.'''
+
+    def setUp(self):
+        super().setUp()
+        self.flow_name = self.add_flow()
+
+    def named(self, kind):
+        return [name for name, obj
+                in self.tgn._walk_named_objects(self.tgn.config, set())
+                if type(obj).__name__ == kind]
+
+    def test_objects_are_addressable_by_name(self):
+        for kind in ('Port', 'Device', 'Ethernet', 'Ipv4Address', 'Flow'):
+            for name in self.named(kind):
+                self.assertEqual(type(self.tgn.get_config_object(name)).__name__,
+                                 kind)
+
+    def test_an_unknown_name_raises(self):
+        with self.assertRaises(GenieTgnError):
+            self.tgn.get_config_object('no_such_object')
+
+    def test_a_property_is_updated_in_memory(self):
+        name = self.named('Ipv4Address')[0]
+        self.tgn.update_configuration([{'name': name, 'address': '10.9.9.9'}],  # NOSONAR test address
+                                      restart=False)
+        self.assertEqual(self.tgn.get_config_object(name).address, '10.9.9.9')
+
+    def test_an_update_naming_an_unknown_object_raises(self):
+        with self.assertRaises(GenieTgnError):
+            self.tgn.update_configuration([{'name': 'nope', 'address': '1.1.1.1'}],  # NOSONAR test address
+                                          restart=False)
+
+    def test_an_update_of_an_unknown_property_raises(self):
+        name = self.named('Ipv4Address')[0]
+        with self.assertRaises(GenieTgnError):
+            self.tgn.update_configuration([{'name': name, 'nonsense': 1}],
+                                          restart=False)
+
+    def test_a_nested_property_is_not_a_partial_update_target(self):
+        with self.assertRaisesRegex(GenieTgnError, 'not a scalar'):
+            self.tgn.update_configuration(
+                [{'name': self.flow_name, 'rate': {'pps': 2000}}],
+                restart=False)
+
+    def test_an_update_without_a_name_raises(self):
+        with self.assertRaises(GenieTgnError):
+            self.tgn.update_configuration([{'address': '1.1.1.1'}],  # NOSONAR test address
+                                          restart=False)
+
+    def test_an_update_that_changes_nothing_raises(self):
+        name = self.named('Ipv4Address')[0]
+        with self.assertRaises(GenieTgnError):
+            self.tgn.update_configuration([{'name': name}], restart=False)
+
+    def test_nothing_is_applied_when_a_later_update_is_invalid(self):
+        name = self.named('Ipv4Address')[0]
+        before = self.tgn.get_config_object(name).address
+
+        with self.assertRaises(GenieTgnError):
+            self.tgn.update_configuration(
+                [{'name': name, 'address': '10.9.9.9'},  # NOSONAR test address
+                 {'name': 'nope', 'address': '10.9.9.10'}],  # NOSONAR test address
+                restart=False)
+
+        # Validation happens up front, so a bad second update must not leave
+        # the first one half applied.
+        self.assertEqual(self.tgn.get_config_object(name).address, before)
+
+    def test_a_single_update_may_be_passed_as_a_dict(self):
+        name = self.named('Ipv4Address')[0]
+        self.tgn.update_configuration({'name': name, 'address': '10.8.8.8'},  # NOSONAR test address
+                                      restart=False)
+        self.assertEqual(self.tgn.get_config_object(name).address, '10.8.8.8')
+
+    def test_an_empty_update_list_raises(self):
+        with self.assertRaises(GenieTgnError):
+            self.tgn.update_configuration([], restart=False)
+
+    def test_the_configuration_is_pushed_when_restarting(self):
+        name = self.named('Ipv4Address')[0]
+        updated = self.tgn.update_configuration(
+            [{'name': name, 'address': '10.7.7.7'}],  # NOSONAR test address
+            restart=True, wait_time=0)
+
+        self.assertEqual(updated, [name])
+        self.assertEqual(self.tgn.get_config_object(name).address, '10.7.7.7')
+
+    def test_apply_configuration_uses_one_dual_stack_restart_lifecycle(self):
+        self.tgn.start_traffic(wait_time=0)
+        payload = json.loads(self.tgn.config.serialize())
+        calls = []
+
+        def record(name, method):
+            def wrapper(*args, **kwargs):
+                calls.append(name)
+                return method(*args, **kwargs)
+            return wrapper
+
+        engine = self.tgn.translation_engine
+        with patch.object(engine, 'stop_traffic',
+                          side_effect=record('stop_traffic',
+                                             engine.stop_traffic)), \
+                patch.object(engine, 'stop_all_protocols',
+                             side_effect=record('stop_all_protocols',
+                                                engine.stop_all_protocols)), \
+                patch.object(self.tgn, 'set_config',
+                             side_effect=record('set_config',
+                                                self.tgn.set_config)), \
+                patch.object(self.tgn, 'apply_traffic',
+                             side_effect=record('apply_traffic',
+                                                self.tgn.apply_traffic)), \
+                patch.object(self.tgn, 'start_all_protocols',
+                             side_effect=record('start_all_protocols',
+                                                self.tgn.start_all_protocols)), \
+                patch.object(self.tgn, 'send_ns',
+                             side_effect=record('send_ns', self.tgn.send_ns)), \
+                patch.object(self.tgn, 'start_traffic',
+                             side_effect=record('start_traffic',
+                                                self.tgn.start_traffic)), \
+                patch.object(self.tgn, 'clear_statistics',
+                             side_effect=record('clear_statistics',
+                                                self.tgn.clear_statistics)):
+            self.tgn.apply_configuration(payload, wait_time=0)
+
+        self.assertEqual(calls, [
+            'stop_traffic', 'stop_all_protocols', 'set_config',
+            'apply_traffic', 'start_all_protocols', 'send_ns',
+            'start_traffic', 'clear_statistics',
+        ])
+
+    def test_a_failed_push_rolls_the_change_back(self):
+        name = self.named('Ipv4Address')[0]
+        before = self.tgn.get_config_object(name).address
+
+        def refuse(_):
+            raise RuntimeError('controller says no')
+
+        self.tgn.api.set_config = refuse
+        with self.assertRaises(GenieTgnError):
+            self.tgn.update_configuration([{'name': name, 'address': '10.6.6.6'}],  # NOSONAR test address
+                                          restart=True, wait_time=0)
+
+        self.assertEqual(self.tgn.get_config_object(name).address, before)
+
+    def test_duplicate_names_are_refused(self):
+        config = self.tgn.config
+        config.ports.add(name=config.ports[0].name)
+        with self.assertRaises(GenieTgnError):
+            self.tgn.get_config_object(self.flow_name)
+
+
+class TestRouteState(OtgTestCase):
+    '''Routes can be withdrawn and advertised without a configuration push.'''
+
+    def test_routes_are_withdrawn_and_advertised(self):
+        self.assertEqual(
+            self.tgn.set_route_state(route_names=['r1'], state='withdraw'),
+            ['r1'])
+        self.assertIn('r1', self.tgn.api.engine._withdrawn)
+
+        self.tgn.set_route_state(route_names='r1', state='advertise')
+        self.assertNotIn('r1', self.tgn.api.engine._withdrawn)
+
+    def test_an_invalid_state_raises(self):
+        with self.assertRaises(GenieTgnError):
+            self.tgn.set_route_state(route_names=['r1'], state='sideways')
+
+    def test_no_route_ranges_raises(self):
+        with self.assertRaises(GenieTgnError):
+            self.tgn.set_route_state(state='withdraw')
+
+
 class TestConfigurationArchiving(OtgTestCase):
     '''A loaded configuration is kept alongside the rest of the run artifacts.'''
 
-    device_name = 'otg2'
-    archived_name = 'otg2_otg_source_config.json'
+    # Use the direct OTG connection class. The archive behaviour does not
+    # depend on abstraction and this keeps the test independent of optional
+    # third-party traffic-generator plugins discovered by the generic class.
+    device_name = 'otg1'
+    archived_name = 'otg1_otg_source_config.json'
 
     def setUp(self):
         super().setUp()
         self.workspace = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.workspace, ignore_errors=True)
 
-        config = self.tgn.new_config()
+        # The fixture must not become the active local configuration: some
+        # tests prove a rejected inline replacement leaves it untouched.
+        config = self.tgn.api.config()
         config.ports.add(name='p1', location='localhost:5555')
         config.flows.add(name='f1').tx_rx.port.tx_name = 'p1'
         self.contents = config.serialize()
@@ -1182,6 +2011,875 @@ class TestConfigurationArchiving(OtgTestCase):
 
         # The configuration the controller rejected is the one worth keeping.
         self.assertEqual(os.listdir(directory), [self.archived_name])
+
+    def test_apply_configuration_accepts_file_yaml_and_config_object(self):
+        self.assertTrue(
+            self.tgn.apply_configuration(self.source, restart=False))
+        self.assertEqual(self.tgn.get_traffic_stream_names(), ['f1'])
+
+        candidate = self.tgn.api.config()
+        candidate.deserialize(self.contents)
+        yaml_payload = candidate.serialize(encoding='yaml')
+        self.assertTrue(
+            self.tgn.apply_configuration(yaml_payload, restart=False))
+        self.assertEqual(self.tgn.get_traffic_stream_names(), ['f1'])
+
+        self.assertTrue(
+            self.tgn.apply_configuration(candidate, restart=False))
+        self.assertEqual(self.tgn.get_traffic_stream_names(), ['f1'])
+
+    def inline_dual_stack_configuration(self):
+        # Build a candidate without replacing the currently applied model;
+        # controller-rejection coverage relies on retaining that model.
+        config = self.tgn.api.config()
+        config.ports.add(name='p1', location='localhost:5555')
+        config.ports.add(name='p2', location='localhost:5556')
+        device = config.devices.add(name='dual-stack-host')
+        ethernet = device.ethernets.add(name='eth1',
+                                        mac='00:00:01:00:00:01')
+        ethernet.connection.port_name = 'p1'
+        ethernet.ipv4_addresses.add(name='v4', address='192.0.2.2',
+                                    gateway='192.0.2.1', prefix=24)
+        ethernet.ipv6_addresses.add(name='v6', address='2001:db8::2',
+                                    gateway='2001:db8::1', prefix=64)
+        flow = config.flows.add(name='f1')
+        flow.tx_rx.port.tx_name = 'p1'
+        flow.tx_rx.port.rx_name = 'p2'
+        flow.packet.ethernet()
+        flow.packet.ipv6()
+        return json.loads(config.serialize())
+
+    def test_inline_configuration_is_archived_and_resolves_dual_stack(self):
+        directory = self.run_directory()
+        payload = self.inline_dual_stack_configuration()
+
+        with patch.object(implementation, 'runtime', self.easypy(directory)), \
+                patch.object(self.tgn, 'start_all_protocols',
+                             wraps=self.tgn.start_all_protocols) as arp, \
+                patch.object(self.tgn, 'send_ns',
+                             wraps=self.tgn.send_ns) as ns:
+            self.assertTrue(self.tgn.apply_configuration(payload, wait_time=0))
+
+        self.assertEqual(self.tgn.get_traffic_stream_names(), ['f1'])
+        arp.assert_called_once_with(wait_time=0)
+        ns.assert_called_once_with(wait_time=0)
+        archived = os.path.join(directory, 'otg1_otg_configuration.json')
+        with open(archived) as handle:
+            self.assertEqual(json.load(handle), payload)
+
+    def test_rejected_inline_input_is_archived_without_stopping_traffic(self):
+        directory = self.run_directory()
+        original = self.add_flow()
+        self.tgn.start_traffic(wait_time=0)
+
+        with patch.object(implementation, 'runtime', self.easypy(directory)), \
+                patch.object(self.tgn.translation_engine, 'stop_traffic') as stop:
+            with self.assertRaises(GenieTgnError):
+                self.tgn.apply_configuration('- not\n- a mapping\n', wait_time=0)
+
+        self.assertEqual(self.tgn.get_traffic_stream_names(), [original])
+        stop.assert_not_called()
+        self.assertTrue(os.path.exists(
+            os.path.join(directory, 'otg1_otg_configuration.json')))
+
+    def test_controller_rejection_keeps_the_previous_configuration_in_memory(self):
+        original = self.add_flow()
+        self.tgn.start_traffic(wait_time=0)
+        payload = self.inline_dual_stack_configuration()
+
+        with patch.object(self.tgn.api, 'set_config',
+                          side_effect=RuntimeError('controller says no')):
+            with self.assertRaisesRegex(GenieTgnError, 'controller says no'):
+                self.tgn.apply_configuration(payload, wait_time=0)
+
+        self.assertEqual(self.tgn.get_traffic_stream_names(), [original])
+
+
+class TestPacketCapture(OtgTestCase):
+    '''Captures are started and stopped per port and fetched as a file.'''
+
+    def setUp(self):
+        super().setUp()
+        config = self.tgn.api.config()
+        config.ports.add(name='p1', location='localhost:5555')
+        config.ports.add(name='p2', location='localhost:5556')
+        self.tgn.set_config(config)
+        self.workspace = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.workspace, ignore_errors=True)
+
+    def capturing(self):
+        return self.tgn.api.engine.capturing_ports()
+
+    def test_every_port_captures_by_default(self):
+        self.tgn.start_capture()
+        self.assertEqual(self.capturing(), {'p1', 'p2'})
+
+        self.tgn.stop_capture()
+        self.assertEqual(self.capturing(), set())
+
+    def test_named_ports_capture_on_their_own(self):
+        self.tgn.start_capture(['p1'])
+        self.assertEqual(self.capturing(), {'p1'})
+
+        self.tgn.stop_capture(['p1'])
+        self.assertEqual(self.capturing(), set())
+
+    def test_a_capture_is_written_to_the_given_path(self):
+        path = os.path.join(self.workspace, 'p1.pcap')
+        self.assertEqual(self.tgn.save_capture('p1', path), path)
+        with open(path, 'rb') as capture:
+            # The simulator records no packets, so this is a pcap file header
+            # and nothing else.
+            self.assertEqual(capture.read(), mock.PCAP_FILE_HEADER)
+
+    def test_a_capture_defaults_to_the_run_directory(self):
+        with patch.object(implementation, 'runtime',
+                          SimpleNamespace(directory=self.workspace,
+                                          runinfo=True)):
+            path = self.tgn.save_capture('p2')
+        self.assertEqual(path,
+                         os.path.join(self.workspace, 'otg1-p2.pcap'))
+        self.assertTrue(os.path.exists(path))
+
+    def test_capturing_an_unknown_port_raises(self):
+        with self.assertRaises(GenieTgnError):
+            self.tgn.save_capture('p3', os.path.join(self.workspace, 'x.pcap'))
+
+
+class TestGeneratedArtifactPaths(OtgTestCase):
+    '''Generated names stay in their destination; explicit paths stay explicit.'''
+
+    def setUp(self):
+        super().setUp()
+        self.workspace = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.workspace, ignore_errors=True)
+        self.directory = os.path.join(self.workspace, 'runinfo')
+        os.mkdir(self.directory)
+        self.runtime = SimpleNamespace(directory=self.directory, runinfo=True)
+        config = self.tgn.api.config()
+        for name in ('p1', 'Ethernet1/1', 'Ethernet1%2F1', '../outside',
+                     r'..\outside'):
+            config.ports.add(name=name, location='mock')
+        self.tgn.set_config(config)
+
+    def assert_capture(self, path, directory, filename):
+        self.assertEqual(path, os.path.join(directory, filename))
+        self.assertEqual(os.path.dirname(os.path.realpath(path)),
+                         os.path.realpath(directory))
+        with open(path, 'rb') as capture:
+            self.assertEqual(capture.read(), mock.PCAP_FILE_HEADER)
+
+    def escaping_symlink(self, filename):
+        target = os.path.join(self.workspace, 'outside')
+        with open(target, 'wb') as existing:
+            existing.write(b'keep existing contents')
+        os.symlink(target, os.path.join(self.directory, filename))
+        return target
+
+    def assert_not_overwritten(self, target):
+        with open(target, 'rb') as existing:
+            self.assertEqual(existing.read(), b'keep existing contents')
+
+    def test_archive_encodes_device_names(self):
+        for name, encoded in (('../outside', '..%2Foutside'),
+                              (r'..\outside', '..%5Coutside'),
+                              ('lab/device', 'lab%2Fdevice')):
+            with self.subTest(name=name), \
+                    patch.object(self.dev, 'name', name), \
+                    patch.object(implementation, 'runtime', self.runtime):
+                path = self.tgn._archive_configuration('source.json', '{}')
+                self.assertEqual(path, os.path.join(
+                    self.directory, encoded + '_source.json'))
+                with open(path) as archived:
+                    self.assertEqual(archived.read(), '{}')
+
+    def test_archive_refuses_an_escaping_symlink_without_failing(self):
+        target = self.escaping_symlink('otg1_source.json')
+        with patch.object(implementation, 'runtime', self.runtime), \
+                self.assertLogs(implementation.log, level='WARNING'):
+            self.assertIsNone(
+                self.tgn._archive_configuration('source.json', '{}'))
+        self.assert_not_overwritten(target)
+
+    def test_default_capture_encodes_traversal_in_device_name(self):
+        with patch.object(self.dev, 'name', '../outside'), \
+                patch.object(implementation, 'runtime', self.runtime):
+            path = self.tgn.save_capture('p1')
+        self.assert_capture(path, self.directory, '..%2Foutside-p1.pcap')
+
+    def test_default_capture_encodes_an_absolute_device_name(self):
+        name = os.path.join(self.workspace, 'absolute')
+        with patch.object(self.dev, 'name', name), \
+                patch.object(implementation, 'runtime', self.runtime):
+            path = self.tgn.save_capture('p1')
+        self.assertEqual(os.path.dirname(os.path.realpath(path)),
+                         os.path.realpath(self.directory))
+        self.assertFalse(os.path.exists(name + '-p1.pcap'))
+
+    def test_default_capture_encodes_port_separators(self):
+        for port, encoded in (('Ethernet1/1', 'Ethernet1%2F1'),
+                              (r'..\outside', '..%5Coutside')):
+            with self.subTest(port=port), \
+                    patch.object(implementation, 'runtime', self.runtime):
+                path = self.tgn.save_capture(port)
+                self.assert_capture(path, self.directory,
+                                    'otg1-' + encoded + '.pcap')
+
+    def test_encoded_port_names_do_not_overwrite_literal_percent_names(self):
+        with patch.object(implementation, 'runtime', self.runtime):
+            first = self.tgn.save_capture('Ethernet1/1')
+            second = self.tgn.save_capture('Ethernet1%2F1')
+        self.assert_capture(first, self.directory,
+                            'otg1-Ethernet1%2F1.pcap')
+        self.assert_capture(second, self.directory,
+                            'otg1-Ethernet1%252F1.pcap')
+
+    def test_default_capture_refuses_an_escaping_symlink(self):
+        target = self.escaping_symlink('otg1-p1.pcap')
+        with patch.object(implementation, 'runtime', self.runtime), \
+                self.assertRaises(OSError):
+            self.tgn.save_capture('p1')
+        self.assert_not_overwritten(target)
+
+    def test_compatibility_capture_encodes_port_traversal(self):
+        with patch.object(implementation, 'runtime', self.runtime):
+            path = self.tgn.save_packet_capture_file(
+                '../outside', 'data', 'run')
+        self.assert_capture(path, self.directory,
+                            '..%2Foutside_HW_run.pcap')
+
+    def test_compatibility_capture_encodes_the_base_filename(self):
+        with patch.object(implementation, 'runtime', self.runtime):
+            path = self.tgn.save_packet_capture_file(
+                'p1', 'control', '../nested/run')
+        self.assert_capture(path, self.directory,
+                            'p1_SW_..%2Fnested%2Frun.pcap')
+
+    def test_compatibility_capture_refuses_an_escaping_symlink(self):
+        target = self.escaping_symlink('p1_HW_run.pcap')
+        with patch.object(implementation, 'runtime', self.runtime), \
+                self.assertRaises(OSError):
+            self.tgn.save_packet_capture_file('p1', 'data', 'run')
+        self.assert_not_overwritten(target)
+
+    def test_compatibility_capture_accepts_a_caller_selected_directory(self):
+        with patch.object(implementation, 'runtime', self.runtime):
+            path = self.tgn.save_packet_capture_file(
+                'Ethernet1/1', 'data', 'run', directory=self.workspace)
+        self.assert_capture(path, self.workspace,
+                            'Ethernet1%2F1_HW_run.pcap')
+
+    def test_explicit_capture_path_is_preserved_outside_run_directory(self):
+        path = os.path.join(self.workspace, 'caller-selected.pcap')
+        with patch.object(implementation, 'runtime', self.runtime):
+            self.assertEqual(self.tgn.save_capture('Ethernet1/1', path), path)
+        self.assert_capture(path, self.workspace, 'caller-selected.pcap')
+
+    def test_explicit_configuration_path_is_preserved(self):
+        path = os.path.join(self.workspace, 'caller-selected.json')
+        with patch.object(implementation, 'runtime', self.runtime):
+            self.assertEqual(self.tgn.save_configuration(path), path)
+        with open(path) as saved:
+            self.assertEqual(json.load(saved), json.loads(
+                self.tgn.config.serialize()))
+
+    def test_a_symlink_to_the_run_directory_is_supported(self):
+        alias = os.path.join(self.workspace, 'runinfo-link')
+        os.symlink(self.directory, alias)
+        with patch.object(implementation, 'runtime',
+                          SimpleNamespace(directory=alias, runinfo=True)):
+            path = self.tgn.save_capture('p1')
+        self.assert_capture(path, alias, 'otg1-p1.pcap')
+
+    def export_capture(self, filename='ixia.pcap'):
+        source = self.tgn.save_capture(
+            'p1', os.path.join(self.workspace, 'source.pcap'))
+        with patch.object(implementation, 'runtime', self.runtime):
+            return self.tgn.export_packet_capture_file(source, filename)
+
+    def test_export_encodes_parent_directory_segments(self):
+        for name, encoded in (('../outside.pcap', '..%2Foutside.pcap'),
+                              ('nested/capture.pcap',
+                               'nested%2Fcapture.pcap'),
+                              (r'..\outside.pcap', '..%5Coutside.pcap')):
+            with self.subTest(name=name):
+                path = self.export_capture(name)
+                self.assert_capture(path, self.directory, encoded)
+        self.assertFalse(os.path.exists(
+            os.path.join(self.workspace, 'outside.pcap')))
+
+    def test_export_encodes_an_absolute_filename(self):
+        name = os.path.join(self.workspace, 'absolute.pcap')
+        path = self.export_capture(name)
+        self.assert_capture(path, self.directory, name.replace('/', '%2F'))
+        self.assertFalse(os.path.exists(name))
+
+    def test_export_refuses_an_escaping_symlink(self):
+        target = self.escaping_symlink('ixia.pcap')
+        with self.assertRaises(OSError):
+            self.export_capture()
+        self.assert_not_overwritten(target)
+
+    def test_export_keeps_the_default_filename(self):
+        path = self.export_capture()
+        self.assert_capture(path, self.directory, 'ixia.pcap')
+
+    def test_export_of_the_source_to_itself_is_supported(self):
+        path = self.tgn.save_capture(
+            'p1', os.path.join(self.directory, 'source.pcap'))
+        with patch.object(implementation, 'runtime', self.runtime), \
+                patch.object(implementation, 'copyfile') as copy:
+            self.assertEqual(self.tgn.export_packet_capture_file(
+                path, 'source.pcap'), path)
+        copy.assert_not_called()
+        self.assert_capture(path, self.directory, 'source.pcap')
+
+    def statistics_snapshot(self, filename, directory=None):
+        with patch.object(implementation, 'runtime', self.runtime):
+            return self.tgn.save_statistics_snapshot_csv(
+                'Port Statistics', csv_windows_path=directory,
+                csv_file_name=filename)
+
+    def assert_snapshot(self, path, directory, filename):
+        self.assertEqual(path, os.path.join(directory, filename))
+        self.assertEqual(os.path.dirname(os.path.realpath(path)),
+                         os.path.realpath(directory))
+        with open(path) as snapshot:
+            self.assertIn('p1', snapshot.read())
+
+    def test_snapshot_encodes_parent_directory_segments(self):
+        for name, encoded in (('../snapshot', '..%2Fsnapshot.csv'),
+                              ('nested/snapshot', 'nested%2Fsnapshot.csv'),
+                              (r'..\snapshot', '..%5Csnapshot.csv')):
+            with self.subTest(name=name):
+                path = self.statistics_snapshot(name)
+                self.assert_snapshot(path, self.directory, encoded)
+        self.assertFalse(os.path.exists(
+            os.path.join(self.workspace, 'snapshot.csv')))
+
+    def test_snapshot_encodes_an_absolute_filename(self):
+        name = os.path.join(self.workspace, 'absolute')
+        path = self.statistics_snapshot(name)
+        self.assert_snapshot(path, self.directory,
+                             name.replace('/', '%2F') + '.csv')
+        self.assertFalse(os.path.exists(name + '.csv'))
+
+    def test_snapshot_refuses_an_escaping_symlink(self):
+        target = self.escaping_symlink('snapshot.csv')
+        with self.assertRaises(OSError):
+            self.statistics_snapshot('snapshot')
+        self.assert_not_overwritten(target)
+
+    def test_snapshot_accepts_a_caller_selected_directory(self):
+        directory = os.path.join(self.workspace, 'selected')
+        os.mkdir(directory)
+        path = self.statistics_snapshot('../snapshot', directory)
+        self.assert_snapshot(path, directory, '..%2Fsnapshot.csv')
+        self.assertFalse(os.path.exists(
+            os.path.join(self.workspace, 'snapshot.csv')))
+
+    def test_export_and_snapshot_support_a_symlinked_run_directory(self):
+        alias = os.path.join(self.workspace, 'runinfo-link')
+        os.symlink(self.directory, alias)
+        self.runtime.directory = alias
+        self.assert_capture(self.export_capture(), alias, 'ixia.pcap')
+        self.assert_snapshot(self.statistics_snapshot('snapshot'), alias,
+                             'snapshot.csv')
+
+
+class TestRemoteCapture(unittest.TestCase):
+    '''A capture fetched from a remote controller keeps its bytes.'''
+
+    # A little-endian pcap header; d4 c3 is not valid UTF-8.
+    PCAP = bytes.fromhex('d4c3b2a1020004000000000000000000ffff000001000000')
+
+    def setUp(self):
+        self.api = mock.MockOtgApi(location='http://localhost:8443',
+                                   transport='http')
+        patcher = patch.object(mock.urllib.request, 'urlopen')
+        self.urlopen = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def respond(self, body):
+        response = self.urlopen.return_value.__enter__.return_value
+        response.read.return_value = body
+
+    def test_a_remote_capture_is_returned_as_bytes(self):
+        self.respond(self.PCAP)
+        request = self.api.capture_request()
+        request.port_name = 'p1'
+        self.assertEqual(self.api.get_capture(request), self.PCAP)
+        sent = self.urlopen.call_args[0][0]
+        self.assertEqual(sent.full_url,
+                         'http://localhost:8443/results/capture')
+        self.assertEqual(json.loads(sent.data), {'port_name': 'p1'})
+
+    def test_other_remote_responses_are_still_decoded(self):
+        self.respond(b'{"status": "success"}')
+        self.assertEqual(
+            self.api.set_control_state(self.api.control_state()),
+            {'status': 'success'})
+
+
+class TestEmulatedBgp(unittest.TestCase):
+    '''The BGP helpers address peers by their OTG names.
+
+    The simulator emulates no BGP, so these drive a stand-in API: what is
+    under test is the request each helper builds and the response it reads.
+    '''
+
+    def setUp(self):
+        self.testbed = loader.load(TESTBED)
+        self.dev = self.testbed.devices.otg1
+        self.tgn = self.dev.instantiate(via='tgn', alias='tgn')
+        self.tgn.connect()
+        self.addCleanup(self.dev.destroy)
+        self.addCleanup(self.tgn.disconnect)
+
+        self.api = Mock()
+        self.requests = []
+        self.api.control_state.side_effect = self.control_state
+        self.api.metrics_request.side_effect = self.metrics_request
+        self.api.get_metrics.side_effect = self.get_metrics
+        self.api.set_control_state.side_effect = self.requests.append
+        self.tgn._api = self.api
+
+        self.peers = {'bgpv4': ['v4-peer'], 'bgpv6': ['v6-peer']}
+        self.state = {'v4-peer': 'up', 'v6-peer': 'up'}
+        self.end_of_rib = {'v4-peer': 1, 'v6-peer': 1}
+        patcher = patch.object(type(self.tgn), '_bgp_peer_names',
+                               lambda _self: dict(self.peers))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    @staticmethod
+    def control_state():
+        bgp = SimpleNamespace(peers=SimpleNamespace(peer_names=[], state=None))
+        protocol = SimpleNamespace(BGP='bgp', bgp=bgp, choice=None)
+        return SimpleNamespace(PROTOCOL='protocol', protocol=protocol,
+                               choice=None)
+
+    @staticmethod
+    def metrics_request():
+        return SimpleNamespace(
+            choice=None,
+            bgpv4=SimpleNamespace(peer_names=[]),
+            bgpv6=SimpleNamespace(peer_names=[]))
+
+    def get_metrics(self, request):
+        choice = request.choice
+        metrics = []
+        for name in getattr(request, choice).peer_names:
+            metric = SimpleNamespace(
+                name=name, session_state=self.state[name],
+                end_of_rib_received=self.end_of_rib[name])
+            metric._TYPES = ('name', 'session_state', 'end_of_rib_received')
+            metrics.append(metric)
+        return SimpleNamespace(**{'{}_metrics'.format(choice): metrics})
+
+    def test_metrics_are_keyed_by_peer_name(self):
+        metrics = self.tgn.get_bgp_metrics()
+        self.assertEqual(sorted(metrics), ['v4-peer', 'v6-peer'])
+        self.assertEqual(metrics['v4-peer']['session_state'], 'up')
+        self.assertNotIn('name', metrics['v4-peer'])
+
+    def test_a_single_peer_can_be_asked_for(self):
+        self.assertEqual(list(self.tgn.get_bgp_metrics('v6-peer')),
+                         ['v6-peer'])
+
+    def test_an_unknown_peer_raises(self):
+        with self.assertRaisesRegex(GenieTgnError, 'absent-peer'):
+            self.tgn.get_bgp_metrics(['absent-peer'])
+
+    def test_ixnetwork_device_metrics_are_returned_by_peer_name(self):
+        peer = type('BgpV4Peer', (), {})()
+        peer.name = 'v4-peer'
+        self.tgn.ext = 'ixnetwork'
+        self.tgn._config = SimpleNamespace(devices=[
+            SimpleNamespace(name='MixedCaseDevice', peers=[peer])])
+        metric = SimpleNamespace(name='mixedcasedevice', session_state='up')
+        metric._TYPES = ('name', 'session_state')
+        self.api.get_metrics.side_effect = None
+        self.api.get_metrics.return_value = SimpleNamespace(
+            bgpv4_metrics=[metric])
+
+        self.assertEqual(self.tgn.get_bgp_metrics('v4-peer'),
+                         {'v4-peer': {'session_state': 'up'}})
+        request = self.api.get_metrics.call_args[0][0]
+        self.assertEqual(request.bgpv4.peer_names, ['MixedCaseDevice'])
+
+    def test_ixnetwork_metrics_refuse_ambiguous_device_groups(self):
+        peers = []
+        for name in ('v4-peer', 'another-peer'):
+            peer = type('BgpV4Peer', (), {})()
+            peer.name = name
+            peers.append(peer)
+        self.tgn.ext = 'ixnetwork'
+        self.tgn._config = SimpleNamespace(devices=[
+            SimpleNamespace(name='device1', peers=peers)])
+        with self.assertRaisesRegex(GenieTgnError, 'one peer'):
+            self.tgn.get_bgp_metrics('v4-peer')
+        self.api.get_metrics.assert_not_called()
+
+    def test_ixnetwork_metrics_refuse_case_colliding_device_names(self):
+        devices = []
+        for device_name, peer_name in [('Device1', 'v4-peer'),
+                                       ('device1', 'another-peer')]:
+            peer = type('BgpV4Peer', (), {})()
+            peer.name = peer_name
+            devices.append(SimpleNamespace(name=device_name, peers=[peer]))
+        self.peers['bgpv4'].append('another-peer')
+        self.tgn.ext = 'ixnetwork'
+        self.tgn._config = SimpleNamespace(devices=devices)
+        with self.assertRaisesRegex(GenieTgnError, 'distinct'):
+            self.tgn.get_bgp_metrics(['v4-peer', 'another-peer'])
+        self.api.get_metrics.assert_not_called()
+
+    def test_metrics_for_other_peers_are_not_returned(self):
+        self.api.get_metrics.side_effect = None
+        metric = SimpleNamespace(name='another-peer', session_state='up')
+        metric._TYPES = ('name', 'session_state')
+        self.api.get_metrics.return_value = SimpleNamespace(
+            bgpv4_metrics=[metric])
+        self.assertEqual(self.tgn.get_bgp_metrics('v4-peer'), {})
+
+    def test_sessions_are_verified_once_they_are_up(self):
+        self.assertEqual(sorted(self.tgn.verify_bgp_sessions(max_time=0)),
+                         ['v4-peer', 'v6-peer'])
+
+    def test_verification_waits_for_metrics_after_protocol_start(self):
+        ready = self.tgn.get_bgp_metrics()
+        with patch.object(type(self.tgn), 'get_bgp_metrics',
+                          side_effect=[{}, ready]) as get_metrics:
+            with patch('genie.trafficgen.otg.implementation.time.sleep'):
+                self.assertEqual(self.tgn.verify_bgp_sessions(max_time=1),
+                                 ready)
+        self.assertEqual(get_metrics.call_count, 2)
+
+    def test_missing_configured_peers_do_not_pass_verification(self):
+        with patch.object(type(self.tgn), 'get_bgp_metrics', return_value={}):
+            with self.assertRaisesRegex(GenieTgnError, 'v4-peer, v6-peer'):
+                self.tgn.verify_bgp_sessions(max_time=0)
+
+    def test_partial_metrics_do_not_pass_verification(self):
+        metrics = self.tgn.get_bgp_metrics('v4-peer')
+        with patch.object(type(self.tgn), 'get_bgp_metrics',
+                          return_value=metrics):
+            with self.assertRaisesRegex(GenieTgnError, 'v6-peer'):
+                self.tgn.verify_bgp_sessions(max_time=0)
+
+    def test_a_single_peer_name_is_verified(self):
+        self.assertEqual(list(self.tgn.verify_bgp_sessions('v6-peer',
+                                                         max_time=0)),
+                         ['v6-peer'])
+
+    def test_verification_without_configured_peers_raises(self):
+        self.peers = {'bgpv4': [], 'bgpv6': []}
+        with self.assertRaisesRegex(GenieTgnError, 'No BGP peers'):
+            self.tgn.verify_bgp_sessions(max_time=0)
+
+    def test_verification_times_out_naming_the_session(self):
+        self.state['v6-peer'] = 'down'
+        with self.assertRaisesRegex(GenieTgnError, 'v6-peer'):
+            self.tgn.verify_bgp_sessions(max_time=0)
+
+    def test_end_of_rib_is_checked_on_request(self):
+        self.end_of_rib['v4-peer'] = 0
+        self.tgn.verify_bgp_sessions(max_time=0)
+        with self.assertRaisesRegex(GenieTgnError, 'v4-peer'):
+            self.tgn.verify_bgp_sessions(check_eor=True, max_time=0)
+
+    def test_an_invalid_state_raises(self):
+        with self.assertRaises(GenieTgnError):
+            self.tgn.verify_bgp_sessions(state='flapping')
+
+    def test_peer_control_rejects_invalid_states_without_sending(self):
+        for state in ('flapping', 'UP', None):
+            with self.subTest(state=state):
+                with self.assertRaisesRegex(GenieTgnError, 'state'):
+                    self.tgn.set_bgp_peer_state(['v4-peer'], state)
+        self.api.set_control_state.assert_not_called()
+        self.assertEqual(self.requests, [])
+
+    def test_peer_control_rejects_unknown_names_without_sending(self):
+        for peers in (['absent-peer'], ['v4-peer', 'absent-peer']):
+            with self.subTest(peers=peers):
+                with self.assertRaisesRegex(GenieTgnError, 'absent-peer'):
+                    self.tgn.set_bgp_peer_state(peers, 'down')
+        self.api.set_control_state.assert_not_called()
+        self.assertEqual(self.requests, [])
+
+    def test_a_single_peer_name_can_be_controlled(self):
+        self.assertEqual(self.tgn.set_bgp_peer_state('v6-peer', 'down'),
+                         ['v6-peer'])
+        self.assertEqual(self.requests[-1].protocol.bgp.peers.peer_names,
+                         ['v6-peer'])
+
+    def test_peers_are_brought_down_by_name(self):
+        self.assertEqual(self.tgn.set_bgp_peer_state(['v4-peer'], 'down'),
+                         ['v4-peer'])
+        control = self.requests[-1]
+        self.assertEqual(control.choice, 'protocol')
+        self.assertEqual(control.protocol.choice, 'bgp')
+        self.assertEqual(control.protocol.bgp.peers.peer_names, ['v4-peer'])
+        self.assertEqual(control.protocol.bgp.peers.state, 'down')
+
+    def test_every_peer_is_acted_on_by_default(self):
+        self.assertEqual(self.tgn.set_bgp_peer_state(),
+                         ['v4-peer', 'v6-peer'])
+
+    def test_ixnetwork_does_not_claim_an_ignored_peer_state_change(self):
+        self.tgn.ext = 'ixnetwork'
+        with self.assertRaisesRegex(GenieTgnError, 'does not implement BGP'):
+            self.tgn.set_bgp_peer_state(['v4-peer'], 'down')
+        self.api.set_control_state.assert_not_called()
+
+    def test_a_configuration_without_peers_raises(self):
+        self.peers = {'bgpv4': [], 'bgpv6': []}
+        with self.assertRaises(GenieTgnError):
+            self.tgn.set_bgp_peer_state()
+
+    def test_a_controller_failure_is_reported(self):
+        self.api.set_control_state.side_effect = RuntimeError('no route')
+        with self.assertRaisesRegex(GenieTgnError, 'no route'):
+            self.tgn.set_bgp_peer_state(['v4-peer'], 'down')
+
+
+class TestEmulatedBgpNeedsAController(OtgTestCase):
+    '''The simulator emulates no BGP, and says so rather than failing oddly.'''
+
+    def test_metrics_report_the_unsupported_transport(self):
+        with self.assertRaisesRegex(GenieTgnError, "transport='mock'"):
+            self.tgn.get_bgp_metrics()
+
+    def test_peer_state_reports_the_unsupported_transport(self):
+        with self.assertRaisesRegex(GenieTgnError, "transport='mock'"):
+            self.tgn.set_bgp_peer_state()
+
+
+
+class TestMockFlowAttributeSerialization(unittest.TestCase):
+    '''Rate and size serialization honor the selected SDK encoding.'''
+
+    @staticmethod
+    def attributes():
+        rate = mock.FlowRate()
+        rate.mbps = 10
+        size = mock.FlowSize()
+        size.fixed = 256
+        return ((rate, {'choice': 'mbps', 'mbps': 10}),
+                (size, {'choice': 'fixed', 'fixed': 256}))
+
+    def test_default_and_explicit_dict_encoding_are_preserved(self):
+        for attribute, expected in self.attributes():
+            with self.subTest(attribute=type(attribute).__name__):
+                self.assertEqual(attribute.serialize(), expected)
+                self.assertEqual(attribute.serialize(encoding='dict'),
+                                 expected)
+
+    def test_json_encoding_returns_json_text(self):
+        for attribute, expected in self.attributes():
+            with self.subTest(attribute=type(attribute).__name__):
+                encoded = attribute.serialize(encoding='json')
+                self.assertIsInstance(encoded, str)
+                self.assertEqual(json.loads(encoded), expected)
+
+    def test_yaml_encoding_returns_yaml_text(self):
+        for attribute, expected in self.attributes():
+            with self.subTest(attribute=type(attribute).__name__):
+                encoded = attribute.serialize(encoding='yaml')
+                self.assertIsInstance(encoded, str)
+                self.assertEqual(yaml.safe_load(encoded), expected)
+
+    def test_unsupported_encoding_is_rejected(self):
+        for attribute, _ in self.attributes():
+            with self.subTest(attribute=type(attribute).__name__):
+                with self.assertRaisesRegex(NotImplementedError,
+                                            'Encoding xml not supported'):
+                    attribute.serialize(encoding='xml')
+
+    def test_explicit_encodings_match_sdk_flow_attributes(self):
+        try:
+            import snappi
+        except ImportError:
+            self.skipTest('Snappi is required for SDK model compatibility')
+        for attribute, _ in self.attributes():
+            sdk_attribute = getattr(snappi, type(attribute).__name__)()
+            if isinstance(attribute, mock.FlowRate):
+                # Percentage is numeric in both models.
+                attribute.percentage = 12.5
+                sdk_attribute.percentage = 12.5
+            else:
+                sdk_attribute.fixed = 256
+            for encoding in ('dict', 'json', 'yaml'):
+                with self.subTest(attribute=type(attribute).__name__,
+                                  encoding=encoding):
+                    encoded = attribute.serialize(encoding=encoding)
+                    sdk_encoded = sdk_attribute.serialize(encoding=encoding)
+                    if encoding != 'dict':
+                        self.assertIsInstance(encoded, str)
+                        encoded = yaml.safe_load(encoded)
+                        sdk_encoded = yaml.safe_load(sdk_encoded)
+                    self.assertEqual(encoded, sdk_encoded)
+
+
+class TestMockRateChoices(unittest.TestCase):
+    """The mock retains rate choices and never substitutes stale PPS."""
+
+    def setUp(self):
+        self.api = mock.MockOtgApi()
+
+    def config(self, choice='pps', value=1000, size=128):
+        config = self.api.config()
+        config.ports.add(name='p1', location='localhost:5555')
+        config.ports.add(name='p2', location='localhost:5556')
+        flow = config.flows.add(name='f1')
+        flow.tx_rx.port.tx_name = 'p1'
+        flow.tx_rx.port.rx_name = 'p2'
+        flow.size.fixed = size
+        setattr(flow.rate, choice, value)
+        return config
+
+    def start(self):
+        state = self.api.control_state()
+        state.choice = state.TRAFFIC
+        state.traffic.choice = state.traffic.FLOW_TRANSMIT
+        state.traffic.flow_transmit.flow_names = ['f1']
+        state.traffic.flow_transmit.state = state.traffic.flow_transmit.START
+        self.api.set_control_state(state)
+
+    def metric(self):
+        return self.api.get_metrics(self.api.metrics_request()).flow_metrics[0]
+
+    def test_each_rate_choice_round_trips(self):
+        for choice, value in [('pps', 321), ('percentage', .01),
+                              ('bps', 1000000), ('kbps', 1000),
+                              ('mbps', 10), ('gbps', 1)]:
+            with self.subTest(choice=choice):
+                config = self.config(choice, value)
+                restored = self.api.config().deserialize(config.serialize())
+                self.assertEqual(restored.flows[0].rate.to_dict(),
+                                 {'choice': choice, choice: value})
+
+    def test_active_choice_wins_over_an_inactive_pps_field(self):
+        payload = json.loads(self.config().serialize())
+        payload['flows'][0]['rate'] = {
+            'choice': 'mbps', 'mbps': 10, 'pps': 777}
+        config = self.api.config().deserialize(payload)
+        self.assertEqual(config.flows[0].rate.to_dict(),
+                         {'choice': 'mbps', 'mbps': 10})
+
+    def test_invalid_active_rate_fields_are_rejected(self):
+        for rate in ({'choice': 'ppss', 'ppss': 777},
+                     {'choice': 'mbps'}, {'choice': 'pps', 'mbps': 10}):
+            with self.subTest(rate=rate):
+                payload = json.loads(self.config().serialize())
+                payload['flows'][0]['rate'] = rate
+                with self.assertRaisesRegex(ValueError, 'rate'):
+                    self.api.config().deserialize(payload)
+
+    def test_initial_bit_rate_drives_packet_and_byte_metrics(self):
+        for choice, value, multiplier in [('bps', 1000000, 1),
+                                          ('kbps', 1000, 1000),
+                                          ('mbps', 10, 1000000),
+                                          ('gbps', 1, 1000000000)]:
+            with self.subTest(choice=choice):
+                self.api = mock.MockOtgApi()
+                self.api.set_config(self.config(choice, value))
+                self.start()
+                metric = self.metric()
+                expected = value * multiplier / (128 * 8)
+                self.assertAlmostEqual(metric.frames_tx_rate, expected)
+                self.assertAlmostEqual(metric.frames_rx_rate, expected)
+                self.assertAlmostEqual(metric.tx_rate_bytes, expected * 128)
+
+    def test_live_bit_rate_update_changes_metrics_and_configuration(self):
+        self.api.set_config(self.config())
+        self.start()
+        update = self.api.config_update().flows
+        update.property_names = ['rate']
+        update.flows.append(self.config('mbps', 10).flows[0])
+        self.api.update_flows(update)
+        metric = self.metric()
+        self.assertEqual(metric.transmit, 'started')
+        self.assertAlmostEqual(metric.frames_tx_rate, 10000000 / (128 * 8))
+        self.assertEqual(self.api.get_config().flows[0].rate.to_dict(),
+                         {'choice': 'mbps', 'mbps': 10})
+
+    def test_live_update_accepts_sdk_rate_serialization(self):
+        try:
+            import snappi
+        except ImportError:
+            self.skipTest('Snappi is required for SDK model compatibility')
+        self.api.set_config(self.config())
+        self.start()
+        flow = self.config().flows[0]
+        flow.rate = snappi.FlowRate()
+        flow.rate.mbps = 10
+        update = self.api.config_update().flows
+        update.property_names = ['rate']
+        update.flows.append(flow)
+        self.api.update_flows(update)
+        self.assertAlmostEqual(self.metric().frames_tx_rate,
+                               10000000 / (128 * 8))
+        self.assertEqual(self.api.get_config().flows[0].rate.choice, 'mbps')
+
+    def test_size_only_update_recomputes_bit_rate_pps(self):
+        self.api.set_config(self.config('mbps', 10))
+        self.start()
+        update = self.api.config_update().flows
+        update.property_names = ['size']
+        # This rate is unselected and must not override the active bit rate.
+        update.flows.append(self.config('percentage', 50, 256).flows[0])
+        self.api.update_flows(update)
+        metric = self.metric()
+        self.assertAlmostEqual(metric.frames_tx_rate, 10000000 / (256 * 8))
+        self.assertEqual(self.api.get_config().flows[0].rate.choice, 'mbps')
+        self.assertEqual(self.api.get_config().flows[0].size.fixed, 256)
+
+    def test_percentage_configuration_fails_before_replacing_state(self):
+        config = self.config()
+        self.api.set_config(config)
+        previous = {name: dict(state)
+                    for name, state in self.api.engine._flows.items()}
+        with self.assertRaisesRegex(ValueError, 'percentage.*link speed'):
+            self.api.set_config(self.config('percentage', 10))
+        self.assertIs(self.api.get_config(), config)
+        self.assertEqual(self.api.engine._flows, previous)
+
+    def test_invalid_later_update_does_not_partly_change_metrics(self):
+        config = self.config()
+        flow = config.flows.add(name='f2')
+        flow.tx_rx.port.tx_name = 'p1'
+        flow.tx_rx.port.rx_name = 'p2'
+        self.api.set_config(config)
+        previous = {name: dict(state)
+                    for name, state in self.api.engine._flows.items()}
+        update = self.api.config_update().flows
+        update.property_names = ['rate']
+        update.flows.append(self.config('pps', 2000).flows[0])
+        invalid = self.config('percentage', 10).flows[0]
+        invalid.name = 'f2'
+        update.flows.append(invalid)
+        with self.assertRaisesRegex(ValueError, 'percentage.*link speed'):
+            self.api.update_flows(update)
+        self.assertEqual(self.api.engine._flows, previous)
+        self.assertEqual(self.api.get_config().flows[0].rate.pps, 1000)
+
+    def test_live_rate_reduction_preserves_accumulated_counters(self):
+        self.api.set_config(self.config('pps', 1000))
+        self.start()
+        with patch.object(mock.time, 'time', return_value=100):
+            self.api.engine._flows['f1']['start_time'] = 90
+            before = self.metric()
+            update = self.api.config_update().flows
+            update.property_names = ['rate']
+            update.flows.append(self.config('mbps', 1).flows[0])
+            self.api.update_flows(update)
+            after = self.metric()
+        self.assertGreaterEqual(after.frames_tx, before.frames_tx)
+        self.assertGreaterEqual(after.bytes_tx, before.bytes_tx)
+        self.assertEqual(after.transmit, 'started')
 
 
 if __name__ == '__main__':

@@ -12,6 +12,7 @@ it is used instead for the http/https/grpc transports.
 '''
 
 import json
+import math
 import time
 import urllib.error
 import urllib.request
@@ -22,6 +23,11 @@ from genie.harness.exceptions import GenieTgnError
 
 # Frame size assumed by the simulator when translating rates into byte counters.
 SIMULATED_FRAME_SIZE = 128
+
+# A libpcap file header with no packets behind it: microsecond resolution,
+# little endian, snaplen 65535, Ethernet.
+PCAP_FILE_HEADER = (b'\xd4\xc3\xb2\xa1\x02\x00\x04\x00\x00\x00\x00\x00'
+                    b'\x00\x00\x00\x00\xff\xff\x00\x00\x01\x00\x00\x00')
 
 
 # -----------------------------------------------------------------------------
@@ -41,6 +47,27 @@ class OtgList(list):
         item = self._item_factory(**kwargs)
         self.append(item)
         return item
+
+
+def _assign(obj, values):
+    '''Set the attributes a mapping names on a model object, nested ones too.'''
+    for key, value in values.items():
+        current = getattr(obj, key, None)
+        if isinstance(value, dict) and hasattr(current, '__dict__'):
+            _assign(current, value)
+        else:
+            setattr(obj, key, value)
+
+
+def _serialize(data, encoding):
+    '''Serialize a flow attribute using the requested SDK encoding.'''
+    if encoding == 'dict':
+        return data
+    if encoding == 'json':
+        return json.dumps(data, indent=2, sort_keys=True)
+    if encoding == 'yaml':
+        return yaml.safe_dump(data)
+    raise NotImplementedError('Encoding {} not supported'.format(encoding))
 
 
 class Pattern:
@@ -209,10 +236,10 @@ class ArpHeader:
         self.hardware_length = Pattern(6)
         self.protocol_length = Pattern(4)
         self.operation = Pattern(1)
-        self.src_hardware_addr = Pattern('00:00:01:00:00:01')
-        self.src_protocol_addr = Pattern('192.0.2.1')
-        self.dst_hardware_addr = Pattern('00:00:00:00:00:00')
-        self.dst_protocol_addr = Pattern('192.0.2.2')
+        self.sender_hardware_addr = Pattern('00:00:01:00:00:01')
+        self.sender_protocol_addr = Pattern('192.0.2.1')
+        self.target_hardware_addr = Pattern('00:00:00:00:00:00')
+        self.target_protocol_addr = Pattern('192.0.2.2')
 
     def to_dict(self):
         return {
@@ -223,10 +250,10 @@ class ArpHeader:
                 'hardware_length': self.hardware_length.value,
                 'protocol_length': self.protocol_length.value,
                 'operation': self.operation.value,
-                'src_hardware_addr': self.src_hardware_addr.value,
-                'src_protocol_addr': self.src_protocol_addr.value,
-                'dst_hardware_addr': self.dst_hardware_addr.value,
-                'dst_protocol_addr': self.dst_protocol_addr.value,
+                'sender_hardware_addr': self.sender_hardware_addr.value,
+                'sender_protocol_addr': self.sender_protocol_addr.value,
+                'target_hardware_addr': self.target_hardware_addr.value,
+                'target_protocol_addr': self.target_protocol_addr.value,
             },
         }
 
@@ -346,11 +373,38 @@ class TxRx:
 
 
 class FlowRate:
+    '''A flow rate expressed as one of the OTG rate choices.
+
+    Only one choice is active at a time, and setting a rate selects it,
+    as the controller model does.
+    '''
+
+    CHOICES = ('pps', 'percentage', 'bps', 'kbps', 'mbps', 'gbps')
+    DICT = 'dict'
+
     def __init__(self):
-        self.pps = 100
+        object.__setattr__(self, 'choice', 'pps')
+        for name in self.CHOICES:
+            object.__setattr__(self, name, 100 if name == 'pps' else 0)
+
+    def __setattr__(self, name, value):
+        object.__setattr__(self, name, value)
+        if name in self.CHOICES:
+            object.__setattr__(self, 'choice', name)
 
     def to_dict(self):
-        return {'choice': 'pps', 'pps': self.pps}
+        return {'choice': self.choice, self.choice: getattr(self,
+                                                            self.choice)}
+
+    def serialize(self, encoding=DICT):
+        return _serialize(self.to_dict(), encoding)
+
+    def deserialize(self, content):
+        choice = content.get('choice', 'pps')
+        if choice not in self.CHOICES or choice not in content:
+            raise ValueError('Invalid flow rate: {!r}'.format(content))
+        setattr(self, choice, content[choice])
+        return self
 
 
 class FixedPackets:
@@ -403,12 +457,30 @@ class FlowMetricsConfig:
         return {'enable': self.enable, 'loss': self.loss}
 
 
+class FlowSize:
+    DICT = 'dict'
+
+    def __init__(self):
+        self.fixed = SIMULATED_FRAME_SIZE
+
+    def to_dict(self):
+        return {'choice': 'fixed', 'fixed': self.fixed}
+
+    def serialize(self, encoding=DICT):
+        return _serialize(self.to_dict(), encoding)
+
+    def deserialize(self, content):
+        self.fixed = content['fixed']
+        return self
+
+
 class Flow:
     def __init__(self, name=None):
         self.name = str(name) if name else None
         self.tx_rx = TxRx()
         self.packet = PacketHeaders()
         self.rate = FlowRate()
+        self.size = FlowSize()
         self.duration = FlowDuration()
         self.metrics = FlowMetricsConfig()
 
@@ -418,9 +490,40 @@ class Flow:
             'tx_rx': self.tx_rx.to_dict(),
             'packet': self.packet.to_dict(),
             'rate': self.rate.to_dict(),
+            'size': self.size.to_dict(),
             'duration': self.duration.to_dict(),
             'metrics': self.metrics.to_dict(),
         }
+
+
+class CaptureFilter:
+    '''One of the filters narrowing what a capture records.'''
+
+    def __init__(self):
+        self.choice = 'custom'
+        self.custom = CustomHeader()
+
+    def to_dict(self):
+        return {'choice': self.choice, 'custom': self.custom.to_dict()}
+
+
+class Capture:
+    PCAP = 'pcap'
+    PCAPNG = 'pcapng'
+
+    def __init__(self, name=None):
+        self.name = str(name) if name else None
+        self.port_names = []
+        self.format = self.PCAP
+        self.overwrite = True
+        self.packet_size = None
+        self.filters = OtgList(CaptureFilter)
+
+    def to_dict(self):
+        return {'name': self.name, 'port_names': list(self.port_names),
+                'format': self.format, 'overwrite': self.overwrite,
+                'packet_size': self.packet_size,
+                'filters': [f.to_dict() for f in self.filters]}
 
 
 class Config:
@@ -428,12 +531,14 @@ class Config:
         self.ports = OtgList(Port)
         self.devices = OtgList(Device)
         self.flows = OtgList(Flow)
+        self.captures = OtgList(Capture)
 
     def to_dict(self):
         return {
             'ports': [p.to_dict() for p in self.ports],
             'devices': [d.to_dict() for d in self.devices],
             'flows': [f.to_dict() for f in self.flows],
+            'captures': [c.to_dict() for c in self.captures],
         }
 
     def serialize(self, encoding='json'):
@@ -443,6 +548,30 @@ class Config:
         return json.dumps(data, indent=2)
 
     def deserialize(self, content):
+        data = self._load_mapping(content)
+
+        self.ports.clear()
+        self.devices.clear()
+        self.flows.clear()
+        self.captures.clear()
+
+        for port in data.get('ports') or []:
+            self.ports.add(name=port.get('name'), location=port.get('location'))
+
+        for capture_data in data.get('captures') or []:
+            self._deserialize_capture(capture_data)
+
+        for device_data in data.get('devices') or []:
+            self._deserialize_device(device_data)
+
+        for flow_data in data.get('flows') or []:
+            self._deserialize_flow(flow_data)
+
+        return self
+
+    @staticmethod
+    def _load_mapping(content):
+        '''Parse a configuration given as a dict, JSON or YAML.'''
         if isinstance(content, dict):
             data = content
         elif isinstance(content, (bytes, bytearray)):
@@ -457,57 +586,63 @@ class Config:
 
         if not isinstance(data, dict):
             raise GenieTgnError('OTG configuration must deserialize to a mapping')
+        return data
 
-        self.ports.clear()
-        self.devices.clear()
-        self.flows.clear()
+    def _deserialize_capture(self, capture_data):
+        '''Populate one packet capture.'''
+        capture = self.captures.add(name=capture_data.get('name'))
+        capture.port_names = list(capture_data.get('port_names') or [])
+        capture.format = capture_data.get('format', Capture.PCAP)
+        capture.overwrite = bool(capture_data.get('overwrite', True))
+        capture.packet_size = capture_data.get('packet_size')
 
-        for port in data.get('ports') or []:
-            self.ports.add(name=port.get('name'), location=port.get('location'))
+    def _deserialize_device(self, device_data):
+        '''Populate one emulated device and its ethernet interfaces.'''
+        device = self.devices.add(name=device_data.get('name'))
+        for eth_data in device_data.get('ethernets') or []:
+            eth = device.ethernets.add(name=eth_data.get('name'),
+                                       mac=eth_data.get('mac'),
+                                       mtu=eth_data.get('mtu', 1500))
+            eth.connection.port_name = \
+                (eth_data.get('connection') or {}).get('port_name')
+            for ip4 in eth_data.get('ipv4_addresses') or []:
+                eth.ipv4_addresses.add(name=ip4.get('name'),
+                                       address=ip4.get('address'),
+                                       gateway=ip4.get('gateway'),
+                                       prefix=ip4.get('prefix', 24))
+            for ip6 in eth_data.get('ipv6_addresses') or []:
+                eth.ipv6_addresses.add(name=ip6.get('name'),
+                                       address=ip6.get('address'),
+                                       gateway=ip6.get('gateway'),
+                                       prefix=ip6.get('prefix', 64))
 
-        for device in data.get('devices') or []:
-            dev = self.devices.add(name=device.get('name'))
-            for eth_data in device.get('ethernets') or []:
-                eth = dev.ethernets.add(name=eth_data.get('name'),
-                                        mac=eth_data.get('mac'),
-                                        mtu=eth_data.get('mtu', 1500))
-                eth.connection.port_name = \
-                    (eth_data.get('connection') or {}).get('port_name')
-                for ip4 in eth_data.get('ipv4_addresses') or []:
-                    eth.ipv4_addresses.add(name=ip4.get('name'),
-                                           address=ip4.get('address'),
-                                           gateway=ip4.get('gateway'),
-                                           prefix=ip4.get('prefix', 24))
-                for ip6 in eth_data.get('ipv6_addresses') or []:
-                    eth.ipv6_addresses.add(name=ip6.get('name'),
-                                           address=ip6.get('address'),
-                                           gateway=ip6.get('gateway'),
-                                           prefix=ip6.get('prefix', 64))
-
-        for flow_data in data.get('flows') or []:
-            self._deserialize_flow(flow_data)
-
-        return self
-
-    def _deserialize_flow(self, flow_data):
-        flow = self.flows.add(name=flow_data.get('name'))
-
+    @staticmethod
+    def _deserialize_flow_endpoints(flow, flow_data):
+        '''Populate a flow's device or port endpoint selection.'''
         tx_rx = flow_data.get('tx_rx') or {}
         if tx_rx.get('choice') == TxRx.DEVICE:
             device = tx_rx.get('device') or {}
             flow.tx_rx.device.tx_names = list(device.get('tx_names') or [])
             flow.tx_rx.device.rx_names = list(device.get('rx_names') or [])
-        else:
-            port = tx_rx.get('port') or {}
-            flow.tx_rx.port.tx_name = port.get('tx_name')
-            if port.get('rx_names'):
-                flow.tx_rx.port.rx_names = list(port['rx_names'])
-            else:
-                flow.tx_rx.port.rx_name = port.get('rx_name')
+            return
 
+        port = tx_rx.get('port') or {}
+        flow.tx_rx.port.tx_name = port.get('tx_name')
+        if port.get('rx_names'):
+            flow.tx_rx.port.rx_names = list(port['rx_names'])
+            return
+        flow.tx_rx.port.rx_name = port.get('rx_name')
+
+    @staticmethod
+    def _deserialize_flow_traffic(flow, flow_data):
+        '''Populate rate, size, and duration values for one flow.'''
         rate = flow_data.get('rate') or {}
-        if 'pps' in rate:
-            flow.rate.pps = rate['pps']
+        if rate:
+            flow.rate.deserialize(rate)
+
+        size = flow_data.get('size') or {}
+        if 'fixed' in size:
+            flow.size.fixed = size['fixed']
 
         duration = flow_data.get('duration') or {}
         if 'choice' in duration:
@@ -520,12 +655,18 @@ class Config:
         if 'burst' in duration:
             flow.duration.burst.packets = duration['burst'].get('packets', 1)
 
+    @staticmethod
+    def _deserialize_flow_metrics(flow, flow_data):
+        '''Populate the optional flow metric switches.'''
         metrics = flow_data.get('metrics') or {}
         if 'enable' in metrics:
             flow.metrics.enable = bool(metrics['enable'])
         if 'loss' in metrics:
             flow.metrics.loss = bool(metrics['loss'])
 
+    @staticmethod
+    def _deserialize_flow_headers(flow, flow_data):
+        '''Populate the packet-header stack carried by one flow.'''
         for header in flow_data.get('packet') or []:
             choice = header.get('choice')
             if choice not in PacketHeaders._BUILDERS:
@@ -538,6 +679,12 @@ class Config:
                 elif attr is not None or field == 'bytes':
                     setattr(flow.packet[-1], field, value)
 
+    def _deserialize_flow(self, flow_data):
+        flow = self.flows.add(name=flow_data.get('name'))
+        self._deserialize_flow_endpoints(flow, flow_data)
+        self._deserialize_flow_traffic(flow, flow_data)
+        self._deserialize_flow_metrics(flow, flow_data)
+        self._deserialize_flow_headers(flow, flow_data)
         return flow
 
 
@@ -576,15 +723,31 @@ class AllProtocol:
         return {'state': self.state}
 
 
+class RouteState:
+    ADVERTISE = 'advertise'
+    WITHDRAW = 'withdraw'
+
+    def __init__(self):
+        self.names = []
+        self.state = self.ADVERTISE
+
+    def to_dict(self):
+        return {'names': list(self.names), 'state': self.state}
+
+
 class ProtocolControlState:
     ALL = 'all'
+    ROUTE = 'route'
 
     def __init__(self):
         self.choice = self.ALL
         self.all = AllProtocol()
+        # Snappi requires both the ROUTE choice and its route payload.
+        self.route = RouteState()  # NOSONAR(S1845)
 
     def to_dict(self):
-        return {'choice': self.choice, 'all': self.all.to_dict()}
+        return {'choice': self.choice, 'all': self.all.to_dict(),
+                'route': self.route.to_dict()}
 
 
 class PortLink:
@@ -599,15 +762,30 @@ class PortLink:
         return {'port_names': list(self.port_names), 'state': self.state}
 
 
+class PortCapture:
+    START = 'start'
+    STOP = 'stop'
+
+    def __init__(self):
+        self.port_names = []
+        self.state = self.START
+
+    def to_dict(self):
+        return {'port_names': list(self.port_names), 'state': self.state}
+
+
 class PortControlState:
     LINK = 'link'
+    CAPTURE = 'capture'
 
     def __init__(self):
         self.choice = self.LINK
         self.link = PortLink()
+        self.capture = PortCapture()  # NOSONAR snappi StatePort naming
 
     def to_dict(self):
-        return {'choice': self.choice, 'link': self.link.to_dict()}
+        return {'choice': self.choice, 'link': self.link.to_dict(),
+                'capture': self.capture.to_dict()}
 
 
 class ControlState:
@@ -627,6 +805,34 @@ class ControlState:
                 'protocol': self.protocol.to_dict(),
                 'port': self.port.to_dict()}
 
+    def deserialize(self, content):
+        _assign(self, Config._load_mapping(content))
+        return self
+
+
+class FlowsUpdate:
+    RATE = 'rate'
+    SIZE = 'size'
+
+    def __init__(self):
+        self.property_names = []
+        self.flows = OtgList(Flow)
+
+    def to_dict(self):
+        return {'property_names': list(self.property_names),
+                'flows': [flow.to_dict() for flow in self.flows]}
+
+
+class ConfigUpdate:
+    FLOWS_CHOICE = 'flows'
+
+    def __init__(self):
+        self.choice = self.FLOWS_CHOICE
+        self.flows = FlowsUpdate()
+
+    def to_dict(self):
+        return {'choice': self.choice, 'flows': self.flows.to_dict()}
+
 
 class FlowMetricsRequest:
     def __init__(self):
@@ -644,6 +850,14 @@ class PortMetricsRequest:
         return {'port_names': list(self.port_names)}
 
 
+class CaptureRequest:
+    def __init__(self):
+        self.port_name = None
+
+    def to_dict(self):
+        return {'port_name': self.port_name}
+
+
 class MetricsRequest:
     FLOW = 'flow'
     PORT = 'port'
@@ -656,6 +870,10 @@ class MetricsRequest:
     def to_dict(self):
         return {'choice': self.choice, 'flow': self.flow.to_dict(),
                 'port': self.port.to_dict()}
+
+    def deserialize(self, content):
+        _assign(self, Config._load_mapping(content))
+        return self
 
 
 class FlowMetric:
@@ -753,11 +971,16 @@ class MockOtgEngine:
         self._dhcp_pool_next = 100
         self._pending_loss = {}
         self._pending_link = {}
+        self._withdrawn = set()
+        self._capturing = set()
         self._reset_on_start = False
 
     # -- configuration --------------------------------------------------------
 
     def set_config(self, config):
+        # Validate every rate before replacing a working model or counters.
+        for flow in config.flows:
+            self._flow_rate(flow, self._frame_size(flow))
         self._config = config
         self._warnings = []
 
@@ -820,8 +1043,50 @@ class MockOtgEngine:
         return tx_rx.port.tx_name, (tx_rx.port.rx_names[0]
                                     if tx_rx.port.rx_names else None)
 
+    @staticmethod
+    def _frame_size(flow):
+        value = getattr(getattr(flow, 'size', None), 'fixed', None)
+        return int(SIMULATED_FRAME_SIZE if value is None else value)
+
+    @staticmethod
+    def _rate_pps(choice, value, frame_size):
+        if choice == 'percentage':
+            raise ValueError(
+                'Mock percentage rates require a configured link speed; '
+                'the simulator does not model link speed. Use pps or a '
+                'fixed-frame bit rate.')
+        multipliers = {'pps': 1, 'bps': 1, 'kbps': 1000,
+                       'mbps': 1000000, 'gbps': 1000000000}
+        if choice not in multipliers:
+            raise ValueError(
+                'Invalid mock flow rate choice: {!r}'.format(choice))
+        try:
+            value = float(value)
+        except (TypeError, ValueError) as err:
+            raise ValueError(
+                'Invalid mock flow rate: {!r}'.format(value)) from err
+        if not math.isfinite(value) or value <= 0 or frame_size <= 0:
+            raise ValueError('Mock rates and frame sizes must be positive and '
+                             'finite')
+        # The simulator models frame-byte rates, without physical-layer
+        # overhead. It has no physical port speed from which to infer percent.
+        pps = value if choice == 'pps' else \
+            value * multipliers[choice] / (frame_size * 8)
+        if not math.isfinite(pps):
+            raise ValueError('Mock packet rate must be finite')
+        return pps
+
+    @classmethod
+    def _flow_rate(cls, flow, frame_size):
+        rate = getattr(flow, 'rate', None)
+        choice = getattr(rate, 'choice', 'pps')
+        value = getattr(rate, choice, None)
+        pps = cls._rate_pps(choice, value, frame_size)
+        return choice, float(value), pps
+
     def _sync_flow(self, flow):
-        rate_pps = getattr(getattr(flow, 'rate', None), 'pps', 100) or 100
+        frame_size = self._frame_size(flow)
+        rate_choice, rate_value, rate_pps = self._flow_rate(flow, frame_size)
         duration = getattr(flow, 'duration', None)
         duration_type = getattr(duration, 'choice', 'continuous')
 
@@ -858,32 +1123,120 @@ class MockOtgEngine:
                 state['loss_frames'] = int(pending['loss_frames'])
 
         state['tx_port'], state['rx_port'] = self._flow_ports(self._config, flow)
-        state['pps'] = float(rate_pps)
+        state['pps'] = rate_pps
+        state['rate_choice'] = rate_choice
+        state['rate_value'] = rate_value
+        state['frame_size'] = frame_size
         state['duration_type'] = duration_type
         state['target_packets'] = target_packets
 
     def get_config(self):
         return self._config
 
+    def _plan_flow_update(self, flow, properties):
+        '''Validate one update without changing configuration or counters.'''
+        state = self._flows[flow.name]
+        frame_size = self._frame_size(flow) if FlowsUpdate.SIZE in \
+            properties else state['frame_size']
+        if FlowsUpdate.RATE in properties:
+            choice, value, pps = self._flow_rate(flow, frame_size)
+        else:
+            choice, value = state['rate_choice'], state['rate_value']
+            pps = self._rate_pps(choice, value, frame_size)
+        return flow, state, choice, value, frame_size, pps
+
+    def update_flows(self, flows_update):
+        """Validate and apply selected rate/size fields without restarting."""
+        unknown = [flow.name for flow in flows_update.flows
+                   if flow.name not in self._flows]
+        if unknown:
+            raise ValueError(
+                'Traffic streams not configured: {}'.format(
+                    ', '.join(sorted(unknown))))
+
+        properties = list(flows_update.property_names or
+                          [FlowsUpdate.RATE, FlowsUpdate.SIZE])
+        planned = [self._plan_flow_update(flow, properties)
+                   for flow in flows_update.flows]
+
+        configured = {flow.name: flow for flow in self._config.flows}
+        for flow, state, choice, value, frame_size, pps in planned:
+            # Account for the previous rate/size before changing it. Reusing
+            # the old start time would recompute all past counters at the new
+            # rate, and a rate reduction could make counters go backwards.
+            if state['transmit'] == 'started':
+                self._update_flow_runtime(flow.name)
+                for counter in ('frames_tx', 'bytes_tx',
+                                'frames_rx', 'bytes_rx'):
+                    state['accumulated_' + counter] = state[counter]
+                state['start_time'] = time.time()
+            state.update(pps=pps, rate_choice=choice, rate_value=value,
+                         frame_size=frame_size)
+            target = configured[flow.name]
+            if FlowsUpdate.RATE in properties:
+                target.rate.deserialize(flow.rate.serialize(flow.rate.DICT))
+            if FlowsUpdate.SIZE in properties:
+                target.size.fixed = frame_size
+
+        self._recompute_port_counters()
+        return {'status': 'success', 'warnings': []}
+
     # -- control state --------------------------------------------------------
 
     def set_control_state(self, control_state):
         choice = getattr(control_state, 'choice', None)
-
-        if choice == ControlState.TRAFFIC:
-            self._apply_traffic_state(control_state.traffic)
-        elif choice == ControlState.PROTOCOL:
-            protocol = control_state.protocol
-            if getattr(protocol, 'all', None) and \
-                    protocol.all.state == AllProtocol.START:
-                self._resolve_arp_all()
-        elif choice == ControlState.PORT:
-            link = getattr(control_state.port, 'link', None)
-            if link:
-                for port_name in link.port_names:
-                    self.set_port_link(port_name, link.state)
-
+        handlers = {
+            ControlState.TRAFFIC: lambda: self._apply_traffic_state(
+                control_state.traffic),
+            ControlState.PROTOCOL: lambda: self._apply_protocol_state(
+                control_state.protocol),
+            ControlState.PORT: lambda: self._apply_port_state(control_state.port),
+        }
+        handler = handlers.get(choice)
+        if handler:
+            handler()
         return {'status': 'success'}
+
+    def _apply_protocol_state(self, protocol):
+        '''Apply route advertisement or protocol-start controller state.'''
+        if getattr(protocol, 'choice', None) == ProtocolControlState.ROUTE:
+            self._set_mock_route_state(protocol.route)
+            return
+        if getattr(protocol, 'all', None) and \
+                protocol.all.state == AllProtocol.START:
+            self._resolve_arp_all()
+
+    def _set_mock_route_state(self, route):
+        '''Record the routes that are currently withdrawn from emulation.'''
+        routes = self._withdrawn
+        operation = routes.add if route.state == RouteState.WITHDRAW else \
+            routes.discard
+        for name in route.names:
+            operation(name)
+
+    def _apply_port_state(self, port):
+        '''Apply a link or capture state operation to the selected ports.'''
+        if getattr(port, 'choice', None) == PortControlState.CAPTURE:
+            self._set_capturing_ports(port.capture)
+            return
+        link = getattr(port, 'link', None)
+        if link:
+            for port_name in link.port_names:
+                self.set_port_link(port_name, link.state)
+
+    def _set_capturing_ports(self, capture):
+        '''Record which ports are capturing.
+
+        The simulator does not record packets, so a capture it is asked for
+        comes back empty. Tracking the state is still worth it: a test can
+        assert the lifecycle its script drove.
+        '''
+        port_names = capture.port_names or list(self._ports)
+        for port_name in port_names:
+            if capture.state == PortCapture.STOP:
+                self._capturing.discard(port_name)
+            else:
+                self._capturing.add(port_name)
 
     def _apply_traffic_state(self, traffic):
         if getattr(traffic, 'choice', None) != TrafficControlState.FLOW_TRANSMIT:
@@ -993,6 +1346,21 @@ class MockOtgEngine:
         if port_name not in self._ports:
             return 'down'
         return self._ports[port_name].get('link', 'up')
+
+    def capturing_ports(self):
+        '''The ports whose capture is currently started.'''
+        return set(self._capturing)
+
+    def get_capture(self, port_name):
+        '''The capture of a port, as the bytes of a pcap file.
+
+        No packets are simulated, so this is a pcap file with nothing in it:
+        a header a reader accepts, and no packets to mislead anyone.
+        '''
+        if port_name not in self._ports:
+            raise GenieTgnError(
+                "No such OTG port '{}' to capture".format(port_name))
+        return PCAP_FILE_HEADER
 
     def warnings(self):
         return list(self._warnings)
@@ -1214,6 +1582,12 @@ class MockOtgApi:
     def metrics_request(self):
         return MetricsRequest()
 
+    def capture_request(self):
+        return CaptureRequest()
+
+    def config_update(self):
+        return ConfigUpdate()
+
     # -- operations -----------------------------------------------------------
 
     def set_config(self, config):
@@ -1234,6 +1608,13 @@ class MockOtgApi:
             return config
         return self._engine.get_config()
 
+    def update_flows(self, flows_update):
+        if self._is_remote():
+            return self._request(
+                'POST', '/config/flows',
+                json.dumps(flows_update.to_dict()).encode('utf-8'))
+        return self._engine.update_flows(flows_update)
+
     def set_control_state(self, control_state):
         if self._is_remote():
             return self._request(
@@ -1252,6 +1633,14 @@ class MockOtgApi:
                               for m in response.get('port_metrics', [])])
         return self._engine.get_metrics(request)
 
+    def get_capture(self, request):
+        if self._is_remote():
+            return self._request(
+                'POST', '/results/capture',
+                json.dumps(request.to_dict()).encode('utf-8'),
+                binary=True)
+        return self._engine.get_capture(request.port_name)
+
     def warnings(self):
         return list(self._warnings)
 
@@ -1261,17 +1650,20 @@ class MockOtgApi:
         return bool(self.transport in ('http', 'https') and self.location and
                     str(self.location).startswith(('http://', 'https://')))
 
-    def _request(self, method, path, data=None, raw=False):
+    def _request(self, method, path, data=None, raw=False, binary=False):
         request = urllib.request.Request(
             '{}{}'.format(self.location, path), data=data, method=method,
             headers={'Content-Type': 'application/json'} if data else {})
         try:
             with urllib.request.urlopen(request, timeout=self.timeout) as response:
-                body = response.read().decode('utf-8')
+                body = response.read()
         except (urllib.error.URLError, OSError) as err:
             raise GenieTgnError(
                 "Request to OTG controller '{loc}{path}' failed: {err}".format(
                     loc=self.location, path=path, err=err)) from err
+        if binary:
+            return body
+        body = body.decode('utf-8')
         if raw:
             return body
         return json.loads(body) if body else {'status': 'success'}

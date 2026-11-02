@@ -101,7 +101,11 @@ setup(
     # any additional groups of dependencies.
     # install using: $ pip install -e .[dev]
     extras_require={
-        'otg': ['snappi'],
+        # Retain the historical extra name; OTG dependencies are now core.
+        'otg': [],
+        # snappi_ixnetwork pins its own dependencies tightly, so it is only
+        # installed for the testbeds that drive IxNetwork through 'ext'.
+        'ixnetwork': ['snappi[ixnetwork]>=1.61.0,<2'],
         'dev': ['coverage',
                 'restview',
                 'Sphinx==7.4.7',

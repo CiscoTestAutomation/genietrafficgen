@@ -30,6 +30,10 @@ from genie.utils.summary import Summary
 from genie.harness.utils import get_url
 from genie.trafficgen.trafficgen import TrafficGen
 from genie.harness.exceptions import GenieTgnError
+from genie.trafficgen.ixnetwork import (
+    apply_ixnetwork_license_settings,
+    normalize_ixia_license_servers,
+)
 
 # IxNetwork Native
 try:
@@ -186,29 +190,8 @@ class IxiaNative(TrafficGen):
         list/tuple of values. Empty values are removed and duplicates keep
         their first occurrence.
         '''
-        raw_servers = getattr(self, 'ixia_license_server_ip', None)
-        if not raw_servers:
-            return []
-
-        if isinstance(raw_servers, str):
-            candidates = re.split(r'[;,]', raw_servers)
-        elif isinstance(raw_servers, (list, tuple)):
-            candidates = []
-            for item in raw_servers:
-                if isinstance(item, str):
-                    candidates.extend(re.split(r'[;,]', item))
-                elif item is not None:
-                    candidates.append(item)
-        else:
-            candidates = [raw_servers]
-
-        servers = []
-        for server in candidates:
-            server = str(server).strip()
-            if server and server not in servers:
-                servers.append(server)
-
-        return servers
+        return normalize_ixia_license_servers(
+            getattr(self, 'ixia_license_server_ip', None))
 
 
     @BaseConnection.locked
@@ -289,77 +272,12 @@ class IxiaNative(TrafficGen):
             log.info("Connected to IxNetwork API server on TCL port '{p}'".
                      format(d=self.device.name, p=self.ixnetwork_tcl_port))
             
-            # Configure license mode and tier using licensing object after connection
-            try:
-                # Get the licensing object
-                root = self.ixNet.getRoot()
-                globals_obj = self.ixNet.getList(root, 'globals')[0]
-                licensing_obj = self.ixNet.getList(globals_obj, 'licensing')[0]
-
-                license_servers = self._normalize_ixia_license_servers()
-                if license_servers:
-                    log.info(f"Configuring IxNetwork license servers: {license_servers}")
-                    try:
-                        self.ixNet.setAttribute(
-                            licensing_obj,
-                            '-licensingServers',
-                            license_servers,
-                        )
-                        self.ixNet.commit()
-                    except Exception as e:
-                        log.warning(f"Failed to configure IxNetwork license servers: {e}")
-                        log.warning("License servers may need to be configured on the IxNetwork API server")
-
-                # Log available attributes for debugging
-                attrs = self.ixNet.help(licensing_obj)
-                log.debug(f"Available licensing attributes: {attrs}")
-                
-                # Set license mode if provided and different from current value
-                if hasattr(self, 'ixnetwork_license_mode'):
-                    # Check current license mode
-                    current_mode = self.ixNet.getAttribute(licensing_obj, '-mode')
-                    if current_mode == self.ixnetwork_license_mode:
-                        log.info(f"License mode already set to '{current_mode}', no change needed")
-                    else:
-                        log.info(f"Changing license mode from '{current_mode}' to '{self.ixnetwork_license_mode}'")
-                        try:
-                            self.ixNet.setAttribute(licensing_obj, '-mode', self.ixnetwork_license_mode)
-                            self.ixNet.commit()
-                        except Exception as e:
-                            log.warning(f"Failed to change license mode: {e}")
-                            log.warning("License mode may need to be set before connecting ports")
-                
-                # Set license tier if provided and different from current value
-                if hasattr(self, 'ixnetwork_license_tier'):
-                    # Check current license tier
-                    current_tier = self.ixNet.getAttribute(licensing_obj, '-tier')
-                    if current_tier == self.ixnetwork_license_tier:
-                        log.info(f"License tier already set to '{current_tier}', no change needed")
-                    else:
-                        log.info(f"Changing license tier from '{current_tier}' to '{self.ixnetwork_license_tier}'")
-                        try:
-                            self.ixNet.setAttribute(licensing_obj, '-tier', self.ixnetwork_license_tier)
-                            self.ixNet.commit()
-                        except Exception as e:
-                            log.warning(f"Failed to change license tier: {e}")
-                            log.warning("License tier may need to be set before connecting ports")
-                    
-                # Verify settings were applied
-                if hasattr(self, 'ixnetwork_license_mode'):
-                    read_mode = self.ixNet.getAttribute(licensing_obj, '-mode')
-                    log.info(f"Verified license mode: {read_mode}")
-                    
-                if hasattr(self, 'ixnetwork_license_tier'):
-                    read_tier = self.ixNet.getAttribute(licensing_obj, '-tier')
-                    log.info(f"Verified license tier: {read_tier}")
-
-                if license_servers:
-                    read_servers = self.ixNet.getAttribute(licensing_obj, '-licensingServers')
-                    log.info(f"Verified license servers: {read_servers}")
-
-            except Exception as e:
-                log.warning(f"Failed to configure license settings via licensing object: {e}")
-                log.warning("License settings may not be properly configured")
+            apply_ixnetwork_license_settings(
+                self.ixNet,
+                license_servers=self._normalize_ixia_license_servers(),
+                license_mode=getattr(self, 'ixnetwork_license_mode', None),
+                license_tier=getattr(self, 'ixnetwork_license_tier', None),
+                strict=False)
 
 
     @BaseConnection.locked

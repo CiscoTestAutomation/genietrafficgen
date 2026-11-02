@@ -6,3 +6,4 @@ ixnetwork_restpy
 setuptools
 wheel
 stcrestclient
+snappi>=1.61.0,<2
