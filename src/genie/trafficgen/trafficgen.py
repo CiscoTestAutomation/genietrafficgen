@@ -2,11 +2,70 @@
 Connection Implementation class for traffic generator device
 '''
 
+import logging
+from functools import lru_cache
+
 # pyATS
 from pyats.connections import BaseConnection
+from pyats.utils.import_utils import get_entry_points
 
 from genie import trafficgen
 from genie.abstract import Lookup
+
+log = logging.getLogger(__name__)
+
+# A package registered here joins the traffic generator lookup with its own
+# abstraction tokens, so a testbed can select an implementation this package
+# does not ship.
+TRAFFICGEN_ENTRYPOINT = 'genie.trafficgen'
+
+
+@lru_cache(maxsize=1)
+def get_trafficgen_packages():
+    '''Discovers the traffic generator packages to look up, in merge order.
+
+    The packages are merged into a single abstraction tree in which a later
+    package supersedes the nodes it shares with an earlier one. This package
+    comes first, so an extension supersedes only the tokens it declares.
+
+    A package that cannot be imported, learnt or merged is skipped with a
+    warning. One broken extension must not take down every traffic generator
+    connection in the run.
+    '''
+    primary = getattr(trafficgen, '__abstract_pkg')
+    packages = [trafficgen]
+
+    for entry in get_entry_points(TRAFFICGEN_ENTRYPOINT):
+        try:
+            package = entry.load()
+            extension = getattr(package, '__abstract_pkg')
+
+            if list(extension.order) != list(primary.order):
+                raise TypeError(
+                    'declares the abstraction order {o}, but {p} uses '
+                    '{e}'.format(o=list(extension.order), p=primary.name,
+                                 e=list(primary.order)))
+            if extension.feature != primary.feature:
+                raise TypeError(
+                    'declares the abstraction feature {f!r}, but {p} uses '
+                    '{e!r}'.format(f=extension.feature, p=primary.name,
+                                   e=primary.feature))
+
+            # Learn here rather than leaving it to the lookup: learning raises
+            # whatever the extension's own imports raise, and the lookup that
+            # a testcase is waiting on has no way to recover from it.
+            extension.learn()
+        except Exception as err:
+            log.warning(
+                "Ignoring the traffic generator package '%s' (%s): %s",
+                entry.name, entry.value, err)
+            continue
+
+        log.debug("Discovered the traffic generator package '%s' (%s)",
+                  entry.name, extension.name)
+        packages.append(package)
+
+    return tuple(packages)
 
 
 class TrafficGen(BaseConnection):
@@ -14,7 +73,11 @@ class TrafficGen(BaseConnection):
     def __new__(cls, device, *args, **kwargs):
         if '.'.join([cls.__module__, cls.__name__]) == \
                 'genie.trafficgen.trafficgen.TrafficGen':
-            tgen_abstract = Lookup.from_device(device, package=trafficgen)
+            packages = get_trafficgen_packages()
+            if len(packages) > 1:
+                tgen_abstract = Lookup.from_device(device, packages=packages)
+            else:
+                tgen_abstract = Lookup.from_device(device, package=trafficgen)
             new_cls = tgen_abstract.TrafficGen
             return super().__new__(new_cls)
         else:

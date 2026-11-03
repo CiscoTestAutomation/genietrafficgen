@@ -360,7 +360,13 @@ class OtgTranslationEngine:
         for flow in (self._config.flows if self._config else []):
             if flow.name != flow_name:
                 continue
-            pps = getattr(getattr(flow, 'rate', None), 'pps', None)
+            rate = getattr(flow, 'rate', None)
+            # Reading an inactive Snappi choice can select it. A bit/line
+            # rate is not a configured PPS reference; use measured Tx in
+            # the traffic check rather than an inactive default PPS value.
+            if getattr(rate, 'choice', 'pps') != 'pps':
+                return 0.0
+            pps = getattr(rate, 'pps', None)
             if pps is not None and float(pps) > 0:
                 return float(pps)
         return 0.0
@@ -610,10 +616,10 @@ class OtgTranslationEngine:
         arp.hardware_length.value = 6
         arp.protocol_length.value = 4
         arp.operation.value = 1
-        arp.src_hardware_addr.value = mac_src
-        arp.src_protocol_addr.value = ip_src
-        arp.dst_hardware_addr.value = '00:00:00:00:00:00'
-        arp.dst_protocol_addr.value = ip_target
+        arp.sender_hardware_addr.value = mac_src
+        arp.sender_protocol_addr.value = ip_src
+        arp.target_hardware_addr.value = '00:00:00:00:00:00'
+        arp.target_protocol_addr.value = ip_target
 
         flow.rate.pps = int(pps)
         flow.duration.fixed_packets.packets = int(count)

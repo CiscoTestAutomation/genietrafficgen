@@ -39,6 +39,31 @@ devices:
                 transport: grpc
                 location: 192.0.0.10:40051
 
+    # The migration target of an os: ixianative device. The mock transport
+    # keeps it testable without a chassis; a real one is reached over http.
+    ixia1:
+        type: tgn
+        os: otg
+        platform: ixia
+        connections:
+            tgn:
+                class: genie.trafficgen.TrafficGen
+                transport: mock
+                location: mock
+
+    # The same, naming the snappi extension a migrated IxNetwork testbed
+    # needs. It is only instantiated, never connected.
+    ixia2:
+        type: tgn
+        os: otg
+        platform: ixia
+        connections:
+            tgn:
+                class: genie.trafficgen.TrafficGen
+                transport: mock
+                location: mock
+                ext: ixnetwork
+
     # Router between the two otg2 ports, so the emulated devices have a real
     # next hop to resolve, as in a routed traffic generator topology.
     uut:
